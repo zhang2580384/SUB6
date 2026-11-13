@@ -1,0 +1,66 @@
+name: SUB6 validation
+on:
+  push:
+    branches: [main, 'codex/**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sub6-validation-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  source:
+    env:
+      GOMEMLIMIT: 2GiB
+      GOGC: "50"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: npm install --global --ignore-scripts pnpm@9.15.9
+      - run: pnpm --dir frontend install --frozen-lockfile --ignore-scripts
+      - run: pnpm --dir frontend run lint:check
+      - run: pnpm --dir frontend run build
+      - run: pnpm --dir frontend exec vitest run --maxWorkers=2 --minWorkers=1
+      - working-directory: backend
+        run: |
+          go mod verify
+          go test -p 2 -tags unit ./... -count=1 -timeout=20m
+          go test github.com/v03413/bepusdt/app/conf github.com/v03413/bepusdt/app/task github.com/v03413/bepusdt/app/task/notify -count=1 -timeout=5m
+          CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.0 -X main.BuildType=source' -o "$RUNNER_TEMP/sub6" ./cmd/server
+  sidecar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: sub6_review
+          POSTGRES_DB: sub6_review
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U sub6_review -d sub6_review'
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python3 -m venv /tmp/sub6-review
+      - run: /tmp/sub6-review/bin/pip install --only-binary=:all: -r deploy/direct-access/requirements.lock
+      - working-directory: deploy/direct-access
+        env:
+          SUB6_REVIEW_DATABASE_URL: postgresql://sub6_review@127.0.0.1:5432/sub6_review
+        run: /tmp/sub6-review/bin/python -m unittest test_policy test_access -v

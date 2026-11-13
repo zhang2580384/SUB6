@@ -1,0 +1,7 @@
+interface:
+  display_name: "SUB6 Admin"
+  short_description: "Manage SUB6 admin accounts and settings"
+  default_prompt: "Use $sub2api-admin to inspect and manage SUB6 backend accounts safely."
+
+policy:
+  allow_implicit_invocation: true

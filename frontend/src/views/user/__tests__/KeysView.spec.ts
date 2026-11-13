@@ -1,0 +1,1446 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { nextTick, ref } from 'vue'
+import { createPinia } from 'pinia'
+
+import type { ApiKey, ApiKeyConcurrencySnapshot, Group } from '@/types'
+import { keysAPI } from '@/api'
+import KeysView from '../KeysView.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
+import { formatDateLocalInput, getBrowserTimeZone } from '@/utils/format'
+
+enableAutoUnmount(afterEach)
+
+const {
+  listKeys,
+  createKey,
+  updateKey,
+  getConcurrency,
+  getPublicSettings,
+  getDashboardApiKeysUsage,
+  getAvailableGroups,
+  getUserGroupRates,
+  showError,
+  showSuccess,
+  copyToClipboard,
+  isCurrentStep,
+  nextStep,
+  auth,
+} = vi.hoisted(() => ({
+  listKeys: vi.fn(),
+  createKey: vi.fn(),
+  updateKey: vi.fn(),
+  getConcurrency: vi.fn(),
+  getPublicSettings: vi.fn(),
+  getDashboardApiKeysUsage: vi.fn(),
+  getAvailableGroups: vi.fn(),
+  getUserGroupRates: vi.fn(),
+  showError: vi.fn(),
+  showSuccess: vi.fn(),
+  copyToClipboard: vi.fn(),
+  isCurrentStep: vi.fn(),
+  nextStep: vi.fn(),
+  auth: { isAdmin: false, user: { id: 41 } },
+}))
+
+const messages: Record<string, string> = {
+  'common.actions': 'Actions',
+  'common.name': 'Name',
+  'common.refresh': 'Refresh',
+  'common.status': 'Status',
+  'keys.apiKey': 'API Key',
+  'keys.allGroups': 'All Groups',
+  'keys.allStatus': 'All Status',
+  'keys.columnSettings': 'Column Settings',
+  'keys.clickToChangeGroup': 'Change group',
+  'keys.createKey': 'Create API Key',
+  'keys.created': 'Created',
+  'keys.expiresAt': 'Expires',
+  'keys.group': 'Group',
+  'keys.selectGroup': 'Select group',
+  'keys.multiGroupCount': '{count} groups',
+  'keys.id': 'ID',
+  'keys.currentConcurrency': 'Current Concurrency',
+  'keys.concurrencyAndWaiting': 'Concurrency / Waiting',
+  'keys.concurrencyCount': 'Concurrency',
+  'keys.waitingCount': 'Waiting',
+  'keys.queueFull': 'Full',
+  'keys.queueOff': 'Queuing globally disabled',
+  'keys.queuePolicy': 'This key allows {max} waiting requests for up to {seconds} seconds.',
+  'keys.queuePolicyOff': 'Queuing globally disabled; new requests are rejected at the key limit.',
+  'keys.queueNotApplicable': 'No key-level queue.',
+  'keys.queuePolicyLoading': 'Loading shared queue settings…',
+  'keys.queuePolicyUnavailable': 'Shared queue settings unavailable.',
+  'keys.concurrencyLoading': 'Loading',
+  'keys.concurrencyUnavailable': 'Statistics unavailable',
+  'keys.concurrencyStale': 'Not updated',
+  'keys.noAdditionalConcurrencyLimit': 'No additional limit',
+  'keys.concurrencyLimitInvalid': 'Enter a nonnegative whole number for the concurrency limit.',
+  'keys.lastUsedAt': 'Last Used',
+  'keys.lastUsedIP': 'Last Used IP',
+  'keys.rateLimitColumn': 'Rate Limit',
+  'keys.searchPlaceholder': 'Search name or key...',
+  'keys.status.active': 'Active',
+  'keys.status.expired': 'Expired',
+  'keys.status.inactive': 'Inactive',
+  'keys.status.quota_exhausted': 'Quota exhausted',
+  'keys.usage': 'Usage',
+  'keys.today': 'Today',
+  'keys.total': 'Last 30 days',
+  'keys.selectedPeriod': 'Selected period',
+  'keys.quota': 'Quota',
+}
+
+vi.mock('@/api', () => ({
+  keysAPI: {
+    list: listKeys,
+    create: createKey,
+    update: updateKey,
+    getConcurrency,
+    delete: vi.fn(),
+    toggleStatus: vi.fn(),
+  },
+  authAPI: {
+    getPublicSettings,
+  },
+  usageAPI: {
+    getDashboardApiKeysUsage,
+  },
+  userGroupsAPI: {
+    getAvailable: getAvailableGroups,
+    getUserGroupRates,
+  },
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({
+    showError,
+    showSuccess,
+  }),
+}))
+
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => auth }))
+
+vi.mock('@/stores/onboarding', () => ({
+  useOnboardingStore: () => ({
+    isCurrentStep,
+    nextStep,
+  }),
+}))
+
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({
+    copyToClipboard,
+  }),
+}))
+
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
+  return {
+    ...actual,
+    useI18n: () => ({
+      locale: ref('en'),
+      t: (key: string, params: Record<string, unknown> = {}) =>
+        (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? name)),
+    }),
+  }
+})
+
+const createApiKey = (): ApiKey => ({
+  id: 1,
+  user_id: 1,
+  key: 'sk-test-key',
+  name: 'test-key',
+  group_id: null,
+  status: 'active',
+  ip_whitelist: [],
+  ip_blacklist: [],
+  last_used_at: null,
+  last_used_ip: null,
+  quota: 0,
+  quota_used: 0,
+  expires_at: null,
+  created_at: '2026-06-27T00:00:00Z',
+  updated_at: '2026-06-27T00:00:00Z',
+  current_concurrency: 3,
+  concurrency_limit: 0,
+  rate_limit_5h: 0,
+  rate_limit_1d: 0,
+  rate_limit_7d: 0,
+  usage_5h: 0,
+  usage_1d: 0,
+  usage_7d: 0,
+  window_5h_start: null,
+  window_1d_start: null,
+  window_7d_start: null,
+  reset_5h_at: null,
+  reset_1d_at: null,
+  reset_7d_at: null,
+})
+
+const AppLayoutStub = {
+  template: '<div><slot /></div>',
+}
+
+const TablePageLayoutStub = {
+  template: `
+    <div>
+      <slot name="filters" />
+      <slot name="actions" />
+      <slot name="table" />
+      <slot name="pagination" />
+    </div>
+  `,
+}
+
+const DataTableStub = {
+  name: 'DataTable',
+  props: { columns: Array, data: Array, selectedKeys: Array, selectable: Boolean, loading: Boolean },
+  emits: ['sort', 'update:selectedKeys'],
+  template: `
+    <div>
+      <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
+      <div data-test="columns-meta">{{ JSON.stringify(columns.map((col) => ({ key: col.key, sortable: !!col.sortable }))) }}</div>
+      <button data-test="sort-current-concurrency" @click="$emit('sort', 'current_concurrency', 'asc')">
+        Sort Current Concurrency
+      </button>
+      <div v-for="row in data" :key="row.id">
+        <div
+          v-if="columns.some((col) => col.key === 'id')"
+          data-test="key-id"
+        >
+          <slot name="cell-id" :value="row.id" :row="row" />
+        </div>
+        <slot name="cell-name" :value="row.name" :row="row" />
+        <div data-test="key-group"><slot name="cell-group" :row="row" /></div>
+        <slot name="cell-actions" :row="row" />
+        <div data-test="current-concurrency">
+          <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+        </div>
+        <div data-test="usage">
+          <slot name="cell-usage" :row="row" />
+        </div>
+        <div
+          v-if="columns.some((col) => col.key === 'last_used_ip')"
+          data-test="last-used-ip"
+        >
+          <slot name="cell-last_used_ip" :value="row.last_used_ip" :row="row" />
+        </div>
+      </div>
+      <slot name="empty" />
+    </div>
+  `,
+}
+
+const SelectStub = {
+  name: 'Select',
+  props: ['modelValue', 'options'],
+  emits: ['update:modelValue'],
+  template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"></select>',
+}
+
+const SearchInputStub = {
+  name: 'SearchInput',
+  props: ['modelValue'],
+  emits: ['update:modelValue', 'search'],
+  template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+}
+
+const PaginationStub = {
+  name: 'Pagination',
+  props: ['page', 'total', 'pageSize'],
+  emits: ['update:page', 'update:pageSize'],
+  template: `
+    <div>
+      <button data-test="page-size-50" @click="$emit('update:pageSize', 50)">50</button>
+      <button data-test="page-2" @click="$emit('update:page', 2)">2</button>
+    </div>
+  `,
+}
+
+const IconStub = {
+  props: ['name'],
+  template: '<span data-test="icon">{{ name }}</span>',
+}
+
+const mountView = async (realTable = false, realDatePicker = false) => {
+  const wrapper = mount(KeysView, {
+    global: {
+      plugins: [createPinia()],
+      stubs: {
+        UserKeyRiskNotices: true,
+        AppLayout: AppLayoutStub,
+        TablePageLayout: TablePageLayoutStub,
+        DataTable: realTable ? false : DataTableStub,
+        Pagination: PaginationStub,
+        BaseDialog: {
+          props: ['show', 'title'],
+          emits: ['close'],
+          template: '<div v-if="show" role="dialog"><button data-test="close-dialog" @click="$emit(\'close\')">Close</button><slot /><slot name="footer" /></div>',
+        },
+        ConfirmDialog: true,
+        EmptyState: true,
+        Select: SelectStub,
+        SearchInput: SearchInputStub,
+        DateRangePicker: !realDatePicker,
+        Icon: IconStub,
+        UseKeyModal: true,
+        BulkEditKeysModal: true,
+        ApiKeyModelPolicyDialog: true,
+        EndpointPopover: true,
+        GroupBadge: realTable ? false : {
+          name: 'GroupBadge',
+          props: ['name', 'rateMultiplier', 'userRateMultiplier'],
+          template: '<span>{{ name }} {{ userRateMultiplier ?? rateMultiplier }}x</span>',
+        },
+        GroupOptionItem: true,
+        Teleport: true,
+      },
+    },
+  })
+  await flushPromises()
+  await nextTick()
+  return wrapper
+}
+
+const visibleColumnKeys = (wrapper: VueWrapper) =>
+  wrapper.get('[data-test="columns"]').text().split(',').filter(Boolean)
+
+const visibleColumnMeta = (wrapper: VueWrapper): Array<{ key: string; sortable: boolean }> =>
+  JSON.parse(wrapper.get('[data-test="columns-meta"]').text())
+
+const getButtonByText = (wrapper: VueWrapper, text: string) => {
+  const button = wrapper.findAll('button').find((item) => item.text().includes(text))
+  if (!button) {
+    throw new Error(`Button not found: ${text}`)
+  }
+  return button
+}
+
+const snapshot = (max = 7, waiting = 2): ApiKeyConcurrencySnapshot => ({
+  queue_policy: { max_waiting: max, timeout_seconds: 12 },
+  items: [{ id: 1, current_concurrency: 3, current_waiting: waiting }],
+})
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
+const setKeys = (...keys: ApiKey[]) => listKeys.mockResolvedValue({
+  items: keys, total: keys.length, page: 1, page_size: 20, pages: 2,
+})
+
+describe('user KeysView column settings', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  beforeEach(() => {
+    auth.isAdmin = false
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    localStorage.clear()
+
+    listKeys.mockReset()
+    createKey.mockReset().mockResolvedValue(createApiKey())
+    updateKey.mockReset().mockResolvedValue(createApiKey())
+    getConcurrency.mockReset().mockResolvedValue({
+      queue_policy: { max_waiting: 7, timeout_seconds: 12 },
+      items: [{ id: 1, current_concurrency: 3, current_waiting: 2 }],
+    })
+    getPublicSettings.mockReset()
+    getDashboardApiKeysUsage.mockReset()
+    getAvailableGroups.mockReset()
+    getUserGroupRates.mockReset()
+    showError.mockReset()
+    showSuccess.mockReset()
+    copyToClipboard.mockReset()
+    isCurrentStep.mockReset()
+    nextStep.mockReset()
+
+    listKeys.mockResolvedValue({
+      items: [createApiKey()],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    getPublicSettings.mockResolvedValue({})
+    getDashboardApiKeysUsage.mockResolvedValue({ stats: {} })
+    getAvailableGroups.mockResolvedValue([])
+    getUserGroupRates.mockResolvedValue({})
+    isCurrentStep.mockReturnValue(false)
+  })
+
+  it('keeps usage available alongside risk notices', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('user-key-risk-notices-stub').exists()).toBe(true)
+    expect(wrapper.get('[data-test="columns"]').text()).toContain('usage')
+  })
+
+  it.each([false, true])('keeps long group names, usage and group editing available in mobile cards (multiple groups: %s)', async (multiple) => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })))
+    const group = {
+      id: 42,
+      name: '【演示分组】团队统一接口-多语言超长分组名称-Mobile-Preview-Alpha',
+      platform: 'openai',
+      subscription_type: 'standard',
+      rate_multiplier: 0.7,
+    } as Group
+    const additionalGroup = { ...group, id: 43, name: 'Additional group' }
+    const key = {
+      ...createApiKey(),
+      group_id: group.id,
+      group_ids: multiple ? [group.id, additionalGroup.id] : [group.id],
+      group,
+      quota: 100,
+      quota_used: 42,
+    }
+    setKeys(key)
+    getAvailableGroups.mockResolvedValue([group, additionalGroup])
+    getDashboardApiKeysUsage.mockResolvedValue({
+      stats: { 1: { api_key_id: 1, today_actual_cost: 1.2345, total_actual_cost: 31.5678 } },
+    })
+
+    const wrapper = await mountView(true)
+    const groupField = wrapper.get('[data-field="group"]')
+    expect(groupField.text()).toContain(group.name)
+    expect(groupField.get('.key-group-hint').text()).toBe(multiple ? '2 groups' : 'Select group')
+    const usage = wrapper.get('[data-field="usage"]').text().replace(/\s+/g, '')
+    expect(usage).toContain('Today:$1.2345')
+    expect(usage).toContain('Last30days:$31.5678')
+    expect(usage).toContain('Quota:$42.00/$100.00')
+    expect(wrapper.get('.key-quota-values').findAll('.key-usage-amount').map(amount => amount.text())).toEqual(['$42.00', '$100.00'])
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledWith([key.id], expect.objectContaining({ signal: expect.any(AbortSignal) }))
+
+    await groupField.get('.key-group-control').trigger('click')
+    await flushPromises()
+    if (multiple) {
+      expect(wrapper.get('[role="dialog"]').exists()).toBe(true)
+      expect(wrapper.getComponent('[data-tour="key-form-group"]').props('modelValue')).toBe(group.id)
+      expect(wrapper.get<HTMLInputElement>(`[data-testid="key-additional-groups"] input[value="${additionalGroup.id}"]`).element.checked).toBe(true)
+    } else {
+      expect(wrapper.get('input[placeholder="keys.searchGroup"]').exists()).toBe(true)
+    }
+  })
+
+  it('preserves large quota values in independently wrapping amount units', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })))
+    setKeys({ ...createApiKey(), quota: 999999999999.99, quota_used: 888888888888.88 })
+    const wrapper = await mountView(true)
+    const quota = wrapper.get('[data-field="usage"] .key-quota-values')
+    expect(quota.findAll('.key-usage-amount').map(amount => amount.text())).toEqual(['$888888888888.88', '$999999999999.99'])
+    expect(quota.text().replace(/\s+/g, '')).toBe('$888888888888.88/$999999999999.99')
+    expect(quota.classes()).toContain('text-yellow-500')
+  })
+
+  it('shows model policy editing only to administrators', async () => {
+    const ordinaryView = await mountView()
+    await getButtonByText(ordinaryView, 'common.edit').trigger('click')
+    expect(ordinaryView.find('[data-test="edit-key-model-policy"]').exists()).toBe(false)
+    ordinaryView.unmount()
+
+    auth.isAdmin = true
+    const adminView = await mountView()
+    await getButtonByText(adminView, 'common.edit').trigger('click')
+    await adminView.get('[data-test="edit-key-model-policy"]').trigger('click')
+    expect(adminView.getComponent({ name: 'ApiKeyModelPolicyDialog' }).props('show')).toBe(true)
+    expect(adminView.getComponent({ name: 'ApiKeyModelPolicyDialog' }).props('apiKey').id).toBe(1)
+  })
+
+  it('preserves unsaved key details when administrator model settings are saved', async () => {
+    auth.isAdmin = true
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), group_id: 42 }], total: 1 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('Unsaved name')
+    wrapper.getComponent({ name: 'ApiKeyModelPolicyDialog' }).vm.$emit('updated', {
+      ...createApiKey(), group_id: 42, model_mapping: { 'gpt-6.1-sol': 'gpt-5.6-sol' }, reasoning_effort: 'high', allow_long_context: false
+    })
+    await nextTick()
+    expect((wrapper.get('[data-tour="key-form-name"]').element as HTMLInputElement).value).toBe('Unsaved name')
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ name: 'Unsaved name' }))
+    expect(updateKey.mock.calls[0][1]).not.toHaveProperty('model_mapping')
+    expect(updateKey.mock.calls[0][1]).not.toHaveProperty('reasoning_effort')
+    expect(updateKey.mock.calls[0][1]).not.toHaveProperty('allow_long_context')
+  })
+
+  it.each([
+    { initialStatus: 'quota_exhausted', status: 'active', formStatus: 'active' },
+    { initialStatus: 'inactive', status: 'inactive', formStatus: 'inactive' },
+    { initialStatus: 'active', status: 'active', formStatus: 'inactive' },
+  ] as const)('syncs quota reset from $initialStatus to $status with form status $formStatus', async ({ initialStatus, status, formStatus }) => {
+    const key: ApiKey = {
+      ...createApiKey(), group_id: 1, quota: 10, quota_used: 10,
+      status: initialStatus,
+    }
+    listKeys.mockResolvedValueOnce({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateKey.mockResolvedValue({ ...key, status, quota_used: 0 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('Unsaved name')
+    const statusSelect = wrapper.findAllComponents({ name: 'Select' })
+      .find((select) => select.props('options').length === 2 &&
+        select.props('options')[0].value === 'active')!
+    statusSelect.vm.$emit('update:modelValue', 'inactive')
+    await wrapper.get('button[title="keys.resetQuotaUsed"]').trigger('click')
+    const confirmation = wrapper.findAllComponents({ name: 'ConfirmDialog' })
+      .find((dialog) => dialog.props('title') === 'keys.resetQuotaTitle')!
+    confirmation.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(updateKey).toHaveBeenNthCalledWith(1, key.id, { reset_quota: true })
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('data')[0])
+      .toMatchObject({ status, quota_used: 0 })
+    expect(statusSelect.props('modelValue')).toBe(formStatus)
+    expect((wrapper.get('[data-tour="key-form-name"]').element as HTMLInputElement).value)
+      .toBe('Unsaved name')
+
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenNthCalledWith(2, key.id, expect.objectContaining({ name: 'Unsaved name', status: formStatus }))
+    wrapper.unmount()
+  })
+
+  it('uses the default API key columns with low-frequency columns hidden', async () => {
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).toEqual([
+      'name',
+      'key',
+      'group',
+      'current_concurrency',
+      'usage',
+      'expires_at',
+      'status',
+      'created_at',
+      'actions',
+    ])
+    expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
+    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
+    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
+    expect(visibleColumnKeys(wrapper)).not.toContain('id')
+  })
+
+  it('opens bulk editing with only selected visible keys', async () => {
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    expect(table.props('selectable')).toBe(true)
+    table.vm.$emit('update:selectedKeys', [1, 99])
+    await nextTick()
+    await wrapper.get('[data-test="bulk-edit-keys"]').trigger('click')
+    const modal = wrapper.findComponent({ name: 'BulkEditKeysModal' })
+    expect(modal.props('show')).toBe(true)
+    expect(modal.props('selectedKeys').map((key: ApiKey) => key.id)).toEqual([1])
+    wrapper.unmount()
+  })
+
+  it.each(['filter', 'page size', 'sort'])('clears selection on %s changes', async (change) => {
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    table.vm.$emit('update:selectedKeys', [1])
+    await nextTick()
+    if (change === 'filter') {
+      wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
+    } else if (change === 'page size') {
+      await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    } else {
+      table.vm.$emit('sort', 'created_at', 'asc')
+    }
+    await flushPromises()
+    expect(table.props('selectedKeys')).toEqual([])
+    expect(wrapper.find('[data-test="bulk-edit-keys"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('removes successful keys from the selection and refreshes the table', async () => {
+    listKeys.mockResolvedValue({
+      items: [createApiKey(), { ...createApiKey(), id: 2, name: 'Second' }],
+      total: 2, pages: 1
+    })
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    table.vm.$emit('update:selectedKeys', [1, 2])
+    await nextTick()
+    await wrapper.get('[data-test="bulk-edit-keys"]').trigger('click')
+    wrapper.findComponent({ name: 'BulkEditKeysModal' }).vm.$emit('updated', [1])
+    await flushPromises()
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(table.props('selectedKeys')).toEqual([2])
+    wrapper.unmount()
+  })
+
+  it('drops keys that are no longer visible after a refresh', async () => {
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    table.vm.$emit('update:selectedKeys', [1])
+    await nextTick()
+    listKeys.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    await wrapper.get('button[title="Refresh"]').trigger('click')
+    await flushPromises()
+    expect(table.props('selectedKeys')).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('shows a hidden column when toggled and persists the preference', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Rate Limit').trigger('click')
+    await nextTick()
+
+    expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
+    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
+      JSON.stringify(['id', 'last_used_at', 'last_used_ip'])
+    )
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
+  })
+
+  it('shows the API key ID column when toggled', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'ID').trigger('click')
+    await nextTick()
+
+    expect(visibleColumnKeys(wrapper)).toContain('id')
+    expect(wrapper.get('[data-test="key-id"]').text()).toBe('#1')
+    expect(visibleColumnMeta(wrapper).find((column) => column.key === 'id')?.sortable).toBe(true)
+  })
+
+  it('shows the last used IP column when toggled', async () => {
+    listKeys.mockResolvedValueOnce({
+      items: [{ ...createApiKey(), last_used_ip: '203.0.113.10' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Last Used IP').trigger('click')
+    await nextTick()
+
+    expect(visibleColumnKeys(wrapper)).toContain('last_used_ip')
+    expect(wrapper.get('[data-test="last-used-ip"]').text()).toBe('203.0.113.10')
+  })
+
+  it('restores column preferences from localStorage on mount', async () => {
+    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['group', 'created_at']))
+    localStorage.setItem('api-key-column-settings-version', '1')
+
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).toEqual([
+      'name',
+      'key',
+      'current_concurrency',
+      'usage',
+      'rate_limit',
+      'expires_at',
+      'status',
+      'last_used_at',
+      'actions',
+    ])
+    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
+      JSON.stringify(['group', 'created_at', 'last_used_ip', 'id'])
+    )
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
+  })
+
+  it('does not include always-visible columns in the toggleable menu', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await nextTick()
+
+    const columnMenuText = wrapper.text()
+    expect(columnMenuText).toContain('API Key')
+    expect(columnMenuText).toContain('ID')
+    expect(columnMenuText).toContain('Concurrency / Waiting')
+    expect(columnMenuText).toContain('Rate Limit')
+    expect(columnMenuText).toContain('Last Used IP')
+    expect(columnMenuText).not.toContain('Name')
+    expect(columnMenuText).not.toContain('Actions')
+  })
+
+  it.each([0, 3])('keeps the concurrency badge at %s for an unlimited key', async (current) => {
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [
+      { id: 1, current_concurrency: current, current_waiting: 0 },
+    ] })
+    const wrapper = await mountView()
+    const cell = wrapper.get('[data-test="current-concurrency"]')
+    const badge = cell.get('[title="Concurrency"]')
+    expect(badge.find('svg').exists()).toBe(true)
+    expect(badge.classes()).toContain(current === 0 ? 'bg-gray-100' : 'bg-emerald-50')
+    expect(cell.text()).toBe(`Concurrency ${current}`)
+    expect(cell.text()).not.toMatch(/\/|No additional limit|Waiting/)
+  })
+
+  it('shows current / max for a key with an additional concurrency limit', async () => {
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), concurrency_limit: 8 }], total: 1 })
+    const wrapper = await mountView()
+    const cell = wrapper.get('[data-test="current-concurrency"]')
+    expect(cell.text()).toContain('Concurrency 3 / 8')
+    expect(cell.text()).toContain('Waiting 2 / 7')
+  })
+
+  it.each([[0, 'gray'], [2, 'emerald'], [4, 'amber'], [5, 'amber']])(
+    'distinguishes concurrency %s against limit 4', async (current, color) => {
+      setKeys({ ...createApiKey(), concurrency_limit: 4 })
+      getConcurrency.mockResolvedValue({ ...snapshot(), items: [
+        { id: 1, current_concurrency: current as number, current_waiting: 0 },
+      ] })
+      const wrapper = await mountView()
+      const badge = wrapper.get('[data-test="current-concurrency"] [title="Concurrency"]')
+      expect(badge.text()).toContain(`Concurrency ${current} / 4`)
+      expect(badge.classes().join(' ')).toContain(`text-${color}-`)
+    }
+  )
+
+  it('keeps the badge and switches its denominator after saving a changed limit', async () => {
+    setKeys({ ...createApiKey(), group_id: 42, concurrency_limit: 0 })
+    const wrapper = await mountView()
+    for (const limit of [4, 0]) {
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      if (limit === 4) expect(wrapper.get('#key-queue-policy').text()).toBe('No key-level queue.')
+      await wrapper.get('#key-concurrency-limit').setValue(limit)
+      setKeys({ ...createApiKey(), group_id: 42, concurrency_limit: limit })
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      const cell = wrapper.get('[data-test="current-concurrency"]')
+      expect(cell.get('[title="Concurrency"]').find('svg').exists()).toBe(true)
+      const text = cell.text()
+      if (limit === 0) expect(text).toBe('Concurrency 3')
+      else expect(text).toContain('Concurrency 3 / 4')
+    }
+  })
+
+  it.each([8, 0, ''])('creates a key with concurrency input %s and resets the form', async (input) => {
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('0')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('new-key')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-concurrency-limit').setValue(input)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(createKey).toHaveBeenCalledWith('new-key', 42, undefined, [], [], 0, undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }, Number(input), [42])
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('0')
+  })
+
+  it.each([12, 0, ''])('loads the saved limit and updates concurrency input %s', async (input) => {
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), group_id: 42, concurrency_limit: 8 }], total: 1 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('8')
+    await wrapper.get('#key-concurrency-limit').setValue(input)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ concurrency_limit: Number(input) }))
+  })
+
+  it.each([
+    ['create', -1], ['create', 1.5], ['edit', -1], ['edit', 1.5],
+  ])('rejects invalid concurrency in %s mode: %s', async (mode, input) => {
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), group_id: 42 }], total: 1 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, mode === 'edit' ? 'common.edit' : 'Create API Key').trigger('click')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-concurrency-limit').setValue(input)
+    expect(wrapper.get('#key-concurrency-limit').attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('#key-concurrency-error').text()).toBe(messages['keys.concurrencyLimitInvalid'])
+    await wrapper.get('#key-form').trigger('submit')
+    expect(showError).toHaveBeenCalledWith(messages['keys.concurrencyLimitInvalid'])
+    expect(createKey).not.toHaveBeenCalled()
+    expect(updateKey).not.toHaveBeenCalled()
+  })
+
+  it('keeps the edit form and entered limit when the server rejects an update', async () => {
+    listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), group_id: 42, concurrency_limit: 8 }], total: 1 })
+    updateKey.mockRejectedValueOnce({ response: { data: { detail: 'Concurrency limit rejected' } } })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('#key-concurrency-limit').setValue(12)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(showError).toHaveBeenCalledWith('Concurrency limit rejected')
+    expect(showSuccess).not.toHaveBeenCalled()
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('12')
+  })
+
+  it('marks current concurrency as sortable', async () => {
+    const wrapper = await mountView()
+
+    const currentConcurrencyColumn = visibleColumnMeta(wrapper).find(
+      (column) => column.key === 'current_concurrency'
+    )
+    expect(currentConcurrencyColumn?.sortable).toBe(true)
+  })
+
+  it('shows actual shared policy as read-only metadata and never submits it', async () => {
+    setKeys({ ...createApiKey(), group_id: 42, concurrency_limit: 1 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    expect(wrapper.get('#key-queue-policy').text()).toBe('This key allows 7 waiting requests for up to 12 seconds.')
+    expect(wrapper.get('#key-concurrency-limit').attributes('aria-describedby')).toContain('key-queue-policy')
+    expect(wrapper.find('#key-queue-policy input').exists()).toBe(false)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    const payload = updateKey.mock.calls[0][1]
+    expect(payload).toHaveProperty('concurrency_limit', 1)
+    expect(Object.keys(payload).some(key => /queue|waiting|timeout/.test(key))).toBe(false)
+  })
+
+  it('loads policy without IDs on an empty page and keeps it out of the create payload', async () => {
+    setKeys()
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [] })
+    const wrapper = await mountView()
+    expect(getConcurrency).toHaveBeenCalledWith([], expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    expect(wrapper.get('#key-queue-policy').text()).toBe('No key-level queue.')
+    await wrapper.get('#key-concurrency-limit').setValue(2)
+    expect(wrapper.get('#key-queue-policy').text()).toContain('7 waiting requests')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('new-key')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(createKey).toHaveBeenCalledWith('new-key', 42, undefined, [], [], 0, undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }, 2, [42])
+  })
+
+  it('distinguishes unknown statistics and policy from zero and still permits saving', async () => {
+    setKeys({ ...createApiKey(), group_id: 42, concurrency_limit: 1 })
+    const request = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(request.promise)
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    expect(wrapper.get('#key-queue-policy').text()).toBe('Loading shared queue settings…')
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Concurrency — / 1')
+    request.reject({ response: { status: 503 } })
+    await flushPromises()
+    expect(wrapper.get('#key-queue-policy').text()).toBe('Shared queue settings unavailable.')
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).not.toContain('/ 20')
+    expect(showError).not.toHaveBeenCalled()
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalled()
+  })
+
+  it('uses one actual policy for independent counts, including over-capacity and unlimited keys', async () => {
+    setKeys(
+      { ...createApiKey(), concurrency_limit: 1 },
+      { ...createApiKey(), id: 2, concurrency_limit: 4 },
+      { ...createApiKey(), id: 3, concurrency_limit: 0 },
+    )
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [
+      { id: 1, current_concurrency: 1, current_waiting: 2 },
+      { id: 2, current_concurrency: 4, current_waiting: 9 },
+      { id: 3, current_concurrency: 2, current_waiting: 0 },
+    ] })
+    const wrapper = await mountView()
+    const rows = wrapper.findAll('[data-test="current-concurrency"]').map(row => row.text())
+    expect(rows[0]).toContain('Waiting 2 / 7')
+    expect(rows[0]).not.toContain('Full')
+    expect(rows[1]).toContain('Waiting 9 / 7 · Full')
+    expect(rows[2]).toBe('Concurrency 2')
+  })
+
+  it('shows global-off policy and actual residual waiting without a zero denominator', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    getConcurrency.mockResolvedValue(snapshot(0, 2))
+    const wrapper = await mountView()
+    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    expect(text).toContain('Queuing globally disabled')
+    expect(text).toContain('Waiting 2')
+    expect(text).not.toContain('/ 0')
+    expect(text).not.toContain('Full')
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    expect(wrapper.get('#key-queue-policy').text()).toBe(messages['keys.queuePolicyOff'])
+  })
+
+  it('does not treat a missing key limit or missing counts as an unlimited idle key', async () => {
+    const key = { ...createApiKey(), concurrency_limit: undefined } as unknown as ApiKey
+    setKeys(key)
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [] })
+    const wrapper = await mountView()
+    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    expect(text).toContain('Concurrency —')
+    expect(text).toContain('Statistics unavailable')
+    expect(text).not.toContain('No additional limit')
+  })
+
+  it('shows unknown waiting against the actual policy when a requested count is missing', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [] })
+    const wrapper = await mountView()
+    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    expect(text).toContain('Concurrency — / 1')
+    expect(text).toContain('Waiting — / 7')
+    expect(text).toContain('Statistics unavailable')
+    expect(text).not.toContain('Full')
+  })
+
+  it('polls after completion without reloading the list, usage, row order or modal input', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('#key-concurrency-limit').setValue(6)
+    const request = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(request.promise)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(getConcurrency).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(getConcurrency).toHaveBeenCalledTimes(2)
+    request.resolve(snapshot(4, 4))
+    await flushPromises()
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Waiting 4 / 4 · Full')
+    expect(wrapper.get('#key-queue-policy').text()).toContain('4 waiting requests')
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('6')
+    expect(listKeys).toHaveBeenCalledTimes(1)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(getConcurrency).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getConcurrency).toHaveBeenCalledTimes(3)
+  })
+
+  it('queries the default 30 calendar days and keeps the selected range through paging', async () => {
+    const wrapper = await mountView()
+    const end = new Date()
+    const start = new Date(end)
+    start.setDate(start.getDate() - 29)
+    expect(getDashboardApiKeysUsage).toHaveBeenLastCalledWith([1], expect.objectContaining({
+      start_date: formatDateLocalInput(start), end_date: formatDateLocalInput(end), timezone: getBrowserTimeZone(),
+    }))
+    wrapper.findComponent(DateRangePicker).vm.$emit('change', {
+      startDate: '2026-10-01', endDate: '2026-10-31', preset: null,
+    })
+    await flushPromises()
+    await wrapper.get('[data-test="page-2"]').trigger('click')
+    await flushPromises()
+    expect(getDashboardApiKeysUsage).toHaveBeenLastCalledWith([1], expect.objectContaining({
+      start_date: '2026-10-01', end_date: '2026-10-31', timezone: getBrowserTimeZone(),
+    }))
+  })
+
+  it('offers calendar ranges without a 24-hour shortcut in the actual usage picker', async () => {
+    vi.useRealTimers()
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date(2026, 10, 9, 15))
+    const wrapper = await mountView(false, true)
+    const picker = wrapper.findComponent(DateRangePicker)
+    await picker.get('.date-picker-trigger').trigger('click')
+    expect(picker.findAll('.date-picker-preset').map(button => button.text())).not.toContain('dates.last24Hours')
+
+    const inputs = picker.findAll<HTMLInputElement>('input[type="date"]')
+    await inputs[0].setValue('2026-11-08')
+    await inputs[1].setValue('2026-11-09')
+    await picker.get('.date-picker-apply').trigger('click')
+    await flushPromises()
+    expect(getDashboardApiKeysUsage).toHaveBeenLastCalledWith([1], expect.objectContaining({
+      start_date: '2026-11-08', end_date: '2026-11-09', timezone: getBrowserTimeZone()
+    }))
+    expect(picker.emitted('change')?.[0]).toEqual([{
+      startDate: '2026-11-08', endDate: '2026-11-09', preset: null
+    }])
+    expect(picker.get('.date-picker-trigger').text()).not.toContain('dates.last24Hours')
+  })
+
+  it('updates each key amount, ignores an older range response and shows failed usage as unavailable', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const key2 = { ...createApiKey(), id: 2, name: 'second-key' }
+    setKeys(createApiKey(), key2)
+    getDashboardApiKeysUsage.mockResolvedValue({ stats: {
+      1: { api_key_id: 1, today_actual_cost: 1, total_actual_cost: 30 },
+      2: { api_key_id: 2, today_actual_cost: 2, total_actual_cost: 60 },
+    } })
+    const wrapper = await mountView(true)
+    const picker = wrapper.findComponent(DateRangePicker)
+    const old = deferred<{ stats: Record<string, { api_key_id: number; today_actual_cost: number; total_actual_cost: number }> }>()
+    getDashboardApiKeysUsage.mockReturnValueOnce(old.promise)
+    picker.vm.$emit('change', { startDate: '2026-10-01', endDate: '2026-10-02', preset: null })
+    await flushPromises()
+    const oldSignal = getDashboardApiKeysUsage.mock.lastCall?.[1].signal as AbortSignal
+    expect(wrapper.text()).not.toContain('$30.0000')
+
+    getDashboardApiKeysUsage.mockResolvedValueOnce({ stats: {
+      1: { api_key_id: 1, today_actual_cost: 1, total_actual_cost: 4.5 },
+      2: { api_key_id: 2, today_actual_cost: 2, total_actual_cost: 9 },
+    } })
+    picker.vm.$emit('change', { startDate: '2026-10-05', endDate: '2026-10-06', preset: null })
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    old.resolve({ stats: { 1: { api_key_id: 1, today_actual_cost: 1, total_actual_cost: 999 } } })
+    await flushPromises()
+    const cells = wrapper.findAll('.key-usage-cell')
+    expect(cells[0].text().replace(/\s+/g, '')).toContain('Selectedperiod:$4.5000')
+    expect(cells[1].text().replace(/\s+/g, '')).toContain('Selectedperiod:$9.0000')
+    expect(cells[0].text()).not.toContain('999')
+
+    getDashboardApiKeysUsage.mockRejectedValueOnce(new Error('offline'))
+    picker.vm.$emit('change', { startDate: '2026-10-10', endDate: '2026-10-11', preset: null })
+    await flushPromises()
+    expect(wrapper.findAll('.key-usage-cell')[0].text()).not.toContain('$4.5000')
+    expect(wrapper.findAll('.key-usage-cell')[0].text()).toContain('—')
+    expect(showError).toHaveBeenCalledWith('keys.failedToLoadUsage')
+  })
+
+  it('rejects incomplete and reversed date ranges before fetching', async () => {
+    const wrapper = await mountView()
+    for (const range of [
+      { startDate: '', endDate: '2026-10-01', preset: null },
+      { startDate: '2026-10-05', endDate: '2026-10-01', preset: null },
+    ]) {
+      wrapper.findComponent(DateRangePicker).vm.$emit('change', range)
+      await flushPromises()
+    }
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+    expect(showError).toHaveBeenCalledWith('keys.invalidUsageDateRange')
+  })
+
+  it('persists the admin date-range notice dismissal while older notices stay dismissed', async () => {
+    auth.isAdmin = true
+    localStorage.setItem('sub2api:new-feature-notices:v1:41', JSON.stringify([NEW_FEATURE_NOTICES.apiKeyModelPolicy]))
+    const wrapper = await mountView()
+    await wrapper.get('[data-test="key-usage-date-range"] [data-testid="new-feature-badge"]').trigger('click')
+    expect(wrapper.find('[data-test="key-usage-date-range"] [data-testid="new-feature-badge"]').exists()).toBe(false)
+    wrapper.unmount()
+    const reloaded = await mountView()
+    expect(reloaded.find('[data-test="key-usage-date-range"] [data-testid="new-feature-badge"]').exists()).toBe(false)
+    expect(JSON.parse(localStorage.getItem('sub2api:new-feature-notices:v1:41') ?? '[]')).toEqual([
+      NEW_FEATURE_NOTICES.apiKeyModelPolicy, NEW_FEATURE_NOTICES.apiKeyUsageDateRange,
+    ])
+  })
+
+  it('marks old counts and policy stale on failure and removes the full marker until recovery', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    getConcurrency.mockResolvedValue(snapshot(7, 7))
+    const wrapper = await mountView()
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Full')
+    getConcurrency.mockRejectedValueOnce({ response: { status: 503 } })
+    await vi.advanceTimersByTimeAsync(5000)
+    const text = wrapper.get('[data-test="current-concurrency"]').text()
+    expect(text).toContain('Waiting 7 / 7')
+    expect(text).toContain('Not updated')
+    expect(text).not.toContain('Full')
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    expect(wrapper.get('#key-queue-policy').text()).toContain('Not updated')
+    expect(showError).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Full')
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).not.toContain('Not updated')
+  })
+
+  it('aborts on hide, ignores a late reply, and resumes only after the old request settles', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    const request = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(request.promise)
+    const wrapper = await mountView()
+    const signal = getConcurrency.mock.calls[0][1].signal as AbortSignal
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(signal.aborted).toBe(true)
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(getConcurrency).toHaveBeenCalledTimes(1)
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(getConcurrency).toHaveBeenCalledTimes(1)
+    request.resolve(snapshot(99, 99))
+    await flushPromises()
+    expect(getConcurrency).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Waiting 2 / 7')
+    expect(wrapper.text()).not.toContain('99')
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(10000)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(getConcurrency).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels pagination statistics and discards late old-page policy and counts', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    const request = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(request.promise)
+    const wrapper = await mountView()
+    const signal = getConcurrency.mock.calls[0][1].signal as AbortSignal
+    setKeys({ ...createApiKey(), id: 2, concurrency_limit: 2 })
+    getConcurrency.mockResolvedValue({ ...snapshot(4), items: [{ id: 2, current_concurrency: 1, current_waiting: 0 }] })
+    await wrapper.get('[data-test="page-2"]').trigger('click')
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    expect(getConcurrency).toHaveBeenCalledTimes(1)
+    request.resolve(snapshot(99, 99))
+    await flushPromises()
+    expect(getConcurrency).toHaveBeenLastCalledWith([2], expect.any(Object))
+    const cell = wrapper.get('[data-test="current-concurrency"]')
+    expect(cell.text()).toContain('Concurrency 1 / 2')
+    expect(cell.text()).toContain('Waiting 0 / 4')
+  })
+
+  it('aborts an in-flight statistics request on unmount without scheduling another', async () => {
+    const request = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(request.promise)
+    const wrapper = await mountView()
+    const signal = getConcurrency.mock.calls[0][1].signal as AbortSignal
+    wrapper.unmount()
+    expect(signal.aborted).toBe(true)
+    request.resolve(snapshot())
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(getConcurrency).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads pages above 100 IDs serially and publishes policy and counts only when complete', async () => {
+    setKeys(...Array.from({ length: 101 }, (_, i) => ({ ...createApiKey(), id: i + 1, concurrency_limit: 1 })))
+    const first = deferred<ApiKeyConcurrencySnapshot>()
+    const second = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const wrapper = await mountView()
+    expect(getConcurrency.mock.calls[0][0]).toHaveLength(100)
+    expect(getConcurrency).toHaveBeenCalledTimes(1)
+    first.resolve(snapshot(4, 2))
+    await flushPromises()
+    expect(getConcurrency.mock.calls[1][0]).toEqual([101])
+    expect(wrapper.findAll('[data-test="current-concurrency"]')[0].text()).toContain('Concurrency — / 1')
+    second.resolve({ ...snapshot(4), items: [{ id: 101, current_concurrency: 1, current_waiting: 3 }] })
+    await flushPromises()
+    const rows = wrapper.findAll('[data-test="current-concurrency"]')
+    expect(rows[0].text()).toContain('Waiting 2 / 4')
+    expect(rows[100].text()).toContain('Waiting 3 / 4')
+  })
+
+  it('does not combine counts from batches reporting different policies', async () => {
+    setKeys(...Array.from({ length: 101 }, (_, i) => ({ ...createApiKey(), id: i + 1, concurrency_limit: 1 })))
+    getConcurrency.mockResolvedValueOnce(snapshot(4)).mockResolvedValueOnce(snapshot(8))
+    const wrapper = await mountView()
+    const text = wrapper.findAll('[data-test="current-concurrency"]')[0].text()
+    expect(text).toContain('Concurrency — / 1')
+    expect(text).toContain('Shared queue settings unavailable.')
+    expect(text).not.toContain('Waiting 2 / 4')
+    expect(showError).not.toHaveBeenCalled()
+  })
+
+  it('cancels old statistics during a filter change and keeps filters and row order on polling', async () => {
+    setKeys({ ...createApiKey(), concurrency_limit: 1 })
+    const request = deferred<ApiKeyConcurrencySnapshot>()
+    getConcurrency.mockReturnValueOnce(request.promise)
+    const wrapper = await mountView()
+    const signal = getConcurrency.mock.calls[0][1].signal as AbortSignal
+    setKeys(
+      { ...createApiKey(), id: 2, concurrency_limit: 1 },
+      { ...createApiKey(), id: 3, concurrency_limit: 1 },
+    )
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
+    await flushPromises()
+    expect(signal.aborted).toBe(true)
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [
+      { id: 3, current_concurrency: 8, current_waiting: 6 },
+      { id: 2, current_concurrency: 1, current_waiting: 2 },
+    ] })
+    request.resolve(snapshot(99, 99))
+    await flushPromises()
+    expect(getConcurrency).toHaveBeenLastCalledWith([2, 3], expect.any(Object))
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(wrapper.findComponent({ name: 'SearchInput' }).props('modelValue')).toBe('target')
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('data').map((key: ApiKey) => key.id)).toEqual([2, 3])
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(2)
+    const rows = wrapper.findAll('[data-test="current-concurrency"]')
+    expect(rows[0].text()).toContain('Concurrency 1 / 1')
+    expect(rows[1].text()).toContain('Concurrency 8 / 1')
+  })
+
+  it('does not poll a page mounted in the background until it becomes visible', async () => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    await mountView()
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(getConcurrency).not.toHaveBeenCalled()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(getConcurrency).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { key: 'current_concurrency', order: 'asc' },
+    { key: 'group', order: 'asc' },
+    { key: 'group', order: 'desc' },
+  ] as const)('keeps filters and resets pagination and selection when sorting $key $order', async ({ key, order }) => {
+    getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
+    await flushPromises()
+
+    const selects = wrapper.findAllComponents({ name: 'Select' })
+    await selects[0].vm.$emit('update:modelValue', 42)
+    await flushPromises()
+    await selects[1].vm.$emit('update:modelValue', 'active')
+    await flushPromises()
+
+    await wrapper.get('[data-test="page-2"]').trigger('click')
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    table.vm.$emit('update:selectedKeys', [1])
+    await nextTick()
+    expect(table.props('selectedKeys')).toEqual([1])
+    expect(visibleColumnMeta(wrapper).find((column) => column.key === key)?.sortable).toBe(true)
+    listKeys.mockClear()
+
+    table.vm.$emit('sort', key, order)
+    await flushPromises()
+
+    expect(table.props('selectedKeys')).toEqual([])
+    expect(listKeys).toHaveBeenLastCalledWith(
+      1,
+      50,
+      {
+        search: 'target',
+        status: 'active',
+        group_id: 42,
+        sort_by: key,
+        sort_order: order,
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  describe('group pricing refresh', () => {
+    const group = {
+      id: 42, name: 'Example group', platform: 'openai',
+      rate_multiplier: 0.3, subscription_type: 'standard',
+    } as Group
+
+    const formOption = (wrapper: VueWrapper) => wrapper
+      .getComponent('[data-tour="key-form-group"]').props('options')
+      .find((option: { value: number }) => option.value === group.id)
+
+    beforeEach(() => {
+      setKeys({ ...createApiKey(), group_id: group.id, group })
+      getAvailableGroups.mockResolvedValue([group])
+      getUserGroupRates.mockResolvedValue({ 42: 1.3 })
+    })
+
+    it.each([0.5, 0, null])('refreshes the row after an override changes to %s', async (rate) => {
+      const wrapper = await mountView()
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain('1.3x')
+      getUserGroupRates.mockResolvedValue(rate === null ? {} : { 42: rate })
+
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain(`${rate ?? 0.3}x`)
+      expect(getAvailableGroups).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['create', 'edit'])('refreshes pricing when opening the %s dialog', async (mode) => {
+      const wrapper = await mountView()
+      getAvailableGroups.mockResolvedValue([{ ...group, rate_multiplier: 0.4 }])
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+
+      await getButtonByText(wrapper, mode === 'create' ? 'Create API Key' : 'common.edit').trigger('click')
+      await flushPromises()
+
+      expect(formOption(wrapper)).toMatchObject({ rate: 0.4, userRate: 0.5 })
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain('0.5x')
+      expect(getUserGroupRates).toHaveBeenCalledTimes(2)
+    })
+
+    it('refreshes the inline group selector without reloading the page', async () => {
+      const wrapper = await mountView()
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+
+      await wrapper.get('[data-test="key-group"] button').trigger('click')
+      await flushPromises()
+
+      const option = wrapper.findComponent({ name: 'GroupOptionItem' })
+      expect(option.props('userRateMultiplier')).toBe(0.5)
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain('0.5x')
+    })
+
+    it('keeps the previous pricing together and reports a failed refresh', async () => {
+      const wrapper = await mountView()
+      getAvailableGroups.mockResolvedValue([{ ...group, rate_multiplier: 0.4 }])
+      getUserGroupRates.mockRejectedValueOnce(new Error('Unavailable'))
+
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+      await flushPromises()
+
+      expect(showError).toHaveBeenCalledWith('keys.failedToLoad')
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain('1.3x')
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain('0.5x')
+    })
+
+    it('does not let an older refresh overwrite the dialog pricing', async () => {
+      const wrapper = await mountView()
+      const olderRates = deferred<Record<number, number>>()
+      getUserGroupRates.mockReturnValueOnce(olderRates.promise)
+      await wrapper.get('button[title="Refresh"]').trigger('click')
+
+      getUserGroupRates.mockResolvedValue({ 42: 0.5 })
+      await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+      await flushPromises()
+      olderRates.resolve({ 42: 1.3 })
+      await flushPromises()
+
+      expect(formOption(wrapper)).toMatchObject({ userRate: 0.5 })
+      expect(wrapper.get('[data-test="key-group"]').text()).toContain('0.5x')
+    })
+  })
+
+  describe('create provider selection', () => {
+    const platforms = ['anthropic', 'openai', 'kimi', 'zhipu', 'deepseek', 'minimax', 'gemini', 'grok', 'antigravity', 'composite', 'opencode_go', 'typesafe']
+    const availableGroups = platforms.map((platform, index) => ({
+      id: index + 1,
+      // Deliberately ambiguous names: classification must follow the platform.
+      name: `Shared group ${index + 1}`,
+      platform,
+      rate_multiplier: 1,
+      subscription_type: 'standard',
+    }))
+    const groupSelect = (wrapper: VueWrapper) => wrapper.findComponent('[data-tour="key-form-group"]')
+    const optionIds = (wrapper: VueWrapper) => groupSelect(wrapper).props('options').map((option: { value: number }) => option.value)
+    const chooseProvider = (wrapper: VueWrapper, value: string) => wrapper.get(`input[name="key-provider"][value="${value}"]`).setValue()
+    const openCreate = async () => {
+      const wrapper = await mountView()
+      await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+      return wrapper
+    }
+
+    beforeEach(() => {
+      getAvailableGroups.mockResolvedValue(availableGroups)
+    })
+
+    it('classifies all configured platforms and retains the complete table filter', async () => {
+      const wrapper = await openCreate()
+      expect(wrapper.findAll('input[name="key-provider"]')).toHaveLength(4)
+      expect(optionIds(wrapper)).toEqual([1])
+      await chooseProvider(wrapper, 'openai')
+      expect(optionIds(wrapper)).toEqual([2])
+      await chooseProvider(wrapper, 'domestic')
+      expect(optionIds(wrapper)).toEqual([3, 4, 5, 6])
+      await chooseProvider(wrapper, 'other')
+      expect(optionIds(wrapper)).toEqual([7, 8, 9, 10, 11, 12])
+      expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(14)
+    })
+
+    it('clears the previous group on provider change and submits only the newly selected group', async () => {
+      const wrapper = await openCreate()
+      await wrapper.get('[data-tour="key-form-name"]').setValue('My key')
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 1)
+      await chooseProvider(wrapper, 'domestic')
+      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
+      await wrapper.get('#key-form').trigger('submit')
+      expect(keysAPI.create).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.groupRequired')
+
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 5 })
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(keysAPI.create).toHaveBeenCalledOnce()
+      expect(vi.mocked(keysAPI.create).mock.calls[0].slice(0, 2)).toEqual(['My key', 5])
+    })
+
+    it('defaults to a provider with available groups and disables empty categories', async () => {
+      getAvailableGroups.mockResolvedValue([availableGroups[5]])
+      const wrapper = await openCreate()
+      expect(wrapper.get<HTMLInputElement>('input[value="domestic"]').element.checked).toBe(true)
+      expect(wrapper.get<HTMLInputElement>('input[value="anthropic"]').element.disabled).toBe(true)
+      expect(optionIds(wrapper)).toEqual([6])
+    })
+
+    it('shows the empty state when no groups are available', async () => {
+      getAvailableGroups.mockResolvedValue([])
+      const wrapper = await openCreate()
+      expect(wrapper.get('[data-tour="key-form-provider"]').text()).toContain('common.noGroupsAvailable')
+      expect(optionIds(wrapper)).toEqual([])
+      expect(wrapper.findAll<HTMLInputElement>('input[name="key-provider"]').every((input) => input.element.disabled)).toBe(true)
+    })
+
+    it('selects an available provider when groups arrive after opening', async () => {
+      let resolveGroups!: (value: typeof availableGroups) => void
+      getAvailableGroups.mockReturnValue(new Promise((resolve) => { resolveGroups = resolve }))
+      const wrapper = await openCreate()
+      resolveGroups([availableGroups[1]])
+      await flushPromises()
+      expect(wrapper.get<HTMLInputElement>('input[value="openai"]').element.checked).toBe(true)
+      expect(optionIds(wrapper)).toEqual([2])
+    })
+
+    it('resets provider and group when reopening create, and preserves edit options', async () => {
+      const wrapper = await openCreate()
+      await chooseProvider(wrapper, 'domestic')
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      await wrapper.get('[data-test="close-dialog"]').trigger('click')
+      await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+      expect(optionIds(wrapper)).toEqual([1])
+      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
+      await wrapper.get('[data-test="close-dialog"]').trigger('click')
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(false)
+      expect(optionIds(wrapper)).toHaveLength(12)
+    })
+  })
+
+  describe('usage stats loading', () => {
+    it('renders the key list without waiting for slow usage stats', async () => {
+      let resolveUsage!: (value: { stats: Record<string, unknown> }) => void
+      getDashboardApiKeysUsage.mockReturnValue(new Promise((resolve) => { resolveUsage = resolve }))
+      const wrapper = await mountView()
+
+      const table = wrapper.findComponent({ name: 'DataTable' })
+      expect(table.props('loading')).toBe(false)
+      expect(table.props('data')).toHaveLength(1)
+      expect(wrapper.find('[data-test="usage-pending"]').exists()).toBe(true)
+
+      resolveUsage({
+        stats: { 1: { api_key_id: 1, today_actual_cost: 0.5, total_actual_cost: 12.25 } },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-test="usage-pending"]').exists()).toBe(false)
+      expect(wrapper.get('[data-test="usage"]').text()).toContain('$12.2500')
+    })
+
+    it('stops showing usage placeholders when the usage request fails', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      getDashboardApiKeysUsage.mockRejectedValue(new Error('timeout'))
+      const wrapper = await mountView()
+
+      expect(wrapper.find('[data-test="usage-pending"]').exists()).toBe(false)
+      expect(wrapper.get('[data-test="usage"]').text()).toContain('—')
+      consoleError.mockRestore()
+    })
+  })
+})

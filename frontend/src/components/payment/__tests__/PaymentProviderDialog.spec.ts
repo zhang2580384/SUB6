@@ -1,0 +1,474 @@
+import { describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import PaymentProviderDialog from '@/components/payment/PaymentProviderDialog.vue'
+import { STRIPE_SDK_API_VERSION } from '@/components/payment/providerConfig'
+import type { ProviderInstance } from '@/types/payment'
+
+const messages: Record<string, string> = {
+  'admin.settings.payment.providerConfig': 'Credentials',
+  'admin.settings.payment.easypayCustomMethods': 'Custom EasyPay methods',
+  'admin.settings.payment.easypayCustomMethodsHint': 'Add provider-specific EasyPay type values.',
+  'admin.settings.payment.addCustomMethod': 'Add method',
+  'admin.settings.payment.customMethodType': 'Payment type',
+  'admin.settings.payment.customMethodUpstreamType': 'Upstream type',
+  'admin.settings.payment.customMethodDisplayName': 'Display name',
+  'admin.settings.payment.customMethodDisplayNamePlaceholder': '信用卡',
+  'admin.settings.payment.paymentGuideTrigger': 'View payment guide',
+  'admin.settings.payment.alipayGuideSummary': 'Desktop prefers QR precreate and falls back to cashier; mobile prefers WAP checkout.',
+  'admin.settings.payment.wxpayGuideSummary': 'Desktop prefers Native QR; mobile routes to JSAPI or H5 based on browser context.',
+  'admin.settings.payment.airwallexGuideSummary': 'Use Payment Acceptance read/write only.',
+  'admin.settings.payment.stripeWebhookHint': 'Configure Stripe webhook.',
+  'admin.settings.payment.stripeWebhookApiVersionHint': 'Use Stripe API version {version}.',
+  'admin.settings.payment.airwallexWebhookHint': 'Select payment_intent.succeeded and use the latest stable API version.',
+}
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, string>) => {
+      const message = messages[key] ?? key
+      if (!params) return message
+      return Object.entries(params).reduce(
+        (value, [name, replacement]) => value.replaceAll(`{${name}}`, replacement),
+        message,
+      )
+    },
+  }),
+}))
+
+function providerFactory(overrides: Partial<ProviderInstance> = {}): ProviderInstance {
+  return {
+    id: 1,
+    provider_key: 'airwallex',
+    name: 'Airwallex',
+    config: {},
+    supported_types: ['airwallex'],
+    enabled: true,
+    payment_mode: '',
+    refund_enabled: false,
+    allow_user_refund: false,
+    limits: '',
+    sort_order: 0,
+    ...overrides,
+  }
+}
+
+function mountDialog(options: { editing?: ProviderInstance | null; globalFeeRate?: number } = {}) {
+  return mount(PaymentProviderDialog, {
+    props: {
+      show: true,
+      saving: false,
+      editing: options.editing ?? null,
+      globalFeeRate: options.globalFeeRate,
+      allKeyOptions: [
+        { value: 'easypay', label: 'EasyPay' },
+        { value: 'alipay', label: 'Alipay' },
+        { value: 'wxpay', label: 'WeChat Pay' },
+        { value: 'stripe', label: 'Stripe' },
+        { value: 'airwallex', label: 'Airwallex' },
+      ],
+      enabledKeyOptions: [
+        { value: 'easypay', label: 'EasyPay' },
+        { value: 'alipay', label: 'Alipay' },
+        { value: 'wxpay', label: 'WeChat Pay' },
+        { value: 'airwallex', label: 'Airwallex' },
+      ],
+      allPaymentTypes: [
+        { value: 'alipay', label: 'Alipay' },
+        { value: 'wxpay', label: 'WeChat Pay' },
+      ],
+      redirectLabel: 'Redirect',
+    },
+    global: {
+      stubs: {
+        BaseDialog: {
+          template: '<div><slot /><slot name="footer" /></div>',
+        },
+        Select: {
+          name: 'Select',
+          props: ['modelValue', 'options', 'disabled'],
+          template: '<div />',
+        },
+        ToggleSwitch: {
+          template: '<div />',
+        },
+      },
+    },
+  })
+}
+
+describe('PaymentProviderDialog fees', () => {
+  function openFeeDialog(overrides: Partial<ProviderInstance> = {}) {
+    const provider = providerFactory({
+      provider_key: 'bepusdt', name: 'Crypto', config: { mode: 'embedded' },
+      supported_types: ['usdt.bep20', 'usdt.trc20'], ...overrides,
+    })
+    const wrapper = mountDialog({ editing: provider, globalFeeRate: 2.5 })
+    ;(wrapper.vm as unknown as { loadProvider: (value: ProviderInstance) => void }).loadProvider(provider)
+    return wrapper
+  }
+
+  it.each([undefined, null, 0, 1.25, 100])('round-trips default fee %s without confusing zero and inheritance', async (rate) => {
+    const wrapper = openFeeDialog({ fee_rate: rate })
+    await nextTick()
+    expect((wrapper.get('[data-testid="provider-fee-mode"]').element as HTMLSelectElement).value).toBe(rate == null ? 'inherit' : 'custom')
+    await wrapper.get('#provider-form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ fee_rate: rate ?? null, method_fee_rates: {} })
+  })
+
+  it('saves distinct method fees, including free payments, and explicitly clears inheritance overrides', async () => {
+    const wrapper = openFeeDialog({ fee_rate: 2, method_fee_rates: { 'usdt.bep20': 0, 'usdt.trc20': 1.2 } })
+    await nextTick()
+    expect((wrapper.get('[data-testid="method-fee-rate-usdt.bep20"]').element as HTMLInputElement).value).toBe('0')
+    await wrapper.get('[data-testid="method-fee-rate-usdt.trc20"]').setValue('3.45')
+    await wrapper.get('#provider-form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ fee_rate: 2, method_fee_rates: { 'usdt.bep20': 0, 'usdt.trc20': 3.45 } })
+    await wrapper.get('[data-testid="provider-fee-mode"]').setValue('inherit')
+    await wrapper.get('[data-testid="method-fee-mode-usdt.bep20"]').setValue('inherit')
+    await wrapper.get('[data-testid="method-fee-mode-usdt.trc20"]').setValue('inherit')
+    await wrapper.get('#provider-form').trigger('submit')
+    expect(wrapper.emitted('save')?.[1]?.[0]).toMatchObject({ fee_rate: null, method_fee_rates: {} })
+  })
+
+  it.each(['', '-1', '100.01', '1.234'])('rejects invalid default and method fee %s', async (value) => {
+    const wrapper = openFeeDialog()
+    await nextTick()
+    await wrapper.get('[data-testid="provider-fee-mode"]').setValue('custom')
+    await wrapper.get('[data-testid="provider-fee-rate"]').setValue(value)
+    await wrapper.get('#provider-form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.get('[role="alert"]').text()).toBe('admin.settings.payment.feeValidation')
+    await wrapper.get('[data-testid="provider-fee-mode"]').setValue('inherit')
+    await wrapper.get('[data-testid="method-fee-mode-usdt.bep20"]').setValue('custom')
+    await wrapper.get('[data-testid="method-fee-rate-usdt.bep20"]').setValue(value)
+    await wrapper.get('#provider-form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+  })
+
+  it('clears fee drafts when opening another provider or creating a new one', async () => {
+    const wrapper = openFeeDialog({ fee_rate: 5, method_fee_rates: { 'usdt.bep20': 4 } })
+    await nextTick()
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('bepusdt')
+    await nextTick()
+    expect((wrapper.get('[data-testid="provider-fee-mode"]').element as HTMLSelectElement).value).toBe('inherit')
+    expect(wrapper.find('[data-testid="method-fee-rate-usdt.bep20"]').exists()).toBe(false)
+  })
+
+  it('preserves disabled method fees through editing and restores them on re-enablement', async () => {
+    const wrapper = openFeeDialog({ fee_rate: 2, method_fee_rates: { 'usdt.trc20': 1.25 } })
+    await nextTick()
+    await wrapper.findAll('button').find(button => button.text() === 'USDT (TRC20)')!.trigger('click')
+    await wrapper.get('[data-testid="provider-fee-rate"]').setValue('3')
+    await wrapper.get('#provider-form').trigger('submit')
+    const first = wrapper.emitted('save')?.[0]?.[0] as Partial<ProviderInstance>
+    expect(first.supported_types).toEqual(['usdt.bep20'])
+    expect(first.method_fee_rates).toEqual({ 'usdt.trc20': 1.25 })
+
+    const reopened = openFeeDialog(first)
+    await nextTick()
+    expect(reopened.find('[data-testid="method-fee-rate-usdt.trc20"]').exists()).toBe(false)
+    await reopened.findAll('input')[0].setValue('Renamed provider')
+    await reopened.get('#provider-form').trigger('submit')
+    expect(reopened.emitted('save')?.[0]?.[0]).toMatchObject({ method_fee_rates: { 'usdt.trc20': 1.25 } })
+    await reopened.findAll('button').find(button => button.text() === 'USDT (TRC20)')!.trigger('click')
+    expect((reopened.get('[data-testid="method-fee-rate-usdt.trc20"]').element as HTMLInputElement).value).toBe('1.25')
+    await reopened.get('#provider-form').trigger('submit')
+    expect(reopened.emitted('save')?.[1]?.[0]).toMatchObject({ supported_types: ['usdt.bep20', 'usdt.trc20'], method_fee_rates: { 'usdt.trc20': 1.25 } })
+  })
+
+  it('clears the override when its custom EasyPay method is deleted', async () => {
+    const wrapper = openFeeDialog({ provider_key: 'easypay', supported_types: ['alipay', 'ldc'],
+      config: { pid: 'test', apiBase: 'https://pay.example.com', customMethods: JSON.stringify([{ type: 'ldc', upstreamType: 'ldc', displayName: 'LDC Pay' }]) },
+      method_fee_rates: { alipay: 0, ldc: 1.25 },
+    })
+    await nextTick()
+    await wrapper.findAll('button').find(button => button.text() === 'common.delete')!.trigger('click')
+    await wrapper.get('#provider-form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({ supported_types: ['alipay'], method_fee_rates: { alipay: 0 } })
+  })
+
+  it.each([
+    ['stripe', ['card', 'link', 'alipay', 'wxpay']],
+    ['airwallex', ['airwallex']],
+    ['easypay', ['alipay', 'ldc']],
+  ])('shows each configured %s method separately from shared limits', async (providerKey, types) => {
+    const wrapper = openFeeDialog({
+      provider_key: providerKey, supported_types: types,
+      config: providerKey === 'easypay' ? { customMethods: JSON.stringify([{ type: 'ldc', upstreamType: 'ldc', displayName: 'LDC Pay' }]) } : {},
+    })
+    await nextTick()
+    const selectors = wrapper.findAll('[data-testid^="method-fee-mode-"]')
+    expect(selectors.map(selector => selector.attributes('data-testid'))).toEqual(types.map(type => `method-fee-mode-${type}`))
+    expect(wrapper.find('[data-testid="method-fee-mode-stripe"]').exists()).toBe(false)
+  })
+
+  it.each([
+    ['alipay', ['alipay_direct', 'alipay']],
+    ['wxpay', ['wxpay_direct']],
+    ['alipay', []],
+    ['wxpay', []],
+  ])('normalizes legacy %s method aliases and empty official configurations', async (providerKey, types) => {
+    const wrapper = openFeeDialog({ provider_key: providerKey, supported_types: types })
+    await nextTick()
+    expect(wrapper.findAll('[data-testid^="method-fee-mode-"]').map(selector => selector.attributes('data-testid'))).toEqual([`method-fee-mode-${providerKey}`])
+  })
+})
+
+describe('PaymentProviderDialog callback URLs', () => {
+  it('defaults to built-in collection and saves without gateway credentials', async () => {
+    const wrapper = mountDialog()
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('bepusdt')
+    await nextTick()
+    expect((wrapper.get('[data-testid="bepusdt-mode"]').element as HTMLSelectElement).value).toBe('embedded')
+    expect(wrapper.text()).not.toContain('API Token')
+    await wrapper.findAll('input')[0].setValue('Built-in Crypto')
+    await wrapper.get('#provider-form').trigger('submit')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string>; supported_types: string[] }
+    expect(payload.config.mode).toBe('embedded')
+    expect(payload.config.currency).toBe('CNY')
+    expect(payload.supported_types).toEqual(['usdt.bep20'])
+    expect(payload.config).not.toHaveProperty('apiToken')
+    expect(payload.config).not.toHaveProperty('apiBase')
+  })
+
+  it('preserves external mode when editing legacy BEpusdt providers', async () => {
+    const provider = providerFactory({ provider_key: 'bepusdt', config: { apiBase: 'https://gateway.example', currency: 'CNY' } })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    expect((wrapper.get('[data-testid="bepusdt-mode"]').element as HTMLSelectElement).value).toBe('external')
+    expect(wrapper.text()).toContain('API Token')
+  })
+
+  it('saves a BEpusdt instance with selected networks and generated callback URLs', async () => {
+    const wrapper = mountDialog()
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('bepusdt')
+    await nextTick()
+    await wrapper.get('[data-testid="bepusdt-mode"]').setValue('external')
+    expect(wrapper.text()).toContain('USDT (TRC20)')
+    expect(wrapper.text()).toContain('USDT (BEP20)')
+    expect(wrapper.text()).toContain('USDC (Base)')
+    const fields = wrapper.findAll('input')
+    await fields[0].setValue('Crypto')
+    await fields[1].setValue('https://gateway.example')
+    await fields[2].setValue('test-token')
+    await wrapper.findAll('button').find(button => button.text() === 'USDT (TRC20)')!.trigger('click')
+    await wrapper.get('#provider-form').trigger('submit')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as Record<string, unknown>
+    expect(payload.provider_key).toBe('bepusdt')
+    expect(payload.supported_types).toEqual(['usdt.bep20', 'usdt.trc20'])
+    expect(payload.refund_enabled).toBe(false)
+    expect(payload.config).toMatchObject({ apiBase: 'https://gateway.example', apiToken: 'test-token', currency: 'CNY' })
+    expect((payload.config as Record<string, string>).notifyUrl).toContain('/api/v1/payment/webhook/bepusdt')
+    expect((payload.config as Record<string, string>).returnUrl).toContain('/payment/result')
+  })
+
+  it.each([
+    ['https://notify.example.com/', 'https://return.example.com///', 'https://notify.example.com', 'https://return.example.com'],
+    [' https://notify.example.com/sub/ ', ' https://return.example.com/site/ ', 'https://notify.example.com/sub', 'https://return.example.com/site'],
+    ['https://notify.example.com', 'https://return.example.com', 'https://notify.example.com', 'https://return.example.com'],
+    ['', '', window.location.origin, window.location.origin],
+  ])('joins callback paths to %s and %s', async (notify, returnUrl, expectedNotify, expectedReturn) => {
+    const provider = providerFactory({
+      provider_key: 'easypay', name: 'EasyPay',
+      config: { pid: 'pid-1', apiBase: 'https://pay.example.com' },
+      supported_types: ['alipay'], payment_mode: 'qrcode',
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    const bases = wrapper.findAll('input').filter(input => input.classes().includes('!rounded-r-none'))
+    await bases[0].setValue(notify)
+    await bases[1].setValue(returnUrl)
+    await wrapper.find('form').trigger('submit')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload.config.notifyUrl).toBe(expectedNotify + '/api/v1/payment/webhook/easypay')
+    expect(payload.config.returnUrl).toBe(expectedReturn + '/payment/result')
+    wrapper.unmount()
+  })
+})
+
+describe('PaymentProviderDialog EasyPay refund protocol', () => {
+  it.each([undefined, '1', '0'])('loads and saves the refund success code %s', async (storedCode) => {
+    const provider = providerFactory({
+      provider_key: 'easypay', name: 'EasyPay', supported_types: ['alipay'],
+      config: {
+        pid: 'pid-1', apiBase: 'https://pay.example.com',
+        ...(storedCode === undefined ? {} : { refundSuccessCode: storedCode }),
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+
+    const selector = wrapper.findAllComponents({ name: 'Select' }).find(select =>
+      select.props('options').some((option: { value: string }) => option.value === '0'),
+    )
+    expect(selector, 'refund success code selector').toBeDefined()
+    expect(selector!.props('modelValue')).toBe(storedCode ?? '1')
+    const selectedCode = storedCode === '0' ? '1' : '0'
+    selector!.vm.$emit('update:modelValue', selectedCode)
+    await wrapper.find('form').trigger('submit')
+
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload.config.refundSuccessCode).toBe(selectedCode)
+    wrapper.unmount()
+  })
+})
+
+describe('PaymentProviderDialog payment guide', () => {
+  it('shows no payment guide for providers without a flow guide', () => {
+    const wrapper = mountDialog()
+
+    expect(wrapper.text()).not.toContain(messages['admin.settings.payment.alipayGuideSummary'])
+    expect(wrapper.text()).not.toContain(messages['admin.settings.payment.wxpayGuideSummary'])
+    expect(wrapper.find('button[title="View payment guide"]').exists()).toBe(false)
+  })
+
+  it.each([
+    ['alipay', 'admin.settings.payment.alipayGuideSummary'],
+    ['wxpay', 'admin.settings.payment.wxpayGuideSummary'],
+    ['airwallex', 'admin.settings.payment.airwallexGuideSummary'],
+  ])('shows the payment guide summary for %s', async (providerKey, summaryKey) => {
+    const wrapper = mountDialog()
+
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset(providerKey)
+    await nextTick()
+
+    expect(wrapper.text()).toContain(messages[summaryKey])
+    expect(wrapper.find('button[title="View payment guide"]').exists()).toBe(true)
+  })
+
+  it('shows Airwallex webhook event and API version guidance with the webhook URL', async () => {
+    const wrapper = mountDialog()
+
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('airwallex')
+    await nextTick()
+
+    expect(wrapper.text()).toContain(messages['admin.settings.payment.airwallexWebhookHint'])
+    expect(wrapper.text()).toContain('/api/v1/payment/webhook/airwallex')
+  })
+
+  it('shows Stripe webhook API version guidance with the integrated SDK version', async () => {
+    const wrapper = mountDialog()
+
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('stripe')
+    await nextTick()
+
+    expect(wrapper.text()).toContain(messages['admin.settings.payment.stripeWebhookHint'])
+    expect(wrapper.text()).toContain(`Use Stripe API version ${STRIPE_SDK_API_VERSION}.`)
+    expect(wrapper.text()).toContain('/api/v1/payment/webhook/stripe')
+  })
+
+  it('emits an empty Airwallex accountId when the admin clears it', async () => {
+    const provider = providerFactory({
+      config: {
+        clientId: 'cid_123',
+        apiBase: 'https://api.airwallex.com/api/v1',
+        countryCode: 'CN',
+        currency: 'CNY',
+        accountId: 'acct_123',
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+
+    const accountIdInput = wrapper
+      .findAll('input[type="text"]')
+      .find(input => (input.element as HTMLInputElement).value === 'acct_123')
+    if (!accountIdInput) throw new Error('accountId input not found')
+
+    await accountIdInput.setValue('')
+    await wrapper.find('form').trigger('submit.prevent')
+
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload.config.accountId).toBe('')
+  })
+
+  it.each(['epay', 'usdt.trc20'])('serializes EasyPay upstream type %s and adds the local type to supported_types', async (upstreamType) => {
+    const provider = providerFactory({
+      provider_key: 'easypay',
+      name: 'EasyPay',
+      config: {
+        pid: 'pid-1',
+        apiBase: 'https://pay.example.com',
+        notifyUrl: 'https://example.com/api/v1/payment/webhook/easypay',
+        returnUrl: 'https://example.com/payment/result',
+      },
+      supported_types: ['alipay', 'wxpay'],
+      payment_mode: 'qrcode',
+    })
+    const wrapper = mountDialog({ editing: provider })
+
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+
+    await wrapper.find('button.btn-sm').trigger('click')
+    await nextTick()
+
+    const inputs = wrapper.findAll('input[type="text"]')
+    const customTypeInputs = inputs.filter(input => (input.element as HTMLInputElement).placeholder === 'credit_card')
+    const ldcTypeInput = customTypeInputs[0]
+    const upstreamTypeInput = customTypeInputs[1]
+    const displayNameInput = inputs.find(input => (input.element as HTMLInputElement).placeholder === '信用卡')
+    if (!ldcTypeInput || !upstreamTypeInput || !displayNameInput) {
+      throw new Error('custom method inputs not found')
+    }
+
+    await ldcTypeInput.setValue('ldc')
+    await upstreamTypeInput.setValue(upstreamType)
+    await displayNameInput.setValue('LDC')
+    await wrapper.find('form').trigger('submit.prevent')
+
+    const payload = wrapper.emitted('save')?.[0]?.[0] as {
+      config: Record<string, string>
+      supported_types: string[]
+    }
+    expect(JSON.parse(payload.config.customMethods)).toEqual([{ type: 'ldc', upstreamType, displayName: 'LDC' }])
+    expect(payload.supported_types).toEqual(['alipay', 'wxpay', 'ldc'])
+  })
+
+  it.each([
+    ['alipay_hk', 'hkpay'],
+    ['usdt.trc20', 'usdt.trc20'],
+    ['usdt_trc20', 'usdt/trc20'],
+  ])('rejects invalid EasyPay mapping %s to %s', async (type, upstreamType) => {
+    const provider = providerFactory({
+      provider_key: 'easypay',
+      name: 'EasyPay',
+      config: {
+        pid: 'pid-1',
+        apiBase: 'https://pay.example.com',
+        notifyUrl: 'https://example.com/api/v1/payment/webhook/easypay',
+        returnUrl: 'https://example.com/payment/result',
+      },
+      supported_types: ['alipay', 'wxpay'],
+      payment_mode: 'qrcode',
+    })
+    const wrapper = mountDialog({ editing: provider })
+
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+
+    await wrapper.find('button.btn-sm').trigger('click')
+    await nextTick()
+
+    const inputs = wrapper.findAll('input[type="text"]')
+    const customTypeInputs = inputs.filter(input => (input.element as HTMLInputElement).placeholder === 'credit_card')
+    const typeInput = customTypeInputs[0]
+    const upstreamTypeInput = customTypeInputs[1]
+    const displayNameInput = inputs.find(input => (input.element as HTMLInputElement).placeholder === '信用卡')
+    if (!typeInput || !upstreamTypeInput || !displayNameInput) {
+      throw new Error('custom method inputs not found')
+    }
+
+    await typeInput.setValue(type)
+    await upstreamTypeInput.setValue(upstreamType)
+    await displayNameInput.setValue('Custom payment')
+    await wrapper.find('form').trigger('submit.prevent')
+
+    expect(wrapper.emitted('save')).toBeUndefined()
+  })
+})

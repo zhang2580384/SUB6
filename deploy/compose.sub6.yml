@@ -1,0 +1,65 @@
+name: sub6
+services:
+  app:
+    image: sub6:0.1.0
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - sub6-data:/app/data
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: sub6
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD locally}
+      DATABASE_DBNAME: sub6
+      DATABASE_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET locally}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL locally}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD locally}
+      GATEWAY_MAX_BODY_SIZE: "268435456"
+      GATEWAY_UPSTREAM_RESPONSE_READ_MAX_BYTES: "268435456"
+      GATEWAY_OPENAI_WS_CLIENT_READ_LIMIT_BYTES: "268435456"
+      GATEWAY_CODEX_IMAGE_GENERATION_BRIDGE_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sub6
+      POSTGRES_DB: sub6
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD locally}
+    volumes:
+      - sub6-postgres:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U sub6 -d sub6"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    volumes:
+      - sub6-redis:/data
+    command: [redis-server, --appendonly, 'yes']
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  sub6-data:
+  sub6-postgres:
+  sub6-redis:

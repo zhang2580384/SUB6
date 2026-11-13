@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "distribution": "SUB6",
+  "version": "0.1.0",
+  "upstream": {
+    "url": "https://github.com/ranxi2001/sub2api.git",
+    "branch": "production",
+    "base": "b50754c0facddce08ef13900dfc1302061d1710b",
+    "commit": "428448007faa9fd8cd715380a5fd132f3b1e9e5b",
+    "tree": "343256c706442333a5ea048a2cc6047236bb1984",
+    "main_observed": "e1317a4fdbb3c9bbb07bdd3318c6df2c3dbacf28",
+    "latest_release": "v2.21.1",
+    "release_commit": "11f250894eab310cbd4508946c44c9e2a3a2eb48",
+    "release_tag_object": "e231ef7835ff7fa368711d3512fc0a309892f019"
+  },
+  "review": {
+    "date": "2026-11-13",
+    "commits": 840,
+    "changed_files": 1587,
+    "coverage": "risk-focused manual review plus regression tests; not a line-by-line audit of all changed files"
+  },
+  "publication": {
+    "repository": "https://github.com/zhang2580384/SUB6",
+    "history": "sanitized root; inherited integration history remains private",
+    "binary_assets": false,
+    "container_images": false
+  }
+}
