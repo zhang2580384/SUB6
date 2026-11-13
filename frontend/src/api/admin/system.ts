@@ -12,6 +12,12 @@ export interface ReleaseInfo {
 }
 
 export interface VersionInfo {
+  distribution?: string
+  upstream_version?: string
+  upstream_commit?: string
+  upstream_release_commit?: string
+  build_commit?: string
+  built_at?: string
   current_version: string
   latest_version: string
   has_update: boolean

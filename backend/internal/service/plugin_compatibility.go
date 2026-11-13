@@ -15,9 +15,9 @@ type PluginHostInfo struct {
 
 func EvaluatePluginCompatibility(manifest PluginManifest, host PluginHostInfo) PluginCompatibility {
 	result := PluginCompatibility{
-		CurrentSUB6:     host.Version,
-		RequiredSUB6:    manifest.Requires.SUB6,
-		RecommendedSUB6: manifest.Requires.RecommendedSUB6Version,
+		CurrentSub2API:     host.Version,
+		RequiredSub2API:    manifest.Requires.Sub2API,
+		RecommendedSub2API: manifest.Requires.RecommendedSub2APIVersion,
 		PluginProtocol:     manifest.Requires.PluginProtocol,
 		TransportAPI:       manifest.Requires.TransportAPI,
 		UIBridge:           manifest.Requires.UIBridge,
@@ -29,13 +29,13 @@ func EvaluatePluginCompatibility(manifest PluginManifest, host PluginHostInfo) P
 		result.Message = "插件协议版本与当前 SUB6 不兼容"
 		return result
 	}
-	if !matchesSemverRange(host.Version, manifest.Requires.SUB6) {
+	if !matchesSemverRange(host.Version, manifest.Requires.Sub2API) {
 		result.Status = "incompatible"
-		result.Message = fmt.Sprintf("当前 SUB6 %s 不满足插件要求 %s", host.Version, manifest.Requires.SUB6)
+		result.Message = fmt.Sprintf("当前 SUB6 %s 不满足插件要求 %s", host.Version, manifest.Requires.Sub2API)
 		return result
 	}
 	result.Compatible = true
-	for _, tested := range manifest.Requires.TestedSUB6Versions {
+	for _, tested := range manifest.Requires.TestedSub2APIVersions {
 		if normalizeSemver(tested) == normalizeSemver(host.Version) {
 			result.Tested = true
 			break

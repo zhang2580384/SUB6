@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/buildmeta"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -86,6 +87,7 @@ func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, versi
 
 // UpdateInfo contains update information
 type UpdateInfo struct {
+	buildmeta.Info
 	CurrentVersion string       `json:"current_version"`
 	LatestVersion  string       `json:"latest_version"`
 	HasUpdate      bool         `json:"has_update"`
@@ -137,7 +139,13 @@ type GitHubAsset struct {
 }
 
 // CheckUpdate checks for available updates
-func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInfo, error) {
+func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (result *UpdateInfo, resultErr error) {
+	// Provenance always belongs to this binary, including cached/offline replies.
+	defer func() {
+		if result != nil {
+			result.Info = buildmeta.Current()
+		}
+	}()
 	// Try cache first
 	if !force {
 		if cached, err := s.getFromCache(ctx); err == nil && cached != nil {

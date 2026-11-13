@@ -1,0 +1,26 @@
+// Package buildmeta records SUB6 distribution and reviewed upstream provenance.
+package buildmeta
+
+const (
+	Distribution          = "SUB6"
+	UpstreamVersion       = "2.21.2"
+	UpstreamCommit        = "ccf997c73868083d96c0bec56e71c1a34d26c98a"
+	UpstreamReleaseCommit = "dbed7697aa56e76c6eb48c4914fa441496b67bdd"
+)
+
+// Revision and BuiltAt are initialized by the executable before serving requests.
+var Revision = "unknown"
+var BuiltAt = "unknown"
+
+type Info struct {
+	Distribution          string `json:"distribution"`
+	UpstreamVersion       string `json:"upstream_version"`
+	UpstreamCommit        string `json:"upstream_commit"`
+	UpstreamReleaseCommit string `json:"upstream_release_commit"`
+	BuildCommit           string `json:"build_commit"`
+	BuiltAt               string `json:"built_at"`
+}
+
+func Current() Info {
+	return Info{Distribution, UpstreamVersion, UpstreamCommit, UpstreamReleaseCommit, Revision, BuiltAt}
+}

@@ -50,7 +50,64 @@ jobs:
         run: go test github.com/v03413/bepusdt/app/conf github.com/v03413/bepusdt/app/task github.com/v03413/bepusdt/app/task/notify -count=1 -timeout=5m
       - name: Build embedded source distribution
         working-directory: backend
-        run: CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.0 -X main.BuildType=source' -o "$RUNNER_TEMP/sub6" ./cmd/server
+        env:
+          SUB6_BUILD_COMMIT: ${{ github.sha }}
+        run: |
+          CGO_ENABLED=0 go build -tags embed -trimpath -ldflags="-s -w -X main.Version=0.1.1 -X main.Commit=$SUB6_BUILD_COMMIT -X main.BuildType=source" -o "$RUNNER_TEMP/sub6" ./cmd/server
+          "$RUNNER_TEMP/sub6" -version
+  quota-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GOMEMLIMIT: 2GiB
+      GOGC: "50"
+      SUB2API_TEST_POSTGRES_DSN: 'host=127.0.0.1 port=5432 dbname=sub6_test user=sub6_test password=sub6-test-only sslmode=disable TimeZone=UTC'
+      SUB2API_TEST_REDIS_URL: 'redis://127.0.0.1:6379/0'
+      CI: 'true'
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: sub6_test
+          POSTGRES_DB: sub6_test
+          POSTGRES_PASSWORD: sub6-test-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sub6_test -d sub6_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: backend/go.sum
+      - name: Preserve pending 5xx and retained lease/ownership contracts
+        working-directory: backend
+        run: >-
+          go test -p 2 -race -tags integration ./internal/repository
+          -run '^(TestSUB6MigrationKeepsUnknownHistoryAndRepeatedPrefixes|TestIssue817QuotaSkipPreservesPending5xxExecution|TestIssue817QuotaSkipPreserves401AndOwnership|TestIssue817QuotaSkipRetainsActualIsolationOwnership|TestIssue817ManualTriggerIsOneShotAndLeaseFenced|TestQuality5xxClaimKeepsCronAndCoalescesScheduledRun|TestQuality5xxFinishConsumesCrossedCronWithoutOverwritingEdits|TestQualityRetestRestBlocksEveryClaimUntilDeadline)$'
+          -count=1 -v -timeout=10m
+      - name: Migration-only CLI and repeat against disposable database
+        working-directory: backend
+        env:
+          DATABASE_HOST: 127.0.0.1
+          DATABASE_PORT: '5432'
+          DATABASE_USER: sub6_test
+          DATABASE_PASSWORD: sub6-test-only
+          DATABASE_DBNAME: sub6_test
+          DATABASE_SSLMODE: disable
+        run: |
+          CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/sub6-migrations" ./cmd/server
+          "$RUNNER_TEMP/sub6-migrations" --migrate-only --migration-timeout=5m
+          "$RUNNER_TEMP/sub6-migrations" --migrate-only --migration-timeout=5m
   sidecar:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

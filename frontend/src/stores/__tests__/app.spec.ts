@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { getPublicSettings } from '@/api/auth'
+import { checkUpdates } from '@/api/admin/system'
 import type { PublicSettings } from '@/types'
 
 function createDeferred<T>() {
@@ -322,6 +323,21 @@ describe('useAppStore', () => {
       expect(store.loading).toBe(false)
       expect(store.toasts).toHaveLength(0)
     })
+  })
+
+  it('keeps distribution and upstream versions distinct when version data is cached', async () => {
+    vi.mocked(checkUpdates).mockResolvedValueOnce({
+      current_version: '0.1.1', latest_version: '0.1.1', has_update: false,
+      build_type: 'source', cached: false, upstream_version: '2.21.2',
+      upstream_commit: 'reviewed-upstream', build_commit: 'public-build'
+    })
+    const store = useAppStore()
+    await store.fetchVersion(true)
+    const cached = await store.fetchVersion()
+    expect(cached?.current_version).toBe('0.1.1')
+    expect(cached?.upstream_version).toBe('2.21.2')
+    expect(cached?.upstream_commit).toBe('reviewed-upstream')
+    expect(store.buildCommit).toBe('public-build')
   })
 
   // --- 公开设置 ---

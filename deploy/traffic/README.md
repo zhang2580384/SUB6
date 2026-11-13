@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 多主机脱敏清单离线预检
 
 `preflight.py` 只读取手写的最小JSON清单，不读取应用配置、环境变量、密钥、数据库或Redis，不联网、解析DNS、创建文件或调用部署命令。示例地址使用`.invalid`，不是可部署环境。Python仅需标准库；回归使用标准库unittest。

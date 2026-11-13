@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 入口连接元数据采集
 
 本目录是可选运维接入，代码提交不会自动修改 Caddy/Nginx、启用服务或重启生产。先上线带迁移 294 和管理员导入接口的应用，再按实际代理版本、现有 listener 和目录权限准备候选配置，验证配置后在已获授权的部署中 reload。不要直接覆盖现有站点。

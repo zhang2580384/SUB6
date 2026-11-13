@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 两个完整应用的安全初始化前置
 
 `test_fullapp_bootstrap.py` 是后续模型组合验收的**初始化前置**，不是已完成的模型负载均衡验收。不同于生产 lifecycle 部件 helper，它实际启动两个由本提交 `backend/cmd/server` 编译的 SUB6 二进制，各自执行未替换的 `main`、`runMainServer`、Wire 全图、配置校验和真实数据库迁移；通过真实 Caddy 双目标入口访问它们。应用没有测试专用 handler 或启动开关。

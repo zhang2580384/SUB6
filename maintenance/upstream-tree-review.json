@@ -1,0 +1,74 @@
+{
+  "upstream_commit": "ccf997c73868083d96c0bec56e71c1a34d26c98a",
+  "upstream_files": 7918,
+  "candidate_files": 7572,
+  "states": {
+    "same": 7265,
+    "modified": 268,
+    "excluded": 385,
+    "custom": 39
+  },
+  "families": {
+    "backend": {
+      "same": 5551,
+      "modified": 116,
+      "custom": 6
+    },
+    "ci": {
+      "excluded": 187,
+      "custom": 1
+    },
+    "deployment": {
+      "excluded": 2,
+      "modified": 32,
+      "same": 58,
+      "custom": 16
+    },
+    "docs/assets": {
+      "same": 208,
+      "modified": 41,
+      "excluded": 196,
+      "custom": 14
+    },
+    "docs/legal": {
+      "custom": 1,
+      "same": 2,
+      "modified": 3
+    },
+    "frontend": {
+      "same": 1446,
+      "modified": 76,
+      "custom": 1
+    }
+  },
+  "conflict_markers": [],
+  "critical_equality": {
+    "sql_migrations": {
+      "files": 421,
+      "differences": []
+    },
+    "existing_dto_and_routes": {
+      "files": 19,
+      "differences": []
+    },
+    "locked_dependencies": {
+      "files": 5,
+      "differences": []
+    },
+    "nested_payment_runtime": {
+      "files": 64,
+      "differences": []
+    }
+  },
+  "intentional_exclusions": {
+    "upstream_ci_files": 188,
+    "groups": [
+      "legacy release/install entry points",
+      "operational screenshots and dated evidence",
+      "partner/donation/community assets replaced by SUB6 QR",
+      "openspec frozen patches and archives",
+      "upstream-specific CLA and progress reports"
+    ]
+  },
+  "review_notes": "See INTEGRITY-v0.1.1.md; full three-way blob inventory is private. No deleted upstream backend business files. No claim of production acceptance."
+}

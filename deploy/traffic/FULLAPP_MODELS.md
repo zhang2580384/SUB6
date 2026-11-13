@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 完整双应用模型 SSE：合法隔离 fixture 与正常结算前置
 
 本切片基于已经双事件 CI 通过的 `e74c98dcf`。原 bootstrap、HTTP 七项/TLS 十项、全部硬内存/隔离/401/故障撤流/恢复/SIGTERM 断言保留。本轮实际新增代码与远端入口，不把已有 bootstrap 当模型验收。

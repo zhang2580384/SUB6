@@ -24,7 +24,7 @@ services:
   # SUB6 Application
   # ===========================================================================
   sub2api:
-    image: sub6:0.1.0 # Build this source locally.
+    image: sub6:0.1.1 # Build this source locally.
     container_name: sub2api
     restart: unless-stopped
     security_opt:

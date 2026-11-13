@@ -62,7 +62,7 @@ snapshot for each public release is recorded by full commit and tree ID in
   separately reviewed deployment component.
 - Configurable HTTP ingress, WS and upstream response read limits; supplied
   source Compose uses 256 MiB, subject to lower endpoint/proxy/model limits.
-- Source-only install/update policy: no silent upstream binary/image fallback;
+- Source/manual upgrade policy: no silent upstream binary/image fallback;
   built-in updater accepts this repository's release URLs and mandatory checksums.
 - No embedded Google OAuth client credentials; require explicit deployment client
   configuration. Remote credential-service endpoints default empty and fail closed.

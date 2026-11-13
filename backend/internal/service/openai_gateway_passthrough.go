@@ -825,6 +825,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	account.ApplyHeaderOverrides(req.Header)
 	if account.IsCopilotSDKEnabled() {
 		// Always overwrite this identity, including account header overrides.
+		req.Header.Set("X-Sub2API-Client-ID", strconv.FormatInt(getAPIKeyIDFromContext(c), 10))
 		req.Header.Set("X-SUB6-Client-ID", strconv.FormatInt(getAPIKeyIDFromContext(c), 10))
 	}
 	applyOpenCodeSessionHeader(c, account, targetURL, req.Header, body)

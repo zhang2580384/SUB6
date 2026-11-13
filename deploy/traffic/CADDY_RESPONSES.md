@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 可选多目标 HTTP Responses 入口
 
 `Caddyfile.responses` 是独立 L7 入口样例，固定验收版本为 **Caddy v2.11.7**。它只接受 `POST /v1/responses`、`POST /v1/responses/compact`；其余路径/方法返回 404，包括管理、支付、图片 capability 和 WS。应用原有鉴权、owner、并发及账本仍在各节点执行。它不改 `deploy/Caddyfile` 的单机默认，不修改 DNS、证书、生产配置或应用开关。

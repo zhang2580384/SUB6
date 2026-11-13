@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"errors"
 	"flag"
@@ -20,7 +21,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/mihomo"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/buildmeta"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/server"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
@@ -41,6 +44,7 @@ var (
 )
 
 func init() {
+	buildmeta.Revision, buildmeta.BuiltAt = Commit, Date
 	// 如果 Version 已通过 ldflags 注入（例如 -X main.Version=...），则不要覆盖。
 	if strings.TrimSpace(Version) != "" {
 		return
@@ -62,6 +66,8 @@ func main() {
 	// Parse command line flags
 	setupMode := flag.Bool("setup", false, "Run setup wizard in CLI mode")
 	showVersion := flag.Bool("version", false, "Show version information")
+	migrateOnly := flag.Bool("migrate-only", false, "Apply reviewed SQL migrations without starting HTTP or background jobs")
+	migrationTimeout := flag.Duration("migration-timeout", 30*time.Minute, "Timeout for --migrate-only (maximum 6h)")
 	migrateMihomo := flag.String("migrate-mihomo", "", "Stage legacy Mihomo into the specified SUB6 data directory (root deployment only)")
 	checkMihomo := flag.String("check-managed-mihomo", "", "Check managed Mihomo in the specified data directory")
 	flag.Parse()
@@ -87,7 +93,28 @@ func main() {
 	}
 
 	if *showVersion {
-		log.Printf("SUB6 %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		log.Printf("SUB6 %s (commit: %s, built: %s; Ranxi %s, sync: %s, release: %s)\n", Version, Commit, Date, buildmeta.UpstreamVersion, buildmeta.UpstreamCommit, buildmeta.UpstreamReleaseCommit)
+		return
+	}
+	if *migrateOnly {
+		if *migrationTimeout <= 0 || *migrationTimeout > 6*time.Hour {
+			log.Fatal("migration-timeout must be greater than zero and at most 6h")
+		}
+		cfg, err := config.LoadForBootstrap()
+		if err != nil {
+			log.Fatalf("load migration configuration: %v", err)
+		}
+		db, err := sql.Open("postgres", cfg.Database.DSNWithTimezone(cfg.Timezone))
+		if err != nil {
+			log.Fatalf("open migration database: %v", err)
+		}
+		defer db.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), *migrationTimeout)
+		defer cancel()
+		if err := repository.ApplyMigrations(ctx, db); err != nil {
+			log.Fatalf("SQL migration failed: %v", err)
+		}
+		log.Print("SQL migrations complete; HTTP and background jobs were not started")
 		return
 	}
 

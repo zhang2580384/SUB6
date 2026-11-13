@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/buildmeta"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
@@ -495,7 +496,7 @@ func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 
 func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
 	return service.PluginHostInfo{
-		Version:   buildInfo.Version,
+		Version:   buildmeta.UpstreamVersion,
 		BuildType: buildInfo.BuildType,
 	}
 }

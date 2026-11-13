@@ -48,7 +48,7 @@ func TestGroupCodexCLIOnlyPreservesOfficialRequestsAndRejectsForgedSystemCalls(t
 			require.Equal(t, http.StatusNoContent, w.Code)
 			require.Equal(t, 1, calls)
 
-			for _, header := range []string{"X-SUB6-Internal", "X-Quality-Judge", "X-Admin-Test"} {
+			for _, header := range []string{"X-Sub2API-Internal", "X-Quality-Judge", "X-Admin-Test"} {
 				req := codexGroupRequest(http.MethodPost, path, body, false)
 				req.Header.Set(header, "true")
 				w = httptest.NewRecorder()

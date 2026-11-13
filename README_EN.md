@@ -1,14 +1,14 @@
 # SUB6
 
-SUB6 is an independently maintained open-source distribution of [Ranxi Sub2API](https://github.com/ranxi2001/sub2api). Version **0.1.0** integrates production `428448007faa9fd8cd715380a5fd132f3b1e9e5b`, including v2.21.1 (`11f250894eab310cbd4508946c44c9e2a3a2eb48`) and subsequent fixes.
+SUB6 is an independently maintained open-source distribution of [Ranxi Sub2API](https://github.com/ranxi2001/sub2api). Version **0.1.1** is based on Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`), synchronized at production `ccf997c73868083d96c0bec56e71c1a34d26c98a`.
 
 Google OAuth application credentials are not embedded. Antigravity and Gemini CLI login/refresh require explicit client configuration; see `deploy/.env.example` and the maintenance report. Remote credential-service endpoints default to empty and must be configured independently.
 
-[中文与完整构建命令](README.md) · [Maintenance review](maintenance/2026-11-13-initial-sync.md) · [Deployment](deploy/README.md)
+[中文与完整构建命令](README.md) · [Upgrade compatibility](maintenance/2026-11-13-v0.1.1-upgrade.md) · [Deployment](deploy/README.md)
 
 Requires Go 1.27.4, Node.js 22+, pnpm 9.15.9, PostgreSQL and Redis. Install frontend dependencies with `--frozen-lockfile --ignore-scripts`, build the frontend, then build `backend/cmd/server` with `-tags embed`. The optional direct-access sidecar implements cumulative-credit quotas, administrator credit inclusion and audited manual total overrides. It does not write main balances. The rolled-back custom image orchestrator is excluded; the upstream Codex image bridge remains off by default.
 
-Only [SUB6 source and releases](https://github.com/zhang2580384/SUB6/releases) belong to this distribution. This initial version is source-only: no published container or binary is implied. Online updates require a compatible asset and mandatory checksums from this repository. CI never deploys production. Database migrations run at startup; read the maintenance report before upgrading and retain restorable backups.
+Only [SUB6 source and releases](https://github.com/zhang2580384/SUB6/releases) belong to this distribution. Version 0.1.1 provides source and an embedded-frontend Linux amd64 binary for manual upgrades; no container image is published. See [build and runtime requirements](maintenance/BUILD-v0.1.1.md). Online updates require a compatible asset and mandatory checksums from this repository. CI never deploys production. Database migrations run at startup; read the maintenance report before upgrading and retain restorable backups.
 
 Community QQ: **1126616545**.
 

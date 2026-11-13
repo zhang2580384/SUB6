@@ -1,0 +1,14 @@
+# Reuse an operator-verified runtime image already present in the local daemon.
+# No default image and no network-dependent RUN step. Existing entrypoint,
+# runtime user, mounts and health check are inherited and must be verified.
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+ARG SUB6_SOURCE_COMMIT
+ARG SUB6_VERSION=0.1.1
+LABEL org.opencontainers.image.source="https://github.com/zhang2580384/SUB6" \
+      org.opencontainers.image.revision="${SUB6_SOURCE_COMMIT}" \
+      org.opencontainers.image.version="${SUB6_VERSION}"
+COPY --chmod=0755 sub6-linux-amd64 /app/sub2api
+COPY resources/ /app/resources/
+COPY THIRD_PARTY_NOTICES.md /app/THIRD_PARTY_NOTICES.md
+COPY LICENSES/ /app/LICENSES/

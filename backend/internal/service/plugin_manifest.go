@@ -45,9 +45,9 @@ type PluginManifest struct {
 }
 
 type PluginRequirements struct {
-	SUB6                   string   `json:"sub2api"`
-	RecommendedSUB6Version string   `json:"recommended_sub2api_version,omitempty"`
-	TestedSUB6Versions     []string `json:"tested_sub2api_versions,omitempty"`
+	Sub2API                   string   `json:"sub2api"`
+	RecommendedSub2APIVersion string   `json:"recommended_sub2api_version,omitempty"`
+	TestedSub2APIVersions     []string `json:"tested_sub2api_versions,omitempty"`
 	PluginProtocol            int      `json:"plugin_protocol"`
 	TransportAPI              int      `json:"transport_api"`
 	UIBridge                  int      `json:"ui_bridge"`
@@ -79,9 +79,9 @@ type PluginCompatibility struct {
 	Tested             bool   `json:"tested"`
 	Status             string `json:"status"`
 	Message            string `json:"message"`
-	CurrentSUB6     string `json:"current_sub2api_version"`
-	RequiredSUB6    string `json:"required_sub2api_version"`
-	RecommendedSUB6 string `json:"recommended_sub2api_version"`
+	CurrentSub2API     string `json:"current_sub2api_version"`
+	RequiredSub2API    string `json:"required_sub2api_version"`
+	RecommendedSub2API string `json:"recommended_sub2api_version"`
 	PluginProtocol     int    `json:"plugin_protocol"`
 	TransportAPI       int    `json:"transport_api"`
 	UIBridge           int    `json:"ui_bridge"`
@@ -157,7 +157,7 @@ func (m PluginManifest) Validate() error {
 	if normalizeSemver(m.Version) == "" {
 		return errors.New("插件版本必须是有效的语义化版本")
 	}
-	if strings.TrimSpace(m.Requires.SUB6) == "" {
+	if strings.TrimSpace(m.Requires.Sub2API) == "" {
 		return errors.New("插件必须声明 requires.sub2api")
 	}
 	if m.Requires.PluginProtocol != pluginv1.ProtocolVersion ||

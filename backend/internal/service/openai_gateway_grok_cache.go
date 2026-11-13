@@ -16,7 +16,7 @@ import (
 const (
 	grokConversationIDHeader         = "X-Grok-Conv-Id"
 	claudeCodeSessionHeader          = "X-Claude-Code-Session-Id"
-	grokClientToolCacheOptInHeader   = "X-SUB6-Grok-Client-Tool-Cache"
+	grokClientToolCacheOptInHeader   = "X-Sub2API-Grok-Client-Tool-Cache"
 	grokFreeCacheNativeToolsJSON     = `[{"type":"web_search"},{"type":"x_search"}]`
 	grokFreeCacheDisabledToolChoice  = "none"
 	grokClientToolCacheOptInExtraKey = "grok_client_tool_cache_enabled"
@@ -227,7 +227,11 @@ func applyGrokFreeRequestToolCacheRoute(c *gin.Context, body, intentSourceBody [
 	allowPureClientTools, accountPolicyExplicit := grokClientToolCacheAccountPolicy(account)
 	requestOptOut := false
 	if c != nil {
-		switch strings.ToLower(strings.TrimSpace(c.GetHeader(grokClientToolCacheOptInHeader))) {
+		header := c.GetHeader(grokClientToolCacheOptInHeader)
+		if strings.TrimSpace(header) == "" {
+			header = c.GetHeader("X-SUB6-Grok-Client-Tool-Cache") // v0.1.0 alias
+		}
+		switch strings.ToLower(strings.TrimSpace(header)) {
 		case "1", "true", "yes", "on", "prefer-cache":
 			allowPureClientTools = true
 		case "0", "false", "no", "off":

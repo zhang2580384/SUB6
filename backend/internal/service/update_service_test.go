@@ -8,8 +8,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/buildmeta"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUpdateServiceProvenanceSurvivesCache(t *testing.T) {
+	cache := &updateServiceCacheStub{}
+	client := &updateServiceGitHubClientStub{release: &GitHubRelease{TagName: "v0.1.1"}}
+	svc := NewUpdateService(cache, client, "0.1.1", "source")
+	for _, force := range []bool{true, false} {
+		info, err := svc.CheckUpdate(context.Background(), force)
+		require.NoError(t, err)
+		require.Equal(t, "0.1.1", info.CurrentVersion)
+		require.Equal(t, buildmeta.Current(), info.Info)
+		require.False(t, info.HasUpdate)
+	}
+	require.Greater(t, compareVersions("0.1.1", "0.1.0"), 0)
+}
 
 type updateServiceCacheStub struct {
 	data string

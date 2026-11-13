@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 登录 Worker 随主程序自动管理
 
 Linux amd64 / arm64 的内置管理器已经支持自动下载、校验、启动与重试。主程序升级并重启后，按自身版本使用对应的 owner Release 运行包；旧版本目录仍保留，2FA 恢复日志放在版本目录外。服务器不编译应用，也不安装 Python/Node 依赖。

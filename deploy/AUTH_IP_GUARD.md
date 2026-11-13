@@ -1,3 +1,5 @@
+> SUB6：本文保留为历史部署参考。旧自动安装器已关闭，镜像须自行构建；当前部署入口见 [源码部署说明](https://github.com/zhang2580384/SUB6/blob/main/deploy/README.md) 与 [0.1.1 构建说明](https://github.com/zhang2580384/SUB6/blob/main/maintenance/BUILD-v0.1.1.md)。
+
 # 网页认证 IP 防护
 
 公开认证的凭证、注册及 OAuth 登录/建号入口默认启用以下防护；管理员建号和业务 API 不使用注册额度。刷新、登出、密码找回/重置和普通验证接口不经过新增守卫，OAuth 支付入口也不在其范围内。

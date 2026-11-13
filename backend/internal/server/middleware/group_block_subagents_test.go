@@ -31,7 +31,7 @@ func TestGroupSubagentsPolicyIsIndependentOfClientGate(t *testing.T) {
 			})
 			w := httptest.NewRecorder()
 			req := codexGroupRequest(http.MethodPost, "/v1/responses", body, official)
-			req.Header.Set("X-SUB6-Internal", "true")
+			req.Header.Set("X-Sub2API-Internal", "true")
 			r.ServeHTTP(w, req)
 			if enabled {
 				require.Equal(t, http.StatusForbidden, w.Code)

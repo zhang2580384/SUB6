@@ -1165,3 +1165,24 @@ func TestResolveGrokCacheIdentityConcurrentDeterminism(t *testing.T) {
 	}
 	require.NotEmpty(t, first)
 }
+
+func TestGrokToolCacheHeaderCompatibilityAndOptOutPriority(t *testing.T) {
+	account := healthyGrokOAuthGatewayTestAccount(90144, "access-token")
+	account.Credentials["subscription_tier"] = "free"
+	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"Read","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
+	for _, header := range []string{"X-Sub2API-Grok-Client-Tool-Cache", "X-SUB6-Grok-Client-Tool-Cache"} {
+		t.Run(header, func(t *testing.T) {
+			c := newGrokCacheTestContext(90144)
+			c.Request.Header.Set(header, "off")
+			patched, err := applyGrokFreeRequestToolCacheRoute(c, body, body, account, "isolated-id")
+			require.NoError(t, err)
+			require.JSONEq(t, string(body), string(patched))
+		})
+	}
+	c := newGrokCacheTestContext(90144)
+	c.Request.Header.Set("X-Sub2API-Grok-Client-Tool-Cache", "off")
+	c.Request.Header.Set("X-SUB6-Grok-Client-Tool-Cache", "prefer-cache")
+	patched, err := applyGrokFreeRequestToolCacheRoute(c, body, body, account, "isolated-id")
+	require.NoError(t, err)
+	require.JSONEq(t, string(body), string(patched))
+}

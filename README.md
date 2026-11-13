@@ -1,12 +1,12 @@
 # SUB6
 
-SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前独立版本：**0.1.0**。
+SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前独立版本：**0.1.1**。基于 Ranxi 正式版 **v2.21.2**，精确同步 SHA：`ccf997c73868083d96c0bec56e71c1a34d26c98a`（正式标签提交 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`）。
 
-[English](README_EN.md) · [日本語](README_JA.md) · [维护与安全审查](maintenance/2026-11-13-initial-sync.md) · [部署说明](deploy/README.md)
+[English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-13-v0.1.1-upgrade.md) · [部署说明](deploy/README.md)
 
 ## 来源与功能
 
-本版从上游 2.19.5 基线 `b50754c0facddce08ef13900dfc1302061d1710b` 追齐到 production `428448007faa9fd8cd715380a5fd132f3b1e9e5b`；该分支包含正式版 v2.21.1 的提交 `11f250894eab310cbd4508946c44c9e2a3a2eb48` 及其后修复。
+本版从上游 2.19.5 基线 `b50754c0facddce08ef13900dfc1302061d1710b` 追齐到 production `ccf997c73868083d96c0bec56e71c1a34d26c98a`；正式版 v2.21.2 对应 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`。完整 852 个提交范围和逐文件排除项见 maintenance/。
 
 保留多平台网关、分组与账号调度、WS/SSE、支付与计费、管理权限及 Grok 低 token 探活修复。独立 `deploy/direct-access` 辅助服务提供 IP 白名单、每累计成功入账 $100 一个名额、管理员加款计入累计、管理员指定总名额与操作审计。它需要单独配置，不会自动修改防火墙或主系统余额。
 
@@ -22,7 +22,7 @@ pnpm --dir frontend run build
 cd backend
 go mod download
 go mod verify
-CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.0 -X main.BuildType=source' -o sub6 ./cmd/server
+CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.1 -X main.BuildType=source' -o sub6 ./cmd/server
 ./sub6
 ```
 
@@ -32,7 +32,7 @@ Google OAuth 客户端未内置。Antigravity/Gemini CLI 登录和令牌刷新�
 
 ## 更新与发布
 
-只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。首版提供源码；未发布容器镜像或预编译可执行包。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
+只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。0.1.1 提供源码及嵌入前端的 Linux amd64 二进制；未发布容器镜像。构建来源、运行时资源和人工升级方法见 [构建说明](maintenance/BUILD-v0.1.1.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
 
 上游维护串行执行，逐次记录精确 SHA、审查、排除项和测试。公开仓库使用从已脱敏源码建立的独立历史，原始私人历史不会推送。详见 [同步流程](maintenance/SYNC.md)。CI 仅读取源码并验证，不连接或部署生产。
 

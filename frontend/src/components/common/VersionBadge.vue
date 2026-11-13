@@ -12,7 +12,7 @@
         ]"
         :title="hasUpdate ? t('version.updateAvailable') : t('version.upToDate')"
       >
-        <span v-if="currentVersion" class="font-medium">v{{ currentVersion }}</span>
+        <span v-if="currentVersion" class="font-medium">SUB6 v{{ currentVersion }}</span>
         <span
           v-else
           class="h-3 w-12 animate-pulse rounded bg-gray-200 font-medium dark:bg-dark-600"
@@ -84,7 +84,7 @@
                   <span
                     v-if="currentVersion"
                     class="text-2xl font-bold text-gray-900 dark:text-white"
-                    >v{{ currentVersion }}</span
+                    >SUB6 v{{ currentVersion }}</span
                   >
                   <span v-else class="text-2xl font-bold text-gray-400 dark:text-dark-500">--</span>
                   <!-- Show check mark when up to date -->
@@ -112,6 +112,12 @@
                       : t('version.upToDate')
                   }}
                 </p>
+              </div>
+
+              <div v-if="appStore.upstreamVersion" class="mb-4 space-y-1 text-xs text-gray-500 dark:text-dark-400">
+                <p>Ranxi Sub2API v{{ appStore.upstreamVersion }}</p>
+                <p class="break-all font-mono" :title="appStore.upstreamCommit">{{ appStore.upstreamCommit }}</p>
+                <p v-if="appStore.buildCommit" class="break-all font-mono">SUB6: {{ appStore.buildCommit }}</p>
               </div>
 
               <!-- Priority 1: Update error (must check before hasUpdate) -->
@@ -698,8 +704,7 @@ const rollbackError = ref('')
 
 const { copied, copyToClipboard } = useClipboard()
 
-// Manual rollback methods differ by deployment: script installs use install.sh,
-// docker deployments pin the image tag instead
+// Manual rollback uses reviewed source; runtime configuration and billing stay intact.
 const manualTab = ref<'script' | 'docker'>('script')
 
 const manualTabs = computed(() => [
@@ -710,7 +715,7 @@ const manualTabs = computed(() => [
 const scriptRollbackCommand = computed(() => {
   if (!selectedRollbackVersion.value) return ''
   const tag = `v${selectedRollbackVersion.value}`
-  return `git clone --branch ${tag} --depth 1 https://github.com/${GITHUB_REPO}.git sub6-${tag}\ncd sub6-${tag}\n# Review maintenance notes and restore a compatible backup before rebuilding.\n# See deploy/README.md.`
+  return `git clone --branch ${tag} --depth 1 https://github.com/${GITHUB_REPO}.git sub6-${tag}\ncd sub6-${tag}\n# Review migration notes; retain current billing data when rolling the application back.\n# See deploy/README.md.`
 })
 
 const dockerRollbackCommand = computed(() => {

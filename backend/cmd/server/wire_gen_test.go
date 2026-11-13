@@ -6,9 +6,23 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/buildmeta"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	pluginv1 "github.com/Wei-Shaw/sub2api/pkg/pluginapi/v1"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSUB6PluginHostUsesUpstreamCompatibilityVersion(t *testing.T) {
+	host := providePluginHostInfo(handler.BuildInfo{Version: "0.1.1", BuildType: "source"})
+	require.Equal(t, buildmeta.UpstreamVersion, host.Version)
+	manifest := service.PluginManifest{Requires: service.PluginRequirements{
+		Sub2API: ">=2.21.0 <2.22.0", TestedSub2APIVersions: []string{buildmeta.UpstreamVersion},
+		PluginProtocol: pluginv1.ProtocolVersion, TransportAPI: pluginv1.TransportAPIVersion, UIBridge: pluginv1.UIBridgeVersion,
+	}}
+	compatibility := service.EvaluatePluginCompatibility(manifest, host)
+	require.True(t, compatibility.Compatible)
+	require.True(t, compatibility.Tested)
+}
 
 func TestProvideServiceBuildInfo(t *testing.T) {
 	in := handler.BuildInfo{
