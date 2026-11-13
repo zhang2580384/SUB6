@@ -59,7 +59,7 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m venv /tmp/sub6-review
-      - run: /tmp/sub6-review/bin/pip install --only-binary=:all: -r deploy/direct-access/requirements.lock
+      - run: '/tmp/sub6-review/bin/pip install --only-binary=:all: -r deploy/direct-access/requirements.lock'
       - working-directory: deploy/direct-access
         env:
           SUB6_REVIEW_DATABASE_URL: postgresql://sub6_review@127.0.0.1:5432/sub6_review
