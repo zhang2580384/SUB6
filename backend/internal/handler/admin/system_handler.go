@@ -25,6 +25,7 @@ type SystemHandler struct {
 	lockSvc     *service.SystemOperationLockService
 	kernel      *mihomo.Manager
 	nodeChecker mihomoNodeChecker
+	managed     *service.ManagedUpdateClient
 }
 
 // systemUpdateTimeout bounds a full in-place update or rollback: the release
@@ -62,6 +63,7 @@ func NewSystemHandler(updateSvc systemUpdateService, lockSvc *service.SystemOper
 		updateSvc: updateSvc,
 		lockSvc:   lockSvc,
 		kernel:    mihomo.New(filepath.Join(setup.GetDataDir(), "mihomo-codex")),
+		managed:   service.NewManagedUpdateClientFromEnvironment(),
 	}
 }
 
@@ -92,9 +94,46 @@ func (h *SystemHandler) CheckUpdates(c *gin.Context) {
 	response.Success(c, info)
 }
 
+// GetUpdateStatus exposes progress only behind the existing administrator gate.
+func (h *SystemHandler) GetUpdateStatus(c *gin.Context) {
+	if h.managed == nil {
+		response.Success(c, service.ManagedUpdateStatus{Managed: false, Phase: "idle"})
+		return
+	}
+	status, err := h.managed.Status(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	response.Success(c, status)
+}
+
+func (h *SystemHandler) startManagedUpdate(c *gin.Context, action, version string) {
+	status, err := h.managed.Start(c.Request.Context(), action, version)
+	if err != nil {
+		response.Error(c, http.StatusConflict, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"managed": true, "need_restart": false,
+		"operation_id": status.OperationID, "phase": status.Phase, "target_version": status.TargetVersion})
+}
+
 // PerformUpdate downloads and applies the update
 // POST /api/v1/admin/system/update
 func (h *SystemHandler) PerformUpdate(c *gin.Context) {
+	if h.managed != nil {
+		info, err := h.updateSvc.CheckUpdate(c.Request.Context(), true)
+		if err != nil {
+			response.Error(c, http.StatusBadGateway, err.Error())
+			return
+		}
+		if info == nil || !info.HasUpdate {
+			response.Success(c, gin.H{"already_up_to_date": true, "need_restart": false})
+			return
+		}
+		h.startManagedUpdate(c, "update", info.LatestVersion)
+		return
+	}
 	operationID := buildSystemOperationID(c, "update")
 	payload := gin.H{"operation_id": operationID}
 	executeAdminIdempotentJSON(c, "admin.system.update", payload, service.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
@@ -143,6 +182,19 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 // GetRollbackVersions lists versions available for rollback
 // GET /api/v1/admin/system/rollback-versions
 func (h *SystemHandler) GetRollbackVersions(c *gin.Context) {
+	if h.managed != nil {
+		status, err := h.managed.Status(c.Request.Context())
+		if err != nil {
+			response.Error(c, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		versions := status.Versions
+		if versions == nil {
+			versions = []service.RollbackVersion{}
+		}
+		response.Success(c, gin.H{"versions": versions})
+		return
+	}
 	versions, err := h.updateSvc.ListRollbackVersions(c.Request.Context())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
@@ -169,6 +221,10 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 		}
 	}
 	targetVersion := strings.TrimSpace(req.Version)
+	if h.managed != nil {
+		h.startManagedUpdate(c, "rollback", targetVersion)
+		return
+	}
 
 	operation := "rollback"
 	if targetVersion != "" {
@@ -213,6 +269,10 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 // RestartService restarts the systemd service
 // POST /api/v1/admin/system/restart
 func (h *SystemHandler) RestartService(c *gin.Context) {
+	if h.managed != nil {
+		h.startManagedUpdate(c, "restart", "")
+		return
+	}
 	operationID := buildSystemOperationID(c, "restart")
 	payload := gin.H{"operation_id": operationID}
 	executeAdminIdempotentJSON(c, "admin.system.restart", payload, service.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {

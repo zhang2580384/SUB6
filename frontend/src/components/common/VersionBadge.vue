@@ -155,6 +155,15 @@
                 </button>
               </div>
 
+              <div v-else-if="managedPhase && updating" class="space-y-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" role="status" aria-live="polite">
+                <p>{{ t('version.updating') }}</p>
+                <p class="text-xs">{{ managedProgressText }}</p>
+              </div>
+
+              <div v-else-if="updateSuccess && !needRestart" class="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300" role="status">
+                {{ successKind === 'rollback' ? t('version.rollbackComplete') : t('version.updateComplete') }}
+              </div>
+
               <!-- Priority 2: Update success - need restart -->
               <div v-else-if="updateSuccess && needRestart" class="space-y-2">
                 <div
@@ -651,6 +660,7 @@ import {
   performUpdate,
   restartService,
   getRollbackVersions,
+  getUpdateStatus,
   rollback as rollbackAPI,
   type RollbackVersionInfo
 } from '@/api/admin/system'
@@ -690,6 +700,13 @@ const needRestart = ref(false)
 const updateError = ref('')
 const updateSuccess = ref(false)
 const restartCountdown = ref(0)
+const managedPhase = ref('')
+let componentDisposed = false
+const managedProgressText = computed(() => {
+  if (managedPhase.value === 'downloading' || managedPhase.value === 'verifying') return t('version.managedPreparing')
+  if (managedPhase.value === 'draining') return t('version.managedDraining')
+  return t('version.managedSwitching')
+})
 // Distinguishes the success + restart panel between update and rollback flows
 const successKind = ref<'update' | 'rollback'>('update')
 
@@ -746,7 +763,7 @@ function closeDropdown() {
 }
 
 async function refreshVersion(force = true) {
-  if (!isAdmin.value) return
+  if (!isAdmin.value || updating.value || rollingBack.value) return
 
   // Reset update states when refreshing
   updateError.value = ''
@@ -758,7 +775,7 @@ async function refreshVersion(force = true) {
 }
 
 async function handleUpdate() {
-  if (updating.value) return
+  if (updating.value || rollingBack.value) return
 
   updating.value = true
   updateError.value = ''
@@ -767,6 +784,9 @@ async function handleUpdate() {
   try {
     const result = await performUpdate()
     successKind.value = 'update'
+    if (result.managed && result.operation_id) {
+      await waitForManagedUpdate(result.operation_id)
+    }
     updateSuccess.value = true
     needRestart.value = result.need_restart
     // Clear version cache to reflect update completed
@@ -776,6 +796,49 @@ async function handleUpdate() {
     updateError.value = err.response?.data?.message || err.message || t('version.updateFailed')
   } finally {
     updating.value = false
+  }
+}
+
+async function waitForManagedUpdate(operationID: string) {
+  managedPhase.value = 'queued'
+  const deadline = Date.now() + 45 * 60 * 1000
+  while (!componentDisposed && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    let status
+    try {
+      status = await getUpdateStatus()
+    } catch {
+      // The administration endpoint can briefly reconnect during the cutover.
+      continue
+    }
+    if (status.operation_id !== operationID) throw new Error(t('version.managedStatusChanged'))
+    managedPhase.value = status.phase
+    if (status.phase === 'failed') throw new Error(status.error || t('version.updateFailed'))
+    if (status.phase === 'completed') {
+      needRestart.value = false
+      appStore.clearVersionCache()
+      await appStore.fetchVersion(true)
+      return
+    }
+  }
+  if (!componentDisposed) throw new Error(t('version.managedStillRunning'))
+}
+
+async function restoreManagedProgress() {
+  try {
+    const status = await getUpdateStatus()
+    if (!status.managed || !status.operation_id || ['idle', 'completed', 'failed'].includes(status.phase)) return
+    updating.value = true
+    try {
+      await waitForManagedUpdate(status.operation_id)
+      updateSuccess.value = true
+    } catch (error) {
+      updateError.value = error instanceof Error ? error.message : t('version.updateFailed')
+    } finally {
+      updating.value = false
+    }
+  } catch {
+    // Standalone installs keep the existing updater flow.
   }
 }
 
@@ -833,7 +896,7 @@ function formatPublishedAt(publishedAt: string): string {
 
 async function handleRollback() {
   if (!isAdmin.value) return
-  if (rollingBack.value || !selectedRollbackVersion.value) return
+  if (rollingBack.value || updating.value || !selectedRollbackVersion.value) return
 
   rollingBack.value = true
   rollbackError.value = ''
@@ -841,6 +904,10 @@ async function handleRollback() {
   try {
     const result = await rollbackAPI(selectedRollbackVersion.value)
     successKind.value = 'rollback'
+    if (result.managed && result.operation_id) {
+      updating.value = true
+      try { await waitForManagedUpdate(result.operation_id) } finally { updating.value = false }
+    }
     updateSuccess.value = true
     needRestart.value = result.need_restart
     rollbackPanelOpen.value = false
@@ -919,11 +986,13 @@ onMounted(() => {
   if (isAdmin.value) {
     // Use cached version if available, otherwise fetch
     appStore.fetchVersion(false)
+    void restoreManagedProgress()
   }
   document.addEventListener('click', handleClickOutside)
 })
 
 onBeforeUnmount(() => {
+  componentDisposed = true
   document.removeEventListener('click', handleClickOutside)
 })
 </script>

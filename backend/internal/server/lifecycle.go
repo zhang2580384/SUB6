@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,15 +20,16 @@ import (
 // Lifecycle counts handlers, including hijacked WebSocket handlers, without
 // wrapping ResponseWriter and losing its streaming or hijacking interfaces.
 type Lifecycle struct {
-	onDrain      []func()
-	mu           sync.Mutex
-	draining     bool
-	active       int
-	idle         chan struct{}
-	checks       []func(context.Context) error
-	probeMu      sync.Mutex
-	probe        *readinessProbe
-	probeTimeout time.Duration
+	onDrain         []func()
+	mu              sync.Mutex
+	draining        bool
+	active          int
+	idle            chan struct{}
+	checks          []func(context.Context) error
+	probeMu         sync.Mutex
+	probe           *readinessProbe
+	probeTimeout    time.Duration
+	deploymentToken string
 }
 
 func NewLifecycle(checks ...func(context.Context) error) *Lifecycle {
@@ -38,7 +42,13 @@ func newLifecycleWithTimeout(timeout time.Duration, checks ...func(context.Conte
 	if timeout <= 0 {
 		timeout = time.Second
 	}
-	return &Lifecycle{idle: make(chan struct{}), checks: checks, probeTimeout: timeout}
+	l := &Lifecycle{idle: make(chan struct{}), checks: checks, probeTimeout: timeout}
+	if path := os.Getenv("SUB6_UPDATE_CONTROLLER_TOKEN_FILE"); path != "" {
+		if token, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(token))) >= 32 {
+			l.deploymentToken = strings.TrimSpace(string(token))
+		}
+	}
+	return l
 }
 
 func ProvideLifecycle(cfg *config.Config, db *sql.DB, cache *redis.Client, scheduler *service.SchedulerSnapshotService) *Lifecycle {
@@ -102,6 +112,23 @@ func (l *Lifecycle) isDraining() bool {
 
 func (l *Lifecycle) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/internal/deployment/status" && l.deploymentToken != "" {
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+l.deploymentToken)) != 1 {
+				http.NotFound(w, r)
+				return
+			}
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			l.mu.Lock()
+			active, draining := l.active, l.draining
+			l.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+			_ = json.NewEncoder(w).Encode(map[string]any{"active_requests": active, "draining": draining})
+			return
+		}
 		if r.URL.Path == "/readyz" {
 			l.serveReadiness(w, r)
 			return

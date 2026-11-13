@@ -34,6 +34,8 @@ jobs:
       - run: pnpm --dir frontend run lint:check
       - run: pnpm --dir frontend run build
       - run: pnpm --dir frontend exec vitest run --maxWorkers=2 --minWorkers=1
+      - name: Managed rolling updater safety tests
+        run: python3 -m unittest discover -s deploy/managed-updater -p test_controller.py -v
       - name: Install real Redis for cross-node history regressions
         run: |
           sudo apt-get update
@@ -48,12 +50,12 @@ jobs:
       - name: Embedded payment engine tests
         working-directory: backend
         run: go test github.com/v03413/bepusdt/app/conf github.com/v03413/bepusdt/app/task github.com/v03413/bepusdt/app/task/notify -count=1 -timeout=5m
-      - name: Build embedded source distribution
+      - name: Build embedded release distribution
         working-directory: backend
         env:
           SUB6_BUILD_COMMIT: ${{ github.sha }}
         run: |
-          CGO_ENABLED=0 go build -tags embed -trimpath -ldflags="-s -w -X main.Version=0.1.2 -X main.Commit=$SUB6_BUILD_COMMIT -X main.BuildType=source" -o "$RUNNER_TEMP/sub6" ./cmd/server
+          make build-release RELEASE_OUTPUT="$RUNNER_TEMP/sub6" RELEASE_COMMIT="$SUB6_BUILD_COMMIT"
           "$RUNNER_TEMP/sub6" -version
   quota-integration:
     runs-on: ubuntu-24.04

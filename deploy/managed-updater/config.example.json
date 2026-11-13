@@ -1,0 +1,24 @@
+{
+  "state_directory": "/var/lib/sub6-updater",
+  "token_file": "/opt/sub6-updater/control/token",
+  "socket_directory": "/opt/sub6-updater/control",
+  "socket_gid": 1000,
+  "runtime_image": "verified-local-runtime:existing",
+  "primary_network": "sub6-private",
+  "additional_networks": ["sub6-egress"],
+  "drain_timeout_seconds": 1800,
+  "routes": [
+    {"name": "origin", "path": "/etc/site/Caddyfile", "container": "site-proxy", "container_path": "/etc/caddy/Caddyfile", "admin_url": "http://127.0.0.1:2020"}
+  ],
+  "current": {
+    "version": "0.1.1",
+    "image": "verified-local-runtime:existing",
+    "main_container": "sub6-main-existing",
+    "gateway_container": "sub6-ws-existing",
+    "main_endpoint": "172.25.90.2:1980",
+    "gateway_endpoint": "172.25.90.3:1980",
+    "migrations_fingerprint": "REPLACE_WITH_REVIEWED_SQL_FINGERPRINT",
+    "deployment_probe_protocol": 0
+  },
+  "history": []
+}

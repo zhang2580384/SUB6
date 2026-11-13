@@ -4,7 +4,7 @@
 ARG RUNTIME_IMAGE
 FROM ${RUNTIME_IMAGE}
 ARG SUB6_SOURCE_COMMIT
-ARG SUB6_VERSION=0.1.2
+ARG SUB6_VERSION=0.1.3
 LABEL org.opencontainers.image.source="https://github.com/zhang2580384/SUB6" \
       org.opencontainers.image.revision="${SUB6_SOURCE_COMMIT}" \
       org.opencontainers.image.version="${SUB6_VERSION}"

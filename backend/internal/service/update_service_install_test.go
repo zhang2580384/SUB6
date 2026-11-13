@@ -24,6 +24,8 @@ type updateInstallClient struct {
 	latestErr    error
 	latestCalls  int
 	recentCalls  int
+	archiveName  string
+	archiveData  []byte
 }
 
 func (c *updateInstallClient) FetchLatestRelease(ctx context.Context, repo string) (*GitHubRelease, error) {
@@ -43,10 +45,16 @@ func (c *updateInstallClient) DownloadFile(_ context.Context, _, dest string, _ 
 	if c.failDownload {
 		return errors.New("download unavailable")
 	}
+	if c.archiveData != nil {
+		return os.WriteFile(dest, c.archiveData, 0600)
+	}
 	return os.WriteFile(dest, []byte("downloaded release"), 0600)
 }
 
 func (c *updateInstallClient) FetchChecksumFile(context.Context, string) ([]byte, error) {
+	if c.archiveData != nil {
+		return []byte(fmt.Sprintf("%x  %s\n", sha256.Sum256(c.archiveData), c.archiveName)), nil
+	}
 	return []byte(fmt.Sprintf("%x  %s_%s\n", sha256.Sum256([]byte("downloaded release")), runtime.GOOS, runtime.GOARCH)), nil
 }
 
@@ -87,7 +95,7 @@ func TestUpdateServiceRequiresRestartBeforeNextMutation(t *testing.T) {
 		return
 	}
 
-	for _, scenario := range []string{"update-update", "update-rollback", "rollback-update", "rollback-rollback", "failed-update-retry"} {
+	for _, scenario := range []string{"update-update", "update-rollback", "rollback-update", "rollback-rollback", "failed-update-retry", "sub6-release-archive"} {
 		t.Run(scenario, func(t *testing.T) {
 			// Never rename the parent test runner: only the disposable child copy.
 			executable, err := os.Executable()
@@ -117,13 +125,19 @@ func runUpdateInstallScenario(t *testing.T, scenario string) {
 	require.NoError(t, err)
 	client := &updateInstallClient{}
 	svc := NewUpdateService(&updateServiceCacheStub{}, client, "1.0.0", "release")
+	archiveName := svc.getArchiveName()
+	if scenario == "sub6-release-archive" {
+		archiveName = "sub6_2.0.0_" + archiveName + ".tar.gz"
+		client.archiveName = archiveName
+		client.archiveData = sub6RuntimeArchive(t, sub6PlatformBinaryName(), []byte("downloaded SUB6 program"))
+	}
 	client.release = &GitHubRelease{
 		TagName: "v2.0.0",
 		Assets: []GitHubAsset{{
-			Name:               svc.getArchiveName(),
-			BrowserDownloadURL: "https://github.com/zhang2580384/SUB6/releases/download/v2.0.0/" + svc.getArchiveName(),
+			Name:               archiveName,
+			BrowserDownloadURL: "https://github.com/zhang2580384/SUB6/releases/download/v2.0.0/" + archiveName,
 		}, {
-			Name: "checksums.txt",
+			Name:               "checksums.txt",
 			BrowserDownloadURL: "https://github.com/zhang2580384/SUB6/releases/download/v2.0.0/checksums.txt",
 		}},
 	}
@@ -138,6 +152,11 @@ func runUpdateInstallScenario(t *testing.T, scenario string) {
 		require.NoError(t, svc.Rollback())
 	} else {
 		require.NoError(t, update())
+	}
+	if scenario == "sub6-release-archive" {
+		installed, readErr := os.ReadFile(executable)
+		require.NoError(t, readErr)
+		require.Equal(t, []byte("downloaded SUB6 program"), installed)
 	}
 
 	before := updateInstallFileHashes(t, executable)

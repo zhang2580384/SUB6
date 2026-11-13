@@ -1,0 +1,18 @@
+[Unit]
+Description=SUB6 local managed rolling update controller
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/sub6-updater/controller.py --config /etc/sub6-updater/config.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

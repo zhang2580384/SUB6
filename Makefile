@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
+.PHONY: build build-release build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
 FRONTEND_CRITICAL_VITEST := \
 	src/components/common/__tests__/NewFeatureBadge.spec.ts \
@@ -156,6 +156,10 @@ FRONTEND_CRITICAL_VITEST := \
 
 # 一键编译前后端
 build: build-backend build-frontend
+
+# Packaged SUB6 binary: build embedded frontend before the release-mode backend.
+build-release: build-frontend
+	@$(MAKE) -C backend build-release
 
 # 编译后端（复用 backend/Makefile）
 build-backend:

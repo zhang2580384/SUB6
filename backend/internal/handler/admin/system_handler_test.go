@@ -150,6 +150,23 @@ func TestSystemHandlerPerformUpdateAlreadyUpToDateReturnsOK(t *testing.T) {
 	require.NotEmpty(t, body.Data.OperationID)
 }
 
+func TestSystemHandlerManagedControllerFailureNeverMutatesStandaloneBinary(t *testing.T) {
+	t.Setenv("SUB6_UPDATE_CONTROLLER_SOCKET", "invalid-relative-path")
+	t.Setenv("SUB6_UPDATE_CONTROLLER_TOKEN_FILE", "missing-token")
+	stub := &systemHandlerUpdateServiceStub{updateInfo: &service.UpdateInfo{HasUpdate: true, LatestVersion: "0.1.3"}}
+	h := NewSystemHandler(stub, nil)
+	for _, call := range []func(*gin.Context){h.PerformUpdate, h.Rollback, h.RestartService} {
+		rec := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(rec)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		call(ctx)
+		require.Equal(t, http.StatusConflict, rec.Code)
+	}
+	require.Zero(t, stub.performCall)
+	require.Zero(t, stub.rollbackCall)
+	require.Zero(t, stub.rollbackToCall)
+}
+
 func TestSystemHandlerPerformUpdateFailureStillReturnsInternalError(t *testing.T) {
 	updateSvc := &systemHandlerUpdateServiceStub{
 		performErr: errors.New("download failed"),

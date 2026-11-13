@@ -602,7 +602,12 @@ func (s *UpdateService) extractBinary(archivePath, destPath string) error {
 			}
 
 			// Only extract the specific binary we need
-			if baseName == "sub2api" || baseName == "sub2api.exe" {
+			platformBinary := "sub6-" + runtime.GOOS + "-" + runtime.GOARCH
+			if runtime.GOOS == "windows" {
+				platformBinary += ".exe"
+			}
+			if baseName == "sub2api" || baseName == "sub2api.exe" ||
+				baseName == "sub6" || baseName == "sub6.exe" || baseName == platformBinary {
 				// Additional security: limit file size (max 500MB)
 				const maxBinarySize = 500 * 1024 * 1024
 				if hdr.Size > maxBinarySize {
