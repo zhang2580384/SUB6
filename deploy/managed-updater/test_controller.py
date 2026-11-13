@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import stat
 from pathlib import Path
 import tarfile
 import tempfile
@@ -44,6 +45,26 @@ class ReleaseBoundaryTests(unittest.TestCase):
             self.archive(path, [('sub6-linux-amd64', tarfile.REGTYPE)] * 2)
             with self.assertRaises(ValueError):
                 controller.safe_unpack(path, Path(tmp) / 'out')
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX directory modes')
+    def test_private_umask_does_not_make_runtime_directories_root_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / 'release.tar.gz'
+            self.archive(archive, [('sub6-linux-amd64', tarfile.REGTYPE),
+                                   ('build-info.json', tarfile.REGTYPE),
+                                   ('resources/model-pricing/nested/prices.json', tarfile.REGTYPE),
+                                   ('LICENSES', tarfile.DIRTYPE)])
+            previous = os.umask(0o077)
+            try:
+                controller.safe_unpack(archive, root / 'out')
+            finally:
+                os.umask(previous)
+            self.assertEqual(0o700, stat.S_IMODE((root / 'out').stat().st_mode))
+            for name in ['resources', 'resources/model-pricing', 'resources/model-pricing/nested', 'LICENSES']:
+                self.assertEqual(0o755, stat.S_IMODE((root / 'out' / name).stat().st_mode))
+            self.assertEqual(0o644, stat.S_IMODE((root / 'out/resources/model-pricing/nested/prices.json').stat().st_mode))
+            self.assertEqual(0o755, stat.S_IMODE((root / 'out/sub6-linux-amd64').stat().st_mode))
 
     def test_versions_cannot_be_urls_shell_options_or_paths(self):
         for value in ['latest', '../0.1.3', '0.1.3; echo bad', '--privileged', 'https://example.invalid', None, 13]:

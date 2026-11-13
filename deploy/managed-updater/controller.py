@@ -114,6 +114,12 @@ def safe_unpack(archive, destination):
     for required in ('sub6-linux-amd64', 'build-info.json', 'resources'):
         if not (destination / required).exists():
             raise ValueError('Release is missing a required runtime file')
+    # The controller's private umask must not propagate root-only directories
+    # into Docker COPY layers. Keep the outer build context private, while
+    # runtime subdirectories remain traversable by the unprivileged app user.
+    for path in destination.rglob('*'):
+        if path.is_dir():
+            os.chmod(path, 0o755)
 
 
 def stage_routes(text, old_main, old_gateway, new_gateway):

@@ -51,6 +51,16 @@ type codexOrderedSchedulerCache struct {
 	source LatestSchedulerAccountsRepository
 }
 
+// Preserve optional readiness checks when the publication-order wrapper is
+// installed. Missing support must still reject admission rather than pass it.
+func (c *codexOrderedSchedulerCache) CheckSnapshotReadiness(ctx context.Context, buckets []SchedulerBucket, maxAge time.Duration) error {
+	checker, ok := c.SchedulerCache.(schedulerReadinessCache)
+	if !ok {
+		return ErrSchedulerCacheNotReady
+	}
+	return checker.CheckSnapshotReadiness(ctx, buckets, maxAge)
+}
+
 // Keep the cache's existing bulk-read capability through the publication
 // wrapper; candidate hydration must not turn one MGET into N round trips.
 func (c *codexOrderedSchedulerCache) GetAccounts(ctx context.Context, ids []int64) (map[int64]*Account, error) {
