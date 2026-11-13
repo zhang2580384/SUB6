@@ -1,9 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
 import { useNewFeatureNoticeStore } from '../newFeatureNotices'
 
 describe('new feature notice preferences', () => {
+  afterEach(() => vi.restoreAllMocks())
   beforeEach(() => {
     localStorage.clear()
     setActivePinia(createPinia())
@@ -35,6 +36,31 @@ describe('new feature notice preferences', () => {
       'protocol-switches',
       'other-feature',
     ])
+  })
+
+  it('isolates announcement versions, users and future notices across reloads', () => {
+    const store = useNewFeatureNoticeStore()
+    store.dismiss(41, 'feature')
+    expect(store.isDismissed(41, 'feature', '2')).toBe(false)
+    store.dismiss(41, 'feature', '2')
+    setActivePinia(createPinia())
+    const restored = useNewFeatureNoticeStore()
+    expect(restored.isDismissed(41, 'feature')).toBe(true)
+    expect(restored.isDismissed(41, 'feature', '2')).toBe(true)
+    expect(restored.isDismissed(41, 'feature', '3')).toBe(false)
+    expect(restored.isDismissed(41, 'future')).toBe(false)
+    expect(restored.isDismissed(42, 'feature', '2')).toBe(false)
+    expect(restored.isDismissed(null, 'feature')).toBe(false)
+  })
+
+  it('keeps current-session reads usable when browser storage is unavailable', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('unavailable') })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('unavailable') })
+    const store = useNewFeatureNoticeStore()
+    expect(store.isDismissed(41, 'feature')).toBe(false)
+    expect(() => store.dismiss(41, 'feature')).not.toThrow()
+    expect(store.isDismissed(41, 'feature')).toBe(true)
+    expect(store.isDismissed(41, 'future')).toBe(false)
   })
   it('announces key source restrictions independently and preserves dismissals across reloads', () => {
     const store = useNewFeatureNoticeStore()

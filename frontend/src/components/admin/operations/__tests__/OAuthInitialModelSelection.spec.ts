@@ -32,9 +32,9 @@ function notice(wrapper: VueWrapper) {
  expect(component, 'the actual entry must share the stable notice ID').toBeDefined()
  return component!
 }
-async function entries(pinia: Pinia) {
- const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/admin/auto-config', component: { template: '<div />' } }] })
- await router.push('/admin/auto-config'); await router.isReady()
+async function entries(pinia: Pinia, path = '/admin/ai-ops') {
+ const router = createRouter({ history: createMemoryHistory(), routes: ['/admin/auto-config', '/admin/ai-ops'].map(path => ({ path, component: { template: '<div />' } })) })
+ await router.push(path); await router.isReady()
  const global = { plugins: [pinia, router], stubs: { VersionBadge: true, FeatureSearch: true, Icon: true } }
  const sidebar = mount(AppSidebar, { global })
  const nav = mount(SmartOpsNav, { global })
@@ -52,13 +52,15 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.clearAllMocks() })
 
 describe('OAuth initial selection notice on real entries', () => {
- it.each(['sidebar', 'nav', 'selection'] as const)('preserves A, dismisses all B from %s, reloads and reauthenticates without reviving A/B, then shows C', async entry => {
+ it.each(['sidebar', 'nav', 'selection'] as const)('preserves A, reads B from %s, reloads and reauthenticates without reviving A/B, then shows C', async entry => {
   const pinia = createPinia(); setActivePinia(pinia)
   await useAuthStore(pinia).login({ email: admin.email, password: 'fixture-password' })
   useNewFeatureNoticeStore(pinia).dismiss(admin.id, old)
   const mounted = await entries(pinia)
   for (const wrapper of Object.values(mounted)) expect(notice(wrapper).find(badge).exists()).toBe(true)
-  await notice(mounted[entry]).get(badge).trigger('click')
+  if (entry === 'selection') await notice(mounted.selection).get(badge).trigger('click')
+  else await mounted[entry].get('a[href="/admin/auto-config"]').trigger('click')
+  await flushPromises()
   for (const wrapper of Object.values(mounted)) expect(notice(wrapper).find(badge).exists()).toBe(false)
   for (const wrapper of Object.values(mounted)) wrapper.unmount()
   vi.clearAllTimers()
@@ -75,6 +77,16 @@ describe('OAuth initial selection notice on real entries', () => {
   expect(useNewFeatureNoticeStore(refreshed).isDismissed(admin.id, id)).toBe(true)
   expect(new Set(Object.values(NEW_FEATURE_NOTICES)).size).toBe(Object.values(NEW_FEATURE_NOTICES).length)
   await auth.logout()
+ })
+ it('reads the sidebar and matching page notices when opening the destination directly', async () => {
+  const pinia = createPinia(); setActivePinia(pinia)
+  await useAuthStore(pinia).login({ email: admin.email, password: 'fixture-password' })
+  const mounted = await entries(pinia, '/admin/auto-config')
+  for (const wrapper of Object.values(mounted)) expect(notice(wrapper).find(badge).exists()).toBe(false)
+  const store = useNewFeatureNoticeStore(pinia)
+  expect(store.isDismissed(admin.id, id)).toBe(true)
+  expect(store.isDismissed(admin.id, old)).toBe(false)
+  expect(store.isDismissed(42, id)).toBe(false)
  })
  it('shows current platform candidates and prevents malformed custom names', async () => {
   const pinia = createPinia(); setActivePinia(pinia)

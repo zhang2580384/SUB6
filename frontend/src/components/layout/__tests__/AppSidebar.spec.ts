@@ -116,10 +116,13 @@ describe('AppSidebar support tickets', () => {
 })
 
 describe('AppSidebar new feature notices', () => {
-  it('shows the shared dismissible notice beside the admin settings entry', () => {
+  it('shows a passive dot and reads page notices on navigation', () => {
     expect(componentSource).toContain("import NewFeatureBadge from '@/components/common/NewFeatureBadge.vue'")
-    expect(componentSource).toContain("NEW_FEATURE_NOTICES.protocolFeatureSwitches")
+    expect(componentSource).toContain(':notice-id="SIDEBAR_NOTICE"')
     expect(componentSource).toContain("item.path === '/admin/settings'")
     expect(componentSource).toContain('<NewFeatureBadge')
+    expect(componentSource).toContain('pointer-events-none')
+    expect(componentSource).toContain('featureNotices.dismiss(uid, notice)')
+    expect(componentSource).not.toContain("paddingRight: '6.5rem'")
   })
 })

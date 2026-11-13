@@ -86,7 +86,7 @@
                     :to="child.path"
                     class="sidebar-link mb-0.5 py-1.5 text-sm"
                     :class="{ 'sidebar-link-active': route.path === child.path }"
-                    :style="['/admin/ai-ops', '/admin/auto-config', '/admin/account-quality'].includes(child.path) ? { paddingRight: '3.5rem' } : undefined"
+                    :style="['/admin/ai-ops', '/admin/auto-config', '/admin/account-quality'].includes(child.path) ? { paddingRight: '1.5rem' } : undefined"
                     @click="handleMenuItemClick(child.path)"
                   >
                     <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
@@ -96,7 +96,8 @@
                     v-if="['/admin/ai-ops', '/admin/auto-config', '/admin/account-quality'].includes(child.path)"
                     :notice-id="child.path === '/admin/account-quality' ? NEW_FEATURE_NOTICES.qualityRetestRest : child.path === '/admin/auto-config' ? NEW_FEATURE_NOTICES.oauthInitialModelSelection : NEW_FEATURE_NOTICES.aiOpsCodex"
                     :user-id="authStore.user?.id"
-                    class="absolute right-2 top-1/2 z-10 -translate-y-1/2"
+                    passive
+                    class="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2"
                   />
                 </div>
               </div>
@@ -117,7 +118,7 @@
                         ? 'sidebar-wallet'
                         : undefined
                 "
-                :style="item.path === '/admin/settings' && !sidebarCollapsed ? { paddingRight: '6.5rem' } : undefined"
+                :style="item.path === '/admin/settings' && !sidebarCollapsed ? { paddingRight: '1.5rem' } : undefined"
                 @click="handleMenuItemClick(item.path)"
               >
                 <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
@@ -127,16 +128,18 @@
               </router-link>
               <NewFeatureBadge
                 v-if="item.path === '/admin/settings' && !sidebarCollapsed"
-                :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches"
+                :notice-id="SIDEBAR_NOTICE"
                 :user-id="authStore.user?.id"
-                class="absolute right-2 top-1/2 z-10 -translate-y-1/2"
+                passive
+                class="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2"
               />
               <NewFeatureBadge
                 v-else-if="item.path === '/admin/settings'"
-                :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches"
+                :notice-id="SIDEBAR_NOTICE"
                 :user-id="authStore.user?.id"
                 compact
-                class="absolute right-2 top-2 z-10"
+                passive
+                class="pointer-events-none absolute right-2 top-2 z-10"
               />
             </div>
           </template>
@@ -247,6 +250,8 @@ import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 import { getCustomMenuLabel } from '@/utils/customMenu'
 import { filterSmartOpsSidebar } from '@/utils/smartOpsSidebar'
 import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
+import { SIDEBAR_NOTICE } from '@/constants/settingsNotices'
+import { useNewFeatureNoticeStore } from '@/stores/newFeatureNotices'
 
 interface NavItem {
   path: string
@@ -999,6 +1004,16 @@ function toggleTheme() {
 function closeMobile() {
   appStore.setMobileOpen(false)
 }
+
+const featureNotices = useNewFeatureNoticeStore()
+watch(() => [route.path, authStore.user?.id] as const, ([path, uid]) => {
+  if (uid == null) return
+  const notice = path === '/admin/settings' ? SIDEBAR_NOTICE
+    : path === '/admin/account-quality' ? NEW_FEATURE_NOTICES.qualityRetestRest
+    : path === '/admin/auto-config' ? NEW_FEATURE_NOTICES.oauthInitialModelSelection
+    : path === '/admin/ai-ops' ? NEW_FEATURE_NOTICES.aiOpsCodex : undefined
+  if (notice) featureNotices.dismiss(uid, notice)
+}, { immediate: true, flush: 'sync' })
 
 function handleMenuItemClick(itemPath: string) {
   if (mobileOpen.value) {

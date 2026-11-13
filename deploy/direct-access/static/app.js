@@ -6,6 +6,7 @@ initialize();
 
 function initialize() {
   const $ = id => document.getElementById(id);
+  let refreshError = false;
   let currentIP = '', directURL = '', pendingDelete = null, loading = false, failures = 0, selectedUser = null;
   function message(text, error = false) {
     $('message').textContent = text; $('message').hidden = !text;
@@ -51,10 +52,14 @@ function initialize() {
         button.onclick = () => { pendingDelete = entry.id; $('delete-detail').textContent = entry.ip + (entry.label ? ' · ' + entry.label : ''); $('delete-dialog').showModal(); };
         actions.append(button); body.append(tr);
       }
-      if (!data.sync_ok) message('白名单正在同步，请稍后刷新；长时间未生效请联系管理员。', true);
-      else if (manual) message('状态已更新');
+      if (!data.sync_ok) {
+        message('白名单正在同步，请稍后刷新；长时间未生效请联系管理员。', true); refreshError = true;
+      } else {
+        if (manual || refreshError) message(manual ? '状态已更新' : '');
+        refreshError = false;
+      }
     } catch (error) {
-      failures++; message(error.message, true); $('submit').disabled = true;
+      failures++; refreshError = true; message(error.message, true); $('submit').disabled = true;
       if (failures === 1) $('entries').replaceChildren();
     } finally { loading = false; }
   }

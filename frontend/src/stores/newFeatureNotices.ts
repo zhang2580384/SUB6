@@ -31,20 +31,26 @@ export const useNewFeatureNoticeStore = defineStore('newFeatureNotices', () => {
     return key
   }
 
-  function isDismissed(userId: number | null | undefined, noticeId: string): boolean {
+  // Revision 1 preserves existing preferences. A later announcement of the same
+  // feature uses a new explicit revision rather than resetting every release.
+  function noticeKey(noticeId: string, version = '1'): string {
+    return version === '1' ? noticeId : `${noticeId}::version=${encodeURIComponent(version)}`
+  }
+
+  function isDismissed(userId: number | null | undefined, noticeId: string, version = '1'): boolean {
     if (userId == null || !noticeId) return false
     const key = ensureLoaded(userId)
-    return dismissedByUser.value[key]?.includes(noticeId) ?? false
+    return dismissedByUser.value[key]?.includes(noticeKey(noticeId, version)) ?? false
   }
 
   function loadUser(userId: number | null | undefined): void {
     if (userId != null) ensureLoaded(userId)
   }
 
-  function dismiss(userId: number | null | undefined, noticeId: string): void {
-    if (userId == null || !noticeId || isDismissed(userId, noticeId)) return
+  function dismiss(userId: number | null | undefined, noticeId: string, version = '1'): void {
+    if (userId == null || !noticeId || isDismissed(userId, noticeId, version)) return
     const key = userKey(userId)
-    const dismissed = [...(dismissedByUser.value[key] ?? []), noticeId]
+    const dismissed = [...(dismissedByUser.value[key] ?? []), noticeKey(noticeId, version)]
     dismissedByUser.value = { ...dismissedByUser.value, [key]: dismissed }
 
     try {

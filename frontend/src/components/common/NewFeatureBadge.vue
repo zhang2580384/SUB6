@@ -1,18 +1,20 @@
 <template>
-  <button
+  <component
+    :is="passive ? 'span' : 'button'"
     v-if="visible"
-    type="button"
+    :type="passive ? undefined : 'button'"
     data-testid="new-feature-badge"
-    :aria-label="t('common.dismissNewFeature')"
-    :title="t('common.dismissNewFeature')"
+    :role="passive ? 'img' : undefined"
+    :aria-label="t(passive ? 'common.newFeature' : 'common.dismissNewFeature')"
+    :title="t(passive ? 'common.newFeature' : 'common.dismissNewFeature')"
     :class="[
-      'inline-flex shrink-0 items-center justify-center rounded border border-amber-500 px-1.5 py-0.5 text-xs font-medium leading-tight text-amber-600 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-400 dark:text-amber-300 dark:hover:bg-amber-950/40',
-      compact && 'h-2 w-2 min-w-0 border-0 bg-amber-500 p-0 text-transparent dark:bg-amber-400',
+      'inline-flex shrink-0 items-center justify-center rounded-full border-0 p-0 align-middle',
+      passive || compact ? 'h-2 w-2' : 'h-4 w-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500',
     ]"
-    @click.stop.prevent="dismiss"
+    @click="dismiss"
   >
-    <span v-if="!compact">{{ t('common.newFeature') }}</span>
-  </button>
+    <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full bg-red-600 dark:bg-red-400" />
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -24,16 +26,23 @@ const props = withDefaults(defineProps<{
   noticeId: string
   userId: number | null | undefined
   compact?: boolean
+  passive?: boolean
+  noticeVersion?: string
 }>(), {
   compact: false,
+  passive: false,
+  noticeVersion: '1',
 })
 
 const { t } = useI18n()
 const notices = useNewFeatureNoticeStore()
 watch(() => props.userId, (userId) => notices.loadUser(userId), { immediate: true })
-const visible = computed(() => props.userId != null && !notices.isDismissed(props.userId, props.noticeId))
+const visible = computed(() => props.userId != null && !notices.isDismissed(props.userId, props.noticeId, props.noticeVersion))
 
-function dismiss(): void {
-  notices.dismiss(props.userId, props.noticeId)
+function dismiss(event: MouseEvent): void {
+  if (props.passive) return
+  event.stopPropagation()
+  event.preventDefault()
+  notices.dismiss(props.userId, props.noticeId, props.noticeVersion)
 }
 </script>

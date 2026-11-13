@@ -71,7 +71,10 @@ describe('NewFeatureBadge', () => {
 
   it('hides a shared notice for the current admin when clicked', async () => {
     const wrapper = mountBadge()
-    expect(wrapper.get('[data-testid="new-feature-badge"]').text()).toBe('新功能')
+    const dot = wrapper.get('[data-testid="new-feature-badge"]')
+    expect(dot.text()).toBe('')
+    expect(dot.attributes('aria-label')).toBeTruthy()
+    expect(dot.get('[aria-hidden="true"]').classes()).toContain('bg-red-600')
 
     await wrapper.get('[data-testid="new-feature-badge"]').trigger('click')
 
@@ -79,5 +82,29 @@ describe('NewFeatureBadge', () => {
     expect(useNewFeatureNoticeStore().isDismissed(41, 'protocol-switches')).toBe(true)
     expect(mountBadge().find('[data-testid="new-feature-badge"]').exists()).toBe(false)
     expect(mountBadge(42).find('[data-testid="new-feature-badge"]').exists()).toBe(true)
+  })
+
+  it('keeps a passive dot inside a navigation button without swallowing navigation', async () => {
+    const pinia = createPinia()
+    const i18n = createI18n({ legacy: false, locale: 'zh', messages: { zh: zhCommon } })
+    const wrapper = mount(NewFeatureBadge, {
+      props: { noticeId: 'page-announcement', userId: 41, passive: true },
+      global: { plugins: [i18n, pinia] },
+    })
+    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.get('[role="img"]').element.tagName).toBe('SPAN')
+    await wrapper.trigger('click')
+    expect(useNewFeatureNoticeStore(pinia).isDismissed(41, 'page-announcement')).toBe(false)
+  })
+
+  it('shows a new revision while preserving the previously read revision', async () => {
+    const wrapper = mountBadge()
+    await wrapper.trigger('click')
+    await wrapper.setProps({ noticeVersion: '2' })
+    expect(wrapper.find('[data-testid="new-feature-badge"]').exists()).toBe(true)
+    await wrapper.trigger('click')
+    expect(useNewFeatureNoticeStore().isDismissed(41, 'protocol-switches', '2')).toBe(true)
+    await wrapper.setProps({ userId: 42 })
+    expect(wrapper.find('[data-testid="new-feature-badge"]').exists()).toBe(true)
   })
 })

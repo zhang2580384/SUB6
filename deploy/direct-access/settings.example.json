@@ -1,0 +1,9 @@
+{
+  "AUTH_URL": "https://gateway.example.com/api/v1/auth/me",
+  "DIRECT_URL": "https://direct.example.com",
+  "ALLOWED_ORIGINS": "https://gateway.example.com,https://alternate.example.com",
+  "BRAND_NAME": "SUB6",
+  "PAGE_TITLE": "IP 白名单直连",
+  "PAGE_DESCRIPTION": "为固定出口的服务器提供直连接口，适合下游中转和大请求上传。",
+  "ENTRY_DESCRIPTION": "沿用现有 API Key、分组权限及计费。兼容 HTTP / SSE / WebSocket。"
+}

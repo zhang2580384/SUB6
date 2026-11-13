@@ -53,7 +53,7 @@ jobs:
         env:
           SUB6_BUILD_COMMIT: ${{ github.sha }}
         run: |
-          CGO_ENABLED=0 go build -tags embed -trimpath -ldflags="-s -w -X main.Version=0.1.1 -X main.Commit=$SUB6_BUILD_COMMIT -X main.BuildType=source" -o "$RUNNER_TEMP/sub6" ./cmd/server
+          CGO_ENABLED=0 go build -tags embed -trimpath -ldflags="-s -w -X main.Version=0.1.2 -X main.Commit=$SUB6_BUILD_COMMIT -X main.BuildType=source" -o "$RUNNER_TEMP/sub6" ./cmd/server
           "$RUNNER_TEMP/sub6" -version
   quota-integration:
     runs-on: ubuntu-24.04
@@ -131,4 +131,4 @@ jobs:
       - working-directory: deploy/direct-access
         env:
           SUB6_REVIEW_DATABASE_URL: postgresql://sub6_review@127.0.0.1:5432/sub6_review
-        run: /tmp/sub6-review/bin/python -m unittest test_policy test_access -v
+        run: /tmp/sub6-review/bin/python -m unittest test_policy test_configuration test_access -v

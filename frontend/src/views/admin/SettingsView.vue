@@ -38,43 +38,10 @@
                   <span class="settings-tab-label">{{
                     t(`admin.settings.tabs.${tab.key}`)
                   }}</span>
+                  <span v-if="hasUnreadTabNotice(tab.key)" class="settings-tab-notice" role="img"
+                    :aria-label="t('common.newFeature')" :title="t('common.newFeature')"
+                    data-testid="settings-tab-notice" />
                 </button>
-                <NewFeatureBadge
-                  v-if="tab.key === 'features'"
-                  :notice-id="NEW_FEATURE_NOTICES.protocolFeatureSwitches"
-                  :user-id="authStore.user?.id"
-                  class="settings-tab-badge"
-                />
-                <NewFeatureBadge
-                  v-if="tab.key === 'email'"
-                  :notice-id="NEW_FEATURE_NOTICES.balanceForecast"
-                  :user-id="authStore.user?.id"
-                  class="settings-tab-badge"
-                />
-                <NewFeatureBadge
-                  v-if="tab.key === 'gateway'"
-                  :notice-id="NEW_FEATURE_NOTICES.openai409OmitEncryptedHistory"
-                  :user-id="authStore.user?.id"
-                  class="settings-tab-badge"
-                />
-                <NewFeatureBadge
-                  v-if="tab.key === 'gateway'"
-                  :notice-id="NEW_FEATURE_NOTICES.deepSeekSearch"
-                  :user-id="authStore.user?.id"
-                  class="settings-tab-badge"
-                />
-                <NewFeatureBadge
-                  v-if="tab.key === 'gateway'"
-                  :notice-id="NEW_FEATURE_NOTICES.serverlessIPRouting"
-                  :user-id="authStore.user?.id"
-                  class="settings-tab-badge"
-                />
-                <NewFeatureBadge
-                  v-if="tab.key === 'payment'"
-                  :notice-id="NEW_FEATURE_NOTICES.bepusdtPayment"
-                  :user-id="authStore.user?.id"
-                  class="settings-tab-badge"
-                />
               </template>
             </div>
           </nav>
@@ -6661,6 +6628,13 @@
 
         <!-- Tab: General -->
         <div v-show="activeTab === 'general'" class="space-y-6">
+          <section class="card p-6" data-testid="direct-access-configuration-guide">
+            <h2 class="font-semibold text-gray-900 dark:text-white">{{ localText('IP 白名单直连配置', 'Direct-access configuration') }}</h2>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ localText(
+              '独立白名单服务通过部署配置管理鉴权回源、直连地址和品牌说明。使用稳定站点地址，避免绑定某一版本的容器 IP；已部署该服务时，可在白名单页面管理名额。',
+              'Configure the independent sidecar’s authentication endpoint, public URL and branding in operator-owned deployment settings. Use a stable site address. Manage quotas on its allowlist page.') }}</p>
+            <a class="mt-2 inline-block text-sm text-primary-600 dark:text-primary-400" href="https://github.com/zhang2580384/SUB6/blob/main/deploy/direct-access/README.md" target="_blank" rel="noopener noreferrer">{{ localText('打开配置与升级说明', 'Open configuration and upgrade instructions') }}</a>
+          </section>
           <!-- Site Settings -->
           <div class="card">
             <div
@@ -9700,6 +9674,8 @@ import SmartOpsSidebarSettings from "@/components/settings/SmartOpsSidebarSettin
 import NewFeatureBadge from "@/components/common/NewFeatureBadge.vue";
 import GroupSelector from "@/components/common/GroupSelector.vue";
 import { NEW_FEATURE_NOTICES } from "@/constants/newFeatureNotices";
+import { SETTINGS_TAB_NOTICES } from "@/constants/settingsNotices";
+import { useNewFeatureNoticeStore } from "@/stores/newFeatureNotices";
 import { DEFAULT_SMART_OPS_HIDDEN_MENU_ITEMS } from "@/constants/smartOpsMenu";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
@@ -9742,6 +9718,17 @@ const paymentMethodsHref = computed(() =>
 const loading = ref(true);
 const loadFailed = ref(false);
 const { activeTab, selectSettingsTab } = useSettingsNavigation(loading, loadFailed);
+const featureNotices = useNewFeatureNoticeStore();
+function hasUnreadTabNotice(tab: string): boolean {
+  const uid = authStore.user?.id;
+  return uid != null && (SETTINGS_TAB_NOTICES[tab] ?? []).some(id => !featureNotices.isDismissed(uid, id));
+}
+watch(() => [activeTab.value, authStore.user?.id, loading.value, loadFailed.value] as const,
+  ([tab, uid, busy, failed]) => {
+    if (uid == null || busy || failed) return;
+    for (const id of SETTINGS_TAB_NOTICES[tab] ?? []) featureNotices.dismiss(uid, id);
+  }, { immediate: true, flush: 'sync' });
+
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "agreement" as SettingsTab, icon: "document" as const },
@@ -14212,7 +14199,7 @@ h2[id^="settings-section-"]:target {
   }
 
   .settings-tab {
-    @apply min-w-0 flex-1 basis-0 overflow-hidden px-1.5 text-[13px];
+    @apply min-w-max flex-1 basis-auto px-2 text-[13px];
   }
 }
 
@@ -14270,10 +14257,8 @@ h2[id^="settings-section-"]:target {
   @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none;
 }
 
-/* The badge is a normal flex item: its width follows the locale's text, and
-   dismissing it hands the space back to the tabs. */
-.settings-tab-badge {
-  @apply -ml-0.5 mr-0.5;
+.settings-tab-notice {
+  @apply h-1.5 w-1.5 shrink-0 rounded-full bg-red-600 dark:bg-red-400;
 }
 
 /* ============ 系统设置 保存浮标 ============ */

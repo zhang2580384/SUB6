@@ -66,6 +66,20 @@ class AccessTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=3)
 
+    def test_branding_is_escaped_and_operator_configuration_is_read_only(self):
+        with patch.dict(self.module.settings, {'BRAND_NAME': '<script>alert(1)</script>'}):
+            page = self.client.get('/direct-access/').get_data(as_text=True)
+        self.assertIn('&lt;script&gt;', page)
+        self.assertNotIn('<script>alert(1)</script>', page)
+        with patch.object(self.module, 'authenticated_user', return_value={'id': 1, 'role': 'user'}):
+            self.assertEqual(self.client.get('/direct-access/api/admin/config').status_code, 403)
+        with patch.object(self.module, 'authenticated_user', return_value={'id': 3, 'role': 'admin'}):
+            status = self.client.get('/direct-access/api/admin/config')
+            self.assertEqual(status.status_code, 200)
+            self.assertNotIn('AUTH_URL', status.get_json())
+            self.assertNotIn('DATABASE_URL', status.get_json())
+            self.assertEqual(self.client.post('/direct-access/api/admin/config', json={'AUTH_URL': 'https://evil.example/api/v1/auth/me'}).status_code, 405)
+
     def test_unauthenticated_and_forged_role_denied(self):
         self.assertEqual(self.client.get('/direct-access/api/entries').status_code, 401)
         with patch.object(self.module, 'authenticated_user', return_value={'id': 1, 'role': 'user'}):

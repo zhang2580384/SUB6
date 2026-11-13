@@ -2,7 +2,6 @@
 import ipaddress
 import json
 import logging
-import os
 import threading
 import time
 import urllib.error
@@ -12,21 +11,23 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, redirect, request, send_from_directory
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from werkzeug.exceptions import HTTPException
 
 from policy import public_ip
+from configuration import load_config
 
-app = Flask(__name__, static_folder=None)
+settings = load_config()
+app = Flask(__name__, static_folder=None, template_folder='static')
 app.config['MAX_CONTENT_LENGTH'] = 4096
-pool = ConnectionPool(os.environ['DATABASE_URL'], min_size=1, max_size=5,
+pool = ConnectionPool(settings['DATABASE_URL'], min_size=1, max_size=5,
                       timeout=5, kwargs={'row_factory': dict_row, 'connect_timeout': 5,
                       'options': '-c statement_timeout=5000'})
-AUTH_URL = os.environ['AUTH_URL']
-DIRECT_URL = os.environ['DIRECT_URL']
-ORIGINS = set(filter(None, (v.strip() for v in os.environ['ALLOWED_ORIGINS'].split(','))))
+AUTH_URL = settings['AUTH_URL']
+DIRECT_URL = settings['DIRECT_URL']
+ORIGINS = settings['ORIGINS']
 ROOT = Path(__file__).parent
 class RejectAuthRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -61,7 +62,7 @@ def internal_error(error):
 
 def authenticated_user():
     auth = request.headers.get('Authorization', '')
-    if not auth.startswith('Bearer ') or len(auth) > 8192:
+    if not auth.startswith('Bearer ') or not auth[7:].strip() or len(auth) > 8192:
         abort(401, '请先登录网站后使用')
     req = urllib.request.Request(AUTH_URL, headers={'Authorization': auth})
     try:
@@ -164,7 +165,20 @@ def page():
     if source in ORIGINS and urllib.parse.urlsplit(source).netloc != request.host:
         theme = 'dark' if request.args.get('theme') == 'dark' else 'light'
         return redirect(source + '/direct-access/?' + urllib.parse.urlencode({'theme': theme}), code=302)
-    return send_from_directory(ROOT / 'static', 'index.html')
+    return render_template('index.html', brand=settings['BRAND_NAME'],
+                           page_title=settings['PAGE_TITLE'],
+                           page_description=settings['PAGE_DESCRIPTION'],
+                           entry_description=settings['ENTRY_DESCRIPTION'])
+
+
+@app.get('/direct-access/api/admin/config')
+def configuration_status():
+    administrator()
+    # Auth destinations and database credentials never enter browser settings.
+    return jsonify(brand=settings['BRAND_NAME'], page_title=settings['PAGE_TITLE'],
+                   direct_url=DIRECT_URL, allowed_origins=sorted(ORIGINS),
+                   source=settings['CONFIG_SOURCE'], auth_configured=True,
+                   changes_require='operator configuration and worker reload')
 
 
 @app.get('/direct-access/<any(app.js,style.css):name>')

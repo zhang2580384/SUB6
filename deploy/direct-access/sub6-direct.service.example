@@ -1,0 +1,30 @@
+[Unit]
+Description=SUB6 direct-access management
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=sub6-direct
+Group=sub6-direct
+WorkingDirectory=/opt/sub6-direct
+EnvironmentFile=/etc/sub6-direct/app.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/sub6-direct/venv/bin/gunicorn --bind 127.0.0.1:1998 --workers 2 --threads 4 --timeout 15 --access-logfile /dev/null app:app
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=256M
+TasksMax=64
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
