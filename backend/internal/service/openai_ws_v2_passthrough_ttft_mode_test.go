@@ -71,19 +71,42 @@ func runOpenAIWSPassthroughTTFTModeCase(t *testing.T, mode string) {
 
 	const reasoningDelay = 600 * time.Millisecond
 	const tolerance = 250 * time.Millisecond
-	// The second turn's events wait so its response.create is accepted first.
+	// Delays are measured after each response.create reaches the upstream.
 	turns := [][]openAIWSTTFTModeTestEvent{
 		openAIWSTTFTModeTestTurn("resp_ttft_1", 0, reasoningDelay),
 		openAIWSTTFTModeTestTurn("resp_ttft_2", 200*time.Millisecond, reasoningDelay),
 	}
 
-	upstreamConn := &openAIWSCaptureConn{}
-	for _, turn := range turns {
-		for _, event := range turn {
-			upstreamConn.events = append(upstreamConn.events, []byte(event.payload))
-			upstreamConn.readDelays = append(upstreamConn.readDelays, event.delay)
+	upstreamConn := newStagedPassthroughConn()
+	scriptCtx, cancelScript := context.WithCancel(context.Background())
+	defer cancelScript()
+	go func() {
+		for _, turn := range turns {
+			// A continuously reading relay may request the next frame before the
+			// client submits its next turn. Do not consume that turn's delay early.
+			select {
+			case <-upstreamConn.writes:
+			case <-scriptCtx.Done():
+				return
+			}
+			for _, event := range turn {
+				if event.delay > 0 {
+					timer := time.NewTimer(event.delay)
+					select {
+					case <-timer.C:
+					case <-scriptCtx.Done():
+						timer.Stop()
+						return
+					}
+				}
+				select {
+				case upstreamConn.frames <- stagedPassthroughFrame{messageType: coderws.MessageText, payload: []byte(event.payload)}:
+				case <-scriptCtx.Done():
+					return
+				}
+			}
 		}
-	}
+	}()
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -102,7 +125,7 @@ func runOpenAIWSPassthroughTTFTModeCase(t *testing.T, mode string) {
 		cache:                     &stubGatewayCache{},
 		openaiWSResolver:          NewOpenAIWSProtocolResolver(cfg),
 		toolCorrector:             NewCodexToolCorrector(),
-		openaiWSPassthroughDialer: &openAIWSCaptureDialer{conn: upstreamConn},
+		openaiWSPassthroughDialer: &stagedPassthroughDialer{conn: upstreamConn},
 	}
 	account := &Account{
 		ID: 454, Name: "openai-ws-ttft-mode", Platform: PlatformOpenAI, Type: AccountTypeAPIKey,

@@ -137,6 +137,11 @@ SMTP 主机映射、证书、隧道和代理状态不随源码发布恢复。
   解压校验后，Linux 隔离 VM 的 mihomo/regional/reauthruntime/repository/
   requestcapture/basispoints 通过，service 按 A–F/G–N/O–P/Q–Z 四批通过。
   单次 service 运行曾因 4 GiB VM 内存不足退出 137；限制堆后各批通过。
+- 公开 CI 进一步暴露测试环境/夹具问题：安装真实 `redis-server` 后 HTTP/WS
+  跨节点历史回归全部执行通过；修复源工作流 YAML/Docker 健康检查的引号。
+  首 token 时序测试改为每轮收到 `response.create` 后发送模拟上游事件，
+  避免下一轮事件在请求前提前计时；保留原有 500ms 等下限与模式断言，
+  不修改运行时代码或放宽验证。
 - PostgreSQL 18.7 空库和 2.19.5 基线升级、重复迁移通过，419 条记录，
   样本余额 123.45 保持不变。Linux 嵌入应用健康检查、SUB6 页面和匿名
   管理端 401 校验通过。Windows/Linux 源码嵌入构建通过。
