@@ -1,10 +1,10 @@
 # SUB6
 
-SUB6 is an independently maintained open-source distribution of [Ranxi Sub2API](https://github.com/ranxi2001/sub2api). Version **0.1.4** is based on Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`), synchronized at production `ccf997c73868083d96c0bec56e71c1a34d26c98a`.
+SUB6 is an independently maintained open-source distribution of [Ranxi Sub2API](https://github.com/ranxi2001/sub2api). The **0.1.5 source candidate** is based on Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`), synchronized at production `7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a`. The latest packaged release remains **0.1.4**; two new database migrations require an operator-reviewed upgrade plan before a new packaged release.
 
 Google OAuth application credentials are not embedded. Antigravity and Gemini CLI login/refresh require explicit client configuration; see `deploy/.env.example` and the maintenance report. Remote credential-service endpoints default to empty and must be configured independently.
 
-[中文与完整构建命令](README.md) · [Upgrade compatibility](maintenance/2026-11-14-v0.1.4-review.md) · [Deployment](deploy/README.md)
+[中文与完整构建命令](README.md) · [Upgrade compatibility](maintenance/2026-11-14-upstream-review.md) · [Deployment](deploy/README.md)
 
 Requires Go 1.27.4, Node.js 22+, pnpm 9.15.9, PostgreSQL and Redis. Install frontend dependencies with `--frozen-lockfile --ignore-scripts`, build the frontend, then build `backend/cmd/server` with `-tags embed`. The optional direct-access sidecar implements cumulative-credit quotas, administrator credit inclusion and audited manual total overrides. It does not write main balances. The rolled-back custom image orchestrator is excluded; the upstream Codex image bridge remains off by default.
 

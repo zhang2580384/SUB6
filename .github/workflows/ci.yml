@@ -97,6 +97,12 @@ jobs:
           go test -p 2 -race -tags integration ./internal/repository
           -run '^(TestSUB6MigrationKeepsUnknownHistoryAndRepeatedPrefixes|TestIssue817QuotaSkipPreservesPending5xxExecution|TestIssue817QuotaSkipPreserves401AndOwnership|TestIssue817QuotaSkipRetainsActualIsolationOwnership|TestIssue817ManualTriggerIsOneShotAndLeaseFenced|TestQuality5xxClaimKeepsCronAndCoalescesScheduledRun|TestQuality5xxFinishConsumesCrossedCronWithoutOverwritingEdits|TestQualityRetestRestBlocksEveryClaimUntilDeadline)$'
           -count=1 -v -timeout=10m
+      - name: Upstream HTTP2, weekly quota and historical platform regressions
+        working-directory: backend
+        run: >-
+          go test -p 2 -race -tags integration ./internal/repository
+          -run '^(TestUsagePlatform|TestHTTP2|TestOAuth429)'
+          -count=1 -v -timeout=10m
       - name: Migration-only CLI and repeat against disposable database
         working-directory: backend
         env:

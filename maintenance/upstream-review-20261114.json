@@ -1,0 +1,2101 @@
+{
+  "base": "ccf997c73868083d96c0bec56e71c1a34d26c98a",
+  "head": "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a",
+  "tree": "c25fb506fee5a26c2670935b39111c6646b16feb",
+  "included": [
+    "backend/ent/migrate/schema.go",
+    "backend/ent/mutation.go",
+    "backend/ent/runtime/runtime.go",
+    "backend/ent/schema/usage_log.go",
+    "backend/ent/usagelog.go",
+    "backend/ent/usagelog/usagelog.go",
+    "backend/ent/usagelog/where.go",
+    "backend/ent/usagelog_create.go",
+    "backend/ent/usagelog_query.go",
+    "backend/ent/usagelog_update.go",
+    "backend/internal/handler/account_auto_config_outcome.go",
+    "backend/internal/handler/admin/dashboard_handler.go",
+    "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+    "backend/internal/handler/admin/dashboard_query_cache.go",
+    "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+    "backend/internal/handler/admin/setting_handler.go",
+    "backend/internal/handler/admin/setting_handler_partial_payload_test.go",
+    "backend/internal/handler/admin/setting_handler_update.go",
+    "backend/internal/handler/admin/usage_handler.go",
+    "backend/internal/handler/admin/usage_handler_platform_test.go",
+    "backend/internal/handler/admin/usage_platform.go",
+    "backend/internal/handler/admin/usage_query_cache.go",
+    "backend/internal/handler/dto/settings.go",
+    "backend/internal/handler/http2_peer_reset_test.go",
+    "backend/internal/handler/openai_400_omit_history_test.go",
+    "backend/internal/handler/openai_images.go",
+    "backend/internal/handler/ops_error_logger.go",
+    "backend/internal/pkg/usagestats/usage_log_types.go",
+    "backend/internal/repository/account_auto_config.go",
+    "backend/internal/repository/ai_ops.go",
+    "backend/internal/repository/ai_ops_test.go",
+    "backend/internal/repository/channel_monitor_v2_aggregation.go",
+    "backend/internal/repository/channel_monitor_v2_repo.go",
+    "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+    "backend/internal/repository/http2_peer_reset_integration_test.go",
+    "backend/internal/repository/migrations_runner.go",
+    "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+    "backend/internal/repository/ops_client_rejection.go",
+    "backend/internal/repository/ops_repo.go",
+    "backend/internal/repository/ops_repo_dashboard.go",
+    "backend/internal/repository/ops_repo_preagg.go",
+    "backend/internal/repository/ops_repo_realtime_traffic.go",
+    "backend/internal/repository/ops_repo_request_details.go",
+    "backend/internal/repository/ops_repo_trends.go",
+    "backend/internal/repository/regional_budget_authority.go",
+    "backend/internal/repository/regional_budget_scope_integration_test.go",
+    "backend/internal/repository/usage_log_platform.go",
+    "backend/internal/repository/usage_log_platform_index_integration_test.go",
+    "backend/internal/repository/usage_log_platform_integration_test.go",
+    "backend/internal/repository/usage_log_repo_insert.go",
+    "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+    "backend/internal/repository/usage_log_repo_query.go",
+    "backend/internal/repository/usage_log_repo_request_type_test.go",
+    "backend/internal/repository/usage_log_repo_stats.go",
+    "backend/internal/repository/usage_log_repo_trend.go",
+    "backend/internal/repository/usage_log_session_id_unit_test.go",
+    "backend/internal/server/api_contract_test.go",
+    "backend/internal/service/batch_image_settlement.go",
+    "backend/internal/service/batch_image_settlement_test.go",
+    "backend/internal/service/domain_constants.go",
+    "backend/internal/service/gateway_usage_billing.go",
+    "backend/internal/service/http2_gateway_test_support.go",
+    "backend/internal/service/http2_peer_reset_adapters_test.go",
+    "backend/internal/service/http2_peer_reset_test.go",
+    "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+    "backend/internal/service/oauth429_weekly_only_test.go",
+    "backend/internal/service/oauth_auto_config.go",
+    "backend/internal/service/openai_400_omit_history.go",
+    "backend/internal/service/openai_400_omit_history_test.go",
+    "backend/internal/service/openai_409_omit_history.go",
+    "backend/internal/service/openai_agent_message_delivery.go",
+    "backend/internal/service/openai_agent_message_recovery.go",
+    "backend/internal/service/openai_disable_scheduling_429.go",
+    "backend/internal/service/openai_disable_scheduling_429_weekly_test.go",
+    "backend/internal/service/openai_gateway_cc_pipeline.go",
+    "backend/internal/service/openai_gateway_chat_completions.go",
+    "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+    "backend/internal/service/openai_gateway_chat_completions_raw.go",
+    "backend/internal/service/openai_gateway_chat_completions_test.go",
+    "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+    "backend/internal/service/openai_gateway_forward.go",
+    "backend/internal/service/openai_gateway_messages.go",
+    "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+    "backend/internal/service/openai_gateway_passthrough.go",
+    "backend/internal/service/openai_gateway_response_handling.go",
+    "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+    "backend/internal/service/openai_gateway_service.go",
+    "backend/internal/service/openai_gateway_service_test.go",
+    "backend/internal/service/openai_gateway_usage.go",
+    "backend/internal/service/openai_history_omission.go",
+    "backend/internal/service/openai_images.go",
+    "backend/internal/service/openai_images_responses.go",
+    "backend/internal/service/openai_images_test.go",
+    "backend/internal/service/openai_live.go",
+    "backend/internal/service/openai_live_lifecycle_test.go",
+    "backend/internal/service/openai_plugin_transport.go",
+    "backend/internal/service/openai_quota_service.go",
+    "backend/internal/service/openai_quota_usage_snapshot.go",
+    "backend/internal/service/openai_stream_read_error.go",
+    "backend/internal/service/openai_upstream_transport_error.go",
+    "backend/internal/service/openai_ws_forwarder_ingress.go",
+    "backend/internal/service/openai_ws_forwarder_support.go",
+    "backend/internal/service/openai_ws_forwarder_v2.go",
+    "backend/internal/service/openai_ws_http_bridge.go",
+    "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+    "backend/internal/service/ops_ingress_reject.go",
+    "backend/internal/service/ops_ingress_reject_test.go",
+    "backend/internal/service/ops_metrics_collector.go",
+    "backend/internal/service/ops_models.go",
+    "backend/internal/service/ops_service.go",
+    "backend/internal/service/ops_upstream_context.go",
+    "backend/internal/service/ops_user_error.go",
+    "backend/internal/service/ratelimit_service_disable_scheduling_429_test.go",
+    "backend/internal/service/setting_parse.go",
+    "backend/internal/service/setting_update.go",
+    "backend/internal/service/settings_view.go",
+    "backend/internal/service/usage_log.go",
+    "backend/internal/service/usage_platform_snapshot_test.go",
+    "backend/migrations/343_usage_log_platform_snapshot.sql",
+    "backend/migrations/344_usage_log_platform_index_notx.sql",
+    "docs/encrypted-history-400-beta.md",
+    "docs/testing/oauth429-weekly-only.md",
+    "frontend/src/api/admin/dashboard.ts",
+    "frontend/src/api/admin/ops.ts",
+    "frontend/src/api/admin/settings.ts",
+    "frontend/src/api/admin/usage.ts",
+    "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+    "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+    "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+    "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+    "frontend/src/components/admin/usage/UsageFilters.vue",
+    "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+    "frontend/src/components/charts/EndpointDistributionChart.vue",
+    "frontend/src/components/charts/GroupDistributionChart.vue",
+    "frontend/src/components/charts/ModelDistributionChart.vue",
+    "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+    "frontend/src/components/settings/EncryptedHistory400Settings.vue",
+    "frontend/src/components/user/UserErrorDetailModal.vue",
+    "frontend/src/components/user/UserErrorRequestsTable.vue",
+    "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+    "frontend/src/constants/newFeatureNotices.ts",
+    "frontend/src/i18n/locales/en/accountOps.ts",
+    "frontend/src/i18n/locales/en/admin/resources.ts",
+    "frontend/src/i18n/locales/en/admin/settings.ts",
+    "frontend/src/i18n/locales/en/dashboard.ts",
+    "frontend/src/i18n/locales/zh/accountOps.ts",
+    "frontend/src/i18n/locales/zh/admin/resources.ts",
+    "frontend/src/i18n/locales/zh/admin/settings.ts",
+    "frontend/src/i18n/locales/zh/dashboard.ts",
+    "frontend/src/types/index.ts",
+    "frontend/src/utils/userErrorMessage.ts",
+    "frontend/src/views/admin/AccountOpsView.vue",
+    "frontend/src/views/admin/SettingsView.vue",
+    "frontend/src/views/admin/UsageView.vue",
+    "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+    "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
+    "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts",
+    "frontend/src/views/user/UsageView.vue",
+    "frontend/src/views/user/__tests__/UsageView.spec.ts"
+  ],
+  "excluded": [
+    ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+    ".github/fixtures/pelican-question-e2e/Dockerfile",
+    ".github/fixtures/pelican-question-e2e/README.md",
+    ".github/fixtures/pelican-question-e2e/acceptance.json",
+    ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+    ".github/fixtures/pelican-question-e2e/nominal-round.test.mjs",
+    ".github/http2-stream-reset-preview.mjs",
+    ".github/http2-user-filter-preview.mjs",
+    ".github/scripts/account-ops-selector-preview.mjs",
+    ".github/scripts/encrypted-history-400-preview.mjs",
+    ".github/scripts/oauth429-weekly-only-evidence.py",
+    ".github/scripts/pelican-complete-rounds.mjs",
+    ".github/scripts/pelican-detail-identity.mjs",
+    ".github/scripts/pelican-nominal-round.mjs",
+    ".github/scripts/pelican-question-e2e.mjs",
+    ".github/workflows/account-ops-selector.yml",
+    ".github/workflows/admin-usage-platform-filter.yml",
+    ".github/workflows/encrypted-history-400.yml",
+    ".github/workflows/encrypted-history-409.yml",
+    ".github/workflows/http2-stream-reset.yml",
+    ".github/workflows/issue715-agent-recovery.yml",
+    ".github/workflows/issue805-owner-policy.yml",
+    ".github/workflows/oauth429-weekly-only.yml",
+    ".github/workflows/pelican-random-questions.yml",
+    ".github/workflows/priority-observation.yml"
+  ],
+  "commits": [
+    {
+      "sha": "1f18330bdefa37b8cc828c96be0198936b469c73",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "cb54990bf00b819a53292a6bf0bee58800544223",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/scripts/pelican-detail-identity.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "6088f11f39b38b372514268b2f0aa7c650ec945d",
+      "included_paths": [
+        "backend/internal/handler/http2_peer_reset_test.go"
+      ],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "71b80ae35327a47fdd8b76b7812efd1bc66089c7",
+      "included_paths": [
+        "backend/internal/handler/account_auto_config_outcome.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/repository/account_auto_config.go",
+        "backend/internal/repository/channel_monitor_v2_aggregation.go",
+        "backend/internal/repository/channel_monitor_v2_repo.go",
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/repository/ops_client_rejection.go",
+        "backend/internal/repository/ops_repo.go",
+        "backend/internal/repository/ops_repo_dashboard.go",
+        "backend/internal/repository/ops_repo_preagg.go",
+        "backend/internal/repository/ops_repo_realtime_traffic.go",
+        "backend/internal/repository/ops_repo_request_details.go",
+        "backend/internal/repository/ops_repo_trends.go",
+        "backend/internal/service/oauth_auto_config.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_images_test.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/ops_metrics_collector.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ops_user_error.go"
+      ],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "ac32a9b3e5129490c62dbdd991635d306231d0fc",
+      "included_paths": [
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/service/http2_peer_reset_test.go",
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/UserErrorRequestsTable.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/types/index.ts",
+        "frontend/src/utils/userErrorMessage.ts",
+        "frontend/src/views/user/UsageView.vue"
+      ],
+      "excluded_paths": [
+        ".github/http2-stream-reset-preview.mjs",
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "ea51b6d21c86d3cf20eae9ed690a2e425236b8ca",
+      "included_paths": [
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "c351ebea9bf144c710780da5e4db0e264e6ebb9c",
+      "included_paths": [
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_stream_read_error.go"
+      ],
+      "excluded_paths": [
+        ".github/http2-stream-reset-preview.mjs"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "4030701705bc0907c7e4571157ceb1ad5d5a6d20",
+      "included_paths": [
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/openai_images.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/openai_ws_http_bridge.go"
+      ],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "a5bc18f34c68a4c870660b4449bbb73592c73d84",
+      "included_paths": [
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/ops_models.go",
+        "backend/internal/service/ops_upstream_context.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "e4772e3c6cf335d1990117c426c6692945526dc8",
+      "included_paths": [
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "fb36cfabe90ce626b9efef90689613ce26dc9a19",
+      "included_paths": [
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go"
+      ],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "fe4aadbd9ecd0fdfa689282490fa2bf6736335a7",
+      "included_paths": [
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/openai_stream_read_error.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "aa7ea52195d3f72639d77121c75c2bf8b2379970",
+      "included_paths": [
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts"
+      ],
+      "excluded_paths": [
+        ".github/http2-stream-reset-preview.mjs"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "8a4179f001527e703e2e7b6a3f0bce87990a7ed4",
+      "included_paths": [
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go"
+      ],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "3137257829f0cc48466911aa4a249dd03f3c088f",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/issue805-owner-policy.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "bd668488115dee7523ed97661792784c4952025e",
+      "included_paths": [
+        "backend/internal/handler/admin/setting_handler.go",
+        "backend/internal/handler/admin/setting_handler_partial_payload_test.go",
+        "backend/internal/handler/admin/setting_handler_update.go",
+        "backend/internal/handler/dto/settings.go",
+        "backend/internal/handler/openai_400_omit_history_test.go",
+        "backend/internal/service/domain_constants.go",
+        "backend/internal/service/openai_400_omit_history.go",
+        "backend/internal/service/openai_400_omit_history_test.go",
+        "backend/internal/service/openai_409_omit_history.go",
+        "backend/internal/service/openai_agent_message_delivery.go",
+        "backend/internal/service/openai_agent_message_recovery.go",
+        "backend/internal/service/openai_gateway_forward.go",
+        "backend/internal/service/openai_history_omission.go",
+        "backend/internal/service/ops_service.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/setting_parse.go",
+        "backend/internal/service/setting_update.go",
+        "backend/internal/service/settings_view.go",
+        "docs/encrypted-history-400-beta.md",
+        "frontend/src/api/admin/ops.ts",
+        "frontend/src/api/admin/settings.ts",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/components/settings/EncryptedHistory400Settings.vue",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/admin/settings.ts",
+        "frontend/src/i18n/locales/zh/admin/settings.ts",
+        "frontend/src/views/admin/SettingsView.vue",
+        "frontend/src/views/admin/__tests__/SettingsView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/scripts/encrypted-history-400-preview.mjs",
+        ".github/workflows/encrypted-history-400.yml",
+        ".github/workflows/encrypted-history-409.yml",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/issue805-owner-policy.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "cf83973db0987dab2278baa91e30410184a38857",
+      "included_paths": [
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "711e2219c62ced5dd0438823e94ff51ada788020",
+      "included_paths": [
+        "backend/internal/repository/usage_log_platform_integration_test.go"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "12babcdf6c34643f51490f89a794f332ccd99b99",
+      "included_paths": [
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "e956b2911b6cb7c6b14e81165a890cd943b9ed66",
+      "included_paths": [
+        "backend/ent/schema/usage_log.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "578f4a2c5c9aa61851fb32f1af6dbd910cecb151",
+      "included_paths": [
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/views/admin/UsageView.vue"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "8a5b283f04201d023c631cf41f7de02844036080",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "07569cd1407bd47faa0cb083cadd71ddd49e581b",
+      "included_paths": [
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "9ffc07ad85fc2abc4f859dde22bcfa7f7b474a8b",
+      "included_paths": [
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "aa9692642ccd95c73b96b48a6e874273f2cf5e6d",
+      "included_paths": [
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "d10f2ea4e5832056c22570772fbb910f959ce77d",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "3c7ef5aa69c8daaba4667fdf45911590e76017c2",
+      "included_paths": [
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/views/user/UsageView.vue",
+        "frontend/src/views/user/__tests__/UsageView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/http2-user-filter-preview.mjs",
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "a724804a36259b80cf5b8fbc43803e18bfc07ea1",
+      "included_paths": [
+        "backend/internal/repository/ai_ops_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "f895ea743f34a4c4ab6c9d01c01e13c931625a6e",
+      "included_paths": [
+        "backend/cmd/server/VERSION"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/scripts/pelican-detail-identity.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "5a341aee02bea3b460e66659c5601072a31ccf3f",
+      "included_paths": [
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/workflows/account-ops-selector.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "f177caec5510f502270ff3ceb36fe43295f405f1",
+      "included_paths": [
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "c5e2f87f3168c4822bf615ad8d5a2660b03495f0",
+      "included_paths": [
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "1313a3afdabdbc4f55ca8c69a4f0cbccca1ca406",
+      "included_paths": [
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts"
+      ],
+      "excluded_paths": [
+        ".github/workflows/account-ops-selector.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "ffaffff2a1b2a3dfb8858dccd5570a6b89c2464b",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/scripts/account-ops-selector-preview.mjs"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "3fec77d362a5b750b2504cc9ae88c94425455f13",
+      "included_paths": [
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "54c7387daf9981b3963bde6f70426b37ef659524",
+      "included_paths": [
+        "backend/internal/repository/usage_log_platform_integration_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "ce272e17930d1a14d9f063f10b505630800ba8d3",
+      "included_paths": [
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/workflows/account-ops-selector.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "bde7280d1fe397fc355f9aa86fb11bc99ab61e7c",
+      "included_paths": [
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/workflows/account-ops-selector.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "2a04d3dc80cfe90f4609b791120dfee1ee3acb5d",
+      "included_paths": [
+        "frontend/src/views/admin/AccountOpsView.vue"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "bb76b323f72c20315a58295cd9b18831200e62db",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/schema/usage_log.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/scripts/pelican-detail-identity.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/admin-usage-platform-filter.yml",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "839004a25da4c6c47669d02eba56e7ef08c1239e",
+      "included_paths": [
+        "backend/internal/service/oauth429_weekly_only_test.go"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "6914182116aa8f6904ebb3b69cdcbd5fc1b1d4b8",
+      "included_paths": [
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts",
+        "frontend/src/views/admin/AccountOpsView.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/workflows/account-ops-selector.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "42de34b7f7e4fedd43b7b5355c506e0b8ba63e4f",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "229f2d0ed5cea1996c8869a0129586cc6d25615d",
+      "included_paths": [
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/ratelimit_service_disable_scheduling_429_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "c545207e3c913a636b75c626c99003269d5c4412",
+      "included_paths": [
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "692b62c947d42bab8a34cbc565cb48e62eee4141",
+      "included_paths": [
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "d392072e373b45568fea3666e0fadf300f38d522",
+      "included_paths": [
+        "backend/internal/service/oauth429_weekly_only_test.go"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "e10fe8c43f7ccc6bf3360824c0ed11031f596389",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/schema/usage_log.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/views/admin/AccountOpsView.vue",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/workflows/account-ops-selector.yml",
+        ".github/workflows/admin-usage-platform-filter.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "ea1f151c53efdad0d67ed6cf55f79e199c4430ff",
+      "included_paths": [
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_disable_scheduling_429_weekly_test.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_service.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "b25c957218dd46ed6e3b7d569cc6f0f3b0a942ee",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_quota_recovery.go",
+        "backend/internal/service/openai_ws_forwarder_ingress.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "backend/internal/service/openai_ws_forwarder_v2.go",
+        "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "d93943307125aa239fae94a6cc719e03c1c1b3ff",
+      "included_paths": [
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "12b1e4945bde071e9425a7828b23843104af7ec2",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_plugin_transport.go",
+        "backend/internal/service/openai_quota_recovery.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "addea37092c4fffdead3b6eeeb39cddff9842610",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "6937e00e27e22a38d21da57376bffb3735bfb0ca",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "d46b8ae3c2ddb39849375cd6bea29af3abb85c03",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/schema/usage_log.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/setting_handler.go",
+        "backend/internal/handler/admin/setting_handler_partial_payload_test.go",
+        "backend/internal/handler/admin/setting_handler_update.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/handler/dto/settings.go",
+        "backend/internal/handler/openai_400_omit_history_test.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/domain_constants.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/openai_400_omit_history.go",
+        "backend/internal/service/openai_400_omit_history_test.go",
+        "backend/internal/service/openai_409_omit_history.go",
+        "backend/internal/service/openai_agent_message_delivery.go",
+        "backend/internal/service/openai_agent_message_recovery.go",
+        "backend/internal/service/openai_gateway_forward.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_history_omission.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "backend/internal/service/ops_service.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/setting_parse.go",
+        "backend/internal/service/setting_update.go",
+        "backend/internal/service/settings_view.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql",
+        "docs/encrypted-history-400-beta.md",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/ops.ts",
+        "frontend/src/api/admin/settings.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/components/settings/EncryptedHistory400Settings.vue",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/en/admin/settings.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/admin/settings.ts",
+        "frontend/src/views/admin/AccountOpsView.vue",
+        "frontend/src/views/admin/SettingsView.vue",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+        "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/scripts/encrypted-history-400-preview.mjs",
+        ".github/scripts/pelican-detail-identity.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/account-ops-selector.yml",
+        ".github/workflows/admin-usage-platform-filter.yml",
+        ".github/workflows/encrypted-history-400.yml",
+        ".github/workflows/encrypted-history-409.yml",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/issue805-owner-policy.yml",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "955a5798511ff89fe2cf516b749d4992c5c2d7b5",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/schema/usage_log.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/account_auto_config_outcome.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/openai_images.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/account_auto_config.go",
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/ai_ops_test.go",
+        "backend/internal/repository/channel_monitor_v2_aggregation.go",
+        "backend/internal/repository/channel_monitor_v2_repo.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/ops_client_rejection.go",
+        "backend/internal/repository/ops_repo.go",
+        "backend/internal/repository/ops_repo_dashboard.go",
+        "backend/internal/repository/ops_repo_preagg.go",
+        "backend/internal/repository/ops_repo_realtime_traffic.go",
+        "backend/internal/repository/ops_repo_request_details.go",
+        "backend/internal/repository/ops_repo_trends.go",
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/http2_peer_reset_test.go",
+        "backend/internal/service/oauth_auto_config.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_images_test.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/ops_metrics_collector.go",
+        "backend/internal/service/ops_models.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ops_user_error.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/UserErrorRequestsTable.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/types/index.ts",
+        "frontend/src/utils/userErrorMessage.ts",
+        "frontend/src/views/admin/AccountOpsView.vue",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts",
+        "frontend/src/views/user/UsageView.vue",
+        "frontend/src/views/user/__tests__/UsageView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/http2-stream-reset-preview.mjs",
+        ".github/http2-user-filter-preview.mjs",
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/scripts/pelican-detail-identity.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/account-ops-selector.yml",
+        ".github/workflows/admin-usage-platform-filter.yml",
+        ".github/workflows/http2-stream-reset.yml",
+        ".github/workflows/issue805-owner-policy.yml",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "78974f13ab497d8dc74657979b663a187ce89269",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "ecc85799dabda2313c45f1f647736969b39a27ed",
+      "included_paths": [
+        "backend/internal/server/api_contract_test.go",
+        "backend/internal/service/openai_400_omit_history_test.go",
+        "backend/internal/service/ops_ingress_reject.go",
+        "backend/internal/service/ops_ingress_reject_test.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "e314dba1fb30120493ada3058cc2186ac731da79",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "ca9153157d8d421e299ea070e719b43cfa263c34",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "8c8fb462372f8354e25c0471c0ad0188c26ffdf6",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/schema/usage_log.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_disable_scheduling_429_weekly_test.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_service.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "backend/internal/service/openai_plugin_transport.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go",
+        "backend/internal/service/openai_ws_forwarder_ingress.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "backend/internal/service/openai_ws_forwarder_v2.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+        "backend/internal/service/ratelimit_service_disable_scheduling_429_test.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql",
+        "docs/testing/oauth429-weekly-only.md",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/views/admin/AccountOpsView.vue",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/account-ops-selector.yml",
+        ".github/workflows/admin-usage-platform-filter.yml",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "387d0774aee30d9c3abfdd8af201d511af12d963",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/issue715-agent-recovery.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "1b8378f8130e0b4454685bb820e44193735e7c6f",
+      "included_paths": [
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_gateway_usage.go"
+      ],
+      "excluded_paths": [],
+      "disposition": "included"
+    },
+    {
+      "sha": "0d023743a0e620e9a377e42ef7b85e92cba349ec",
+      "included_paths": [
+        "backend/ent/migrate/schema.go",
+        "backend/ent/mutation.go",
+        "backend/ent/runtime/runtime.go",
+        "backend/ent/schema/usage_log.go",
+        "backend/ent/usagelog.go",
+        "backend/ent/usagelog/usagelog.go",
+        "backend/ent/usagelog/where.go",
+        "backend/ent/usagelog_create.go",
+        "backend/ent/usagelog_query.go",
+        "backend/ent/usagelog_update.go",
+        "backend/internal/handler/admin/dashboard_handler.go",
+        "backend/internal/handler/admin/dashboard_handler_request_type_test.go",
+        "backend/internal/handler/admin/dashboard_query_cache.go",
+        "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "backend/internal/handler/admin/usage_handler.go",
+        "backend/internal/handler/admin/usage_handler_platform_test.go",
+        "backend/internal/handler/admin/usage_platform.go",
+        "backend/internal/handler/admin/usage_query_cache.go",
+        "backend/internal/pkg/usagestats/usage_log_types.go",
+        "backend/internal/repository/migrations_runner.go",
+        "backend/internal/repository/regional_budget_authority.go",
+        "backend/internal/repository/regional_budget_scope_integration_test.go",
+        "backend/internal/repository/usage_log_platform.go",
+        "backend/internal/repository/usage_log_platform_index_integration_test.go",
+        "backend/internal/repository/usage_log_platform_integration_test.go",
+        "backend/internal/repository/usage_log_repo_insert.go",
+        "backend/internal/repository/usage_log_repo_insert_shape_unit_test.go",
+        "backend/internal/repository/usage_log_repo_query.go",
+        "backend/internal/repository/usage_log_repo_request_type_test.go",
+        "backend/internal/repository/usage_log_repo_stats.go",
+        "backend/internal/repository/usage_log_repo_trend.go",
+        "backend/internal/repository/usage_log_session_id_unit_test.go",
+        "backend/internal/service/batch_image_settlement.go",
+        "backend/internal/service/batch_image_settlement_test.go",
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_lifecycle_test.go",
+        "backend/internal/service/usage_log.go",
+        "backend/internal/service/usage_platform_snapshot_test.go",
+        "backend/migrations/343_usage_log_platform_snapshot.sql",
+        "backend/migrations/344_usage_log_platform_index_notx.sql",
+        "frontend/src/api/admin/dashboard.ts",
+        "frontend/src/api/admin/usage.ts",
+        "frontend/src/components/admin/operations/AccountOpsGroupDialog.vue",
+        "frontend/src/components/admin/operations/QualityAccountSelector.vue",
+        "frontend/src/components/admin/operations/__tests__/AccountOpsGroupSelector.spec.ts",
+        "frontend/src/components/admin/operations/__tests__/QualityAccountSelector.spec.ts",
+        "frontend/src/components/admin/usage/UsageFilters.vue",
+        "frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts",
+        "frontend/src/components/charts/EndpointDistributionChart.vue",
+        "frontend/src/components/charts/GroupDistributionChart.vue",
+        "frontend/src/components/charts/ModelDistributionChart.vue",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/accountOps.ts",
+        "frontend/src/i18n/locales/en/admin/resources.ts",
+        "frontend/src/i18n/locales/zh/accountOps.ts",
+        "frontend/src/i18n/locales/zh/admin/resources.ts",
+        "frontend/src/views/admin/AccountOpsView.vue",
+        "frontend/src/views/admin/UsageView.vue",
+        "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+        "frontend/src/views/admin/__tests__/UsageView.platform.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/admin-usage-platform-filter/browser.mjs",
+        ".github/scripts/account-ops-selector-preview.mjs",
+        ".github/workflows/account-ops-selector.yml",
+        ".github/workflows/admin-usage-platform-filter.yml",
+        ".github/workflows/issue715-agent-recovery.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "0b9cbfbabb2d0ff03adc7f3f5f65b9b4edaa029b",
+      "included_paths": [
+        "backend/internal/handler/admin/setting_handler.go",
+        "backend/internal/handler/admin/setting_handler_partial_payload_test.go",
+        "backend/internal/handler/admin/setting_handler_update.go",
+        "backend/internal/handler/dto/settings.go",
+        "backend/internal/handler/openai_400_omit_history_test.go",
+        "backend/internal/server/api_contract_test.go",
+        "backend/internal/service/domain_constants.go",
+        "backend/internal/service/openai_400_omit_history.go",
+        "backend/internal/service/openai_400_omit_history_test.go",
+        "backend/internal/service/openai_409_omit_history.go",
+        "backend/internal/service/openai_agent_message_delivery.go",
+        "backend/internal/service/openai_agent_message_recovery.go",
+        "backend/internal/service/openai_gateway_forward.go",
+        "backend/internal/service/openai_history_omission.go",
+        "backend/internal/service/ops_ingress_reject.go",
+        "backend/internal/service/ops_ingress_reject_test.go",
+        "backend/internal/service/ops_service.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/setting_parse.go",
+        "backend/internal/service/setting_update.go",
+        "backend/internal/service/settings_view.go",
+        "docs/encrypted-history-400-beta.md",
+        "frontend/src/api/admin/ops.ts",
+        "frontend/src/api/admin/settings.ts",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/components/settings/EncryptedHistory400Settings.vue",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/admin/settings.ts",
+        "frontend/src/i18n/locales/zh/admin/settings.ts",
+        "frontend/src/views/admin/SettingsView.vue",
+        "frontend/src/views/admin/__tests__/SettingsView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/scripts/encrypted-history-400-preview.mjs",
+        ".github/workflows/encrypted-history-400.yml",
+        ".github/workflows/encrypted-history-409.yml",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/issue805-owner-policy.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "2ac7bb3761ffb4131a9ec58bc3fccb943f1d50f5",
+      "included_paths": [
+        "backend/internal/handler/admin/setting_handler.go",
+        "backend/internal/handler/admin/setting_handler_partial_payload_test.go",
+        "backend/internal/handler/admin/setting_handler_update.go",
+        "backend/internal/handler/dto/settings.go",
+        "backend/internal/handler/openai_400_omit_history_test.go",
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/server/api_contract_test.go",
+        "backend/internal/service/domain_constants.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/openai_400_omit_history.go",
+        "backend/internal/service/openai_400_omit_history_test.go",
+        "backend/internal/service/openai_409_omit_history.go",
+        "backend/internal/service/openai_agent_message_delivery.go",
+        "backend/internal/service/openai_agent_message_recovery.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_disable_scheduling_429_weekly_test.go",
+        "backend/internal/service/openai_gateway_forward.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_service.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_history_omission.go",
+        "backend/internal/service/openai_plugin_transport.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go",
+        "backend/internal/service/openai_ws_forwarder_ingress.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "backend/internal/service/openai_ws_forwarder_v2.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+        "backend/internal/service/ops_ingress_reject.go",
+        "backend/internal/service/ops_ingress_reject_test.go",
+        "backend/internal/service/ops_service.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ratelimit_service_disable_scheduling_429_test.go",
+        "backend/internal/service/setting_parse.go",
+        "backend/internal/service/setting_update.go",
+        "backend/internal/service/settings_view.go",
+        "docs/encrypted-history-400-beta.md",
+        "docs/testing/oauth429-weekly-only.md",
+        "frontend/src/api/admin/ops.ts",
+        "frontend/src/api/admin/settings.ts",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/components/settings/EncryptedHistory400Settings.vue",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/admin/settings.ts",
+        "frontend/src/i18n/locales/zh/admin/settings.ts",
+        "frontend/src/views/admin/SettingsView.vue",
+        "frontend/src/views/admin/__tests__/SettingsView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/scripts/encrypted-history-400-preview.mjs",
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/encrypted-history-400.yml",
+        ".github/workflows/encrypted-history-409.yml",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/issue805-owner-policy.yml",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "bf3f6a52e25f7e10801d7743cc89c218c41d40a5",
+      "included_paths": [
+        "backend/internal/handler/account_auto_config_outcome.go",
+        "backend/internal/handler/admin/setting_handler.go",
+        "backend/internal/handler/admin/setting_handler_partial_payload_test.go",
+        "backend/internal/handler/admin/setting_handler_update.go",
+        "backend/internal/handler/dto/settings.go",
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/openai_400_omit_history_test.go",
+        "backend/internal/handler/openai_images.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/repository/account_auto_config.go",
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/ai_ops_test.go",
+        "backend/internal/repository/channel_monitor_v2_aggregation.go",
+        "backend/internal/repository/channel_monitor_v2_repo.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/repository/ops_client_rejection.go",
+        "backend/internal/repository/ops_repo.go",
+        "backend/internal/repository/ops_repo_dashboard.go",
+        "backend/internal/repository/ops_repo_preagg.go",
+        "backend/internal/repository/ops_repo_realtime_traffic.go",
+        "backend/internal/repository/ops_repo_request_details.go",
+        "backend/internal/repository/ops_repo_trends.go",
+        "backend/internal/server/api_contract_test.go",
+        "backend/internal/service/domain_constants.go",
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/http2_peer_reset_test.go",
+        "backend/internal/service/oauth_auto_config.go",
+        "backend/internal/service/openai_400_omit_history.go",
+        "backend/internal/service/openai_400_omit_history_test.go",
+        "backend/internal/service/openai_409_omit_history.go",
+        "backend/internal/service/openai_agent_message_delivery.go",
+        "backend/internal/service/openai_agent_message_recovery.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_forward.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_history_omission.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_images_test.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/ops_ingress_reject.go",
+        "backend/internal/service/ops_ingress_reject_test.go",
+        "backend/internal/service/ops_metrics_collector.go",
+        "backend/internal/service/ops_models.go",
+        "backend/internal/service/ops_service.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ops_user_error.go",
+        "backend/internal/service/setting_parse.go",
+        "backend/internal/service/setting_update.go",
+        "backend/internal/service/settings_view.go",
+        "docs/encrypted-history-400-beta.md",
+        "frontend/src/api/admin/ops.ts",
+        "frontend/src/api/admin/settings.ts",
+        "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+        "frontend/src/components/settings/EncryptedHistory400Settings.vue",
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/UserErrorRequestsTable.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/constants/newFeatureNotices.ts",
+        "frontend/src/i18n/locales/en/admin/settings.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/admin/settings.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/types/index.ts",
+        "frontend/src/utils/userErrorMessage.ts",
+        "frontend/src/views/admin/SettingsView.vue",
+        "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
+        "frontend/src/views/user/UsageView.vue",
+        "frontend/src/views/user/__tests__/UsageView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/http2-stream-reset-preview.mjs",
+        ".github/http2-user-filter-preview.mjs",
+        ".github/scripts/encrypted-history-400-preview.mjs",
+        ".github/workflows/encrypted-history-400.yml",
+        ".github/workflows/encrypted-history-409.yml",
+        ".github/workflows/http2-stream-reset.yml",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/issue805-owner-policy.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "b6c188bbef4aa17cfa2ab19a93dc01fdcae17d46",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/priority-observation.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "37460fe8d5135fe7238b4d2b9b57f2b5dab82028",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/priority-observation.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "eff2729247f2d5f1a4f28c561515701487e02f25",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "118755379ebbdea9ab93977272551c7e680a2225",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "358d5ef7bba9bbde30afa2a8b4233ddf6d0232fc",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/workflows/http2-stream-reset.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "7804faf5a09d126c1a386371d59643714efabc96",
+      "included_paths": [
+        "backend/internal/handler/account_auto_config_outcome.go",
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/openai_images.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/repository/account_auto_config.go",
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/ai_ops_test.go",
+        "backend/internal/repository/channel_monitor_v2_aggregation.go",
+        "backend/internal/repository/channel_monitor_v2_repo.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/repository/ops_client_rejection.go",
+        "backend/internal/repository/ops_repo.go",
+        "backend/internal/repository/ops_repo_dashboard.go",
+        "backend/internal/repository/ops_repo_preagg.go",
+        "backend/internal/repository/ops_repo_realtime_traffic.go",
+        "backend/internal/repository/ops_repo_request_details.go",
+        "backend/internal/repository/ops_repo_trends.go",
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/http2_peer_reset_test.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/oauth_auto_config.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_disable_scheduling_429_weekly_test.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "backend/internal/service/openai_gateway_service.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_images_test.go",
+        "backend/internal/service/openai_plugin_transport.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/openai_ws_forwarder_ingress.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "backend/internal/service/openai_ws_forwarder_v2.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+        "backend/internal/service/ops_metrics_collector.go",
+        "backend/internal/service/ops_models.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ops_user_error.go",
+        "backend/internal/service/ratelimit_service_disable_scheduling_429_test.go",
+        "docs/testing/oauth429-weekly-only.md",
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/UserErrorRequestsTable.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/types/index.ts",
+        "frontend/src/utils/userErrorMessage.ts",
+        "frontend/src/views/user/UsageView.vue",
+        "frontend/src/views/user/__tests__/UsageView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/http2-stream-reset-preview.mjs",
+        ".github/http2-user-filter-preview.mjs",
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/http2-stream-reset.yml",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/issue805-owner-policy.yml",
+        ".github/workflows/oauth429-weekly-only.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "dfc0219a9e66a19642eb73875e4914e540b49575",
+      "included_paths": [
+        "backend/internal/repository/oauth429_weekly_only_integration_test.go",
+        "backend/internal/service/oauth429_weekly_only_gateway_test.go",
+        "backend/internal/service/oauth429_weekly_only_test.go",
+        "backend/internal/service/openai_disable_scheduling_429.go",
+        "backend/internal/service/openai_disable_scheduling_429_weekly_test.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_service.go",
+        "backend/internal/service/openai_gateway_usage.go",
+        "backend/internal/service/openai_plugin_transport.go",
+        "backend/internal/service/openai_quota_service.go",
+        "backend/internal/service/openai_quota_usage_snapshot.go",
+        "backend/internal/service/openai_ws_forwarder_ingress.go",
+        "backend/internal/service/openai_ws_forwarder_support.go",
+        "backend/internal/service/openai_ws_forwarder_v2.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+        "backend/internal/service/ratelimit_service_disable_scheduling_429_test.go",
+        "docs/testing/oauth429-weekly-only.md"
+      ],
+      "excluded_paths": [
+        ".github/scripts/oauth429-weekly-only-evidence.py",
+        ".github/workflows/issue715-agent-recovery.yml",
+        ".github/workflows/oauth429-weekly-only.yml",
+        ".github/workflows/priority-observation.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "ea1f3a28d8d1839e92ac5e48c6e9d7aeb90b0fff",
+      "included_paths": [
+        "backend/internal/handler/account_auto_config_outcome.go",
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/openai_images.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/repository/account_auto_config.go",
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/ai_ops_test.go",
+        "backend/internal/repository/channel_monitor_v2_aggregation.go",
+        "backend/internal/repository/channel_monitor_v2_repo.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/repository/ops_client_rejection.go",
+        "backend/internal/repository/ops_repo.go",
+        "backend/internal/repository/ops_repo_dashboard.go",
+        "backend/internal/repository/ops_repo_preagg.go",
+        "backend/internal/repository/ops_repo_realtime_traffic.go",
+        "backend/internal/repository/ops_repo_request_details.go",
+        "backend/internal/repository/ops_repo_trends.go",
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/http2_peer_reset_test.go",
+        "backend/internal/service/oauth_auto_config.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_images_test.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/ops_metrics_collector.go",
+        "backend/internal/service/ops_models.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ops_user_error.go",
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/UserErrorRequestsTable.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/types/index.ts",
+        "frontend/src/utils/userErrorMessage.ts",
+        "frontend/src/views/user/UsageView.vue",
+        "frontend/src/views/user/__tests__/UsageView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/http2-stream-reset-preview.mjs",
+        ".github/http2-user-filter-preview.mjs",
+        ".github/workflows/http2-stream-reset.yml",
+        ".github/workflows/issue805-owner-policy.yml"
+      ],
+      "disposition": "mixed"
+    },
+    {
+      "sha": "583dc18e4fc03c78fe71843cfe66b84c8be4c225",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/nominal-round.test.mjs",
+        ".github/scripts/pelican-complete-rounds.mjs",
+        ".github/scripts/pelican-nominal-round.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "e33a5f4adb8a7ed7622af3fbb5600e29769ccf61",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/scripts/pelican-complete-rounds.mjs",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "745dca132ef9512f7959cb142f2fd535fe3a0313",
+      "included_paths": [],
+      "excluded_paths": [
+        ".github/scripts/pelican-complete-rounds.mjs"
+      ],
+      "disposition": "excluded-ci-fixtures"
+    },
+    {
+      "sha": "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a",
+      "included_paths": [
+        "backend/internal/handler/account_auto_config_outcome.go",
+        "backend/internal/handler/http2_peer_reset_test.go",
+        "backend/internal/handler/openai_images.go",
+        "backend/internal/handler/ops_error_logger.go",
+        "backend/internal/repository/account_auto_config.go",
+        "backend/internal/repository/ai_ops.go",
+        "backend/internal/repository/ai_ops_test.go",
+        "backend/internal/repository/channel_monitor_v2_aggregation.go",
+        "backend/internal/repository/channel_monitor_v2_repo.go",
+        "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+        "backend/internal/repository/http2_peer_reset_integration_test.go",
+        "backend/internal/repository/ops_client_rejection.go",
+        "backend/internal/repository/ops_repo.go",
+        "backend/internal/repository/ops_repo_dashboard.go",
+        "backend/internal/repository/ops_repo_preagg.go",
+        "backend/internal/repository/ops_repo_realtime_traffic.go",
+        "backend/internal/repository/ops_repo_request_details.go",
+        "backend/internal/repository/ops_repo_trends.go",
+        "backend/internal/service/http2_gateway_test_support.go",
+        "backend/internal/service/http2_peer_reset_adapters_test.go",
+        "backend/internal/service/http2_peer_reset_test.go",
+        "backend/internal/service/oauth_auto_config.go",
+        "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "backend/internal/service/openai_gateway_chat_completions.go",
+        "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "backend/internal/service/openai_gateway_chat_completions_test.go",
+        "backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go",
+        "backend/internal/service/openai_gateway_messages.go",
+        "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "backend/internal/service/openai_gateway_service_test.go",
+        "backend/internal/service/openai_images.go",
+        "backend/internal/service/openai_images_responses.go",
+        "backend/internal/service/openai_images_test.go",
+        "backend/internal/service/openai_stream_read_error.go",
+        "backend/internal/service/openai_upstream_transport_error.go",
+        "backend/internal/service/openai_ws_http_bridge.go",
+        "backend/internal/service/ops_metrics_collector.go",
+        "backend/internal/service/ops_models.go",
+        "backend/internal/service/ops_upstream_context.go",
+        "backend/internal/service/ops_user_error.go",
+        "frontend/src/components/user/UserErrorDetailModal.vue",
+        "frontend/src/components/user/UserErrorRequestsTable.vue",
+        "frontend/src/components/user/__tests__/UserErrorTransport.spec.ts",
+        "frontend/src/i18n/locales/en/dashboard.ts",
+        "frontend/src/i18n/locales/zh/dashboard.ts",
+        "frontend/src/types/index.ts",
+        "frontend/src/utils/userErrorMessage.ts",
+        "frontend/src/views/user/UsageView.vue",
+        "frontend/src/views/user/__tests__/UsageView.spec.ts"
+      ],
+      "excluded_paths": [
+        ".github/fixtures/pelican-question-e2e/Dockerfile",
+        ".github/fixtures/pelican-question-e2e/README.md",
+        ".github/fixtures/pelican-question-e2e/acceptance.json",
+        ".github/fixtures/pelican-question-e2e/detail-identity.test.mjs",
+        ".github/fixtures/pelican-question-e2e/nominal-round.test.mjs",
+        ".github/http2-stream-reset-preview.mjs",
+        ".github/http2-user-filter-preview.mjs",
+        ".github/scripts/pelican-complete-rounds.mjs",
+        ".github/scripts/pelican-nominal-round.mjs",
+        ".github/scripts/pelican-question-e2e.mjs",
+        ".github/workflows/http2-stream-reset.yml",
+        ".github/workflows/issue805-owner-policy.yml",
+        ".github/workflows/pelican-random-questions.yml"
+      ],
+      "disposition": "mixed"
+    }
+  ],
+  "coverage": "Risk-focused manual review of changed runtime families and SQL, with static inventory and regression validation. Not an exhaustive line-by-line audit or proof of absence of malicious code."
+}

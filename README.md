@@ -1,12 +1,12 @@
 # SUB6
 
-SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前独立版本：**0.1.4**。基于 Ranxi 正式版 **v2.21.2**，精确同步 SHA：`ccf997c73868083d96c0bec56e71c1a34d26c98a`（正式标签提交 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`）。
+SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前源码准备版：**0.1.5**，最新二进制发行仍为 **0.1.4**。基于 Ranxi 正式版 **v2.21.2**，精确同步 SHA：`7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a`（正式标签提交 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`）。
 
-[English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-14-v0.1.4-review.md) · [部署说明](deploy/README.md)
+[English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-14-upstream-review.md) · [部署说明](deploy/README.md)
 
 ## 来源与功能
 
-本版从上游 2.19.5 基线 `b50754c0facddce08ef13900dfc1302061d1710b` 追齐到 production `ccf997c73868083d96c0bec56e71c1a34d26c98a`；正式版 v2.21.2 对应 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`。完整 852 个提交范围和逐文件排除项见 maintenance/。
+本次在既有追齐版本上审查 79 个新增上游提交，按文件保留运行代码和回归，排除上游 CI／演示脚本；精确范围和排除清单见 [维护报告](maintenance/2026-11-14-upstream-review.md)。新增两项数据库迁移，尚未发布 0.1.5 二进制或开放托管一键升级。
 
 保留多平台网关、分组与账号调度、WS/SSE、支付与计费、管理权限及 Grok 低 token 探活修复。独立 `deploy/direct-access` 辅助服务提供 IP 白名单、每累计成功入账 $100 一个名额、管理员加款计入累计、管理员指定总名额与操作审计。它需要单独配置，不会自动修改防火墙或主系统余额。
 
@@ -22,7 +22,7 @@ pnpm --dir frontend run build
 cd backend
 go mod download
 go mod verify
-CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.4 -X main.BuildType=source' -o sub6 ./cmd/server
+CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.5 -X main.BuildType=source' -o sub6 ./cmd/server
 ./sub6
 ```
 
