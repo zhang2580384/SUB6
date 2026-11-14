@@ -1,8 +1,8 @@
 # SUB6
 
-SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前独立版本：**0.1.4**。基于 Ranxi 正式版 **v2.21.2**，精确同步 SHA：`ccf997c73868083d96c0bec56e71c1a34d26c98a`（正式标签提交 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`）。
+SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前独立版本：**0.1.5**。基于 Ranxi 正式版 **v2.21.2**，精确同步 SHA：`ccf997c73868083d96c0bec56e71c1a34d26c98a`（正式标签提交 `dbed7697aa56e76c6eb48c4914fa441496b67bdd`）。
 
-[English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-14-v0.1.4-review.md) · [部署说明](deploy/README.md)
+[English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-14-v0.1.5-review.md) · [部署说明](deploy/README.md)
 
 ## 来源与功能
 
@@ -22,7 +22,7 @@ pnpm --dir frontend run build
 cd backend
 go mod download
 go mod verify
-CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.4 -X main.BuildType=source' -o sub6 ./cmd/server
+CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.5 -X main.BuildType=source' -o sub6 ./cmd/server
 ./sub6
 ```
 
@@ -32,7 +32,7 @@ Google OAuth 客户端未内置。Antigravity/Gemini CLI 登录和令牌刷新�
 
 ## 更新与发布
 
-只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。0.1.4 提供源码及嵌入前端的 Linux amd64 二进制；未发布容器镜像。构建来源和运行时资源见 [构建说明](maintenance/BUILD-v0.1.4.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
+只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。0.1.5 提供源码及嵌入前端的 Linux amd64 二进制；未发布容器镜像。构建来源和运行时资源见 [构建说明](maintenance/BUILD-v0.1.5.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
 
 本维护分支修正了发行构建误标为 `source` 而隐藏“立即更新”的问题。后续发行使用
 `make build-release`（需先安装已审查的依赖），输出 `backend/bin/sub6-linux-amd64`，
@@ -41,7 +41,7 @@ Google OAuth 客户端未内置。Antigravity/Gemini CLI 登录和令牌刷新�
 模式，需要人工切换到后续修正版才能恢复网页升级。详见
 [在线升级修复说明](maintenance/2026-11-13-online-updater-restoration.md)。
 
-0.1.4 新增可选[托管滚动升级控制器](deploy/managed-updater/README.md)，由管理员
+自 0.1.4 起提供可选[托管滚动升级控制器](deploy/managed-updater/README.md)，由管理员
 安装后同时管理主服务和 WS 网关、排空旧请求、保留存量连接并向网页报告进度。
 含数据库迁移变化的版本须运维单独审查，独立 sidecar 仍需另行更新。
 

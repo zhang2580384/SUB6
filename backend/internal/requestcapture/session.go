@@ -36,6 +36,31 @@ func FromContext(ctx context.Context) *Session {
 	return s
 }
 
+// WithoutSession masks a parent's recorder on a shared physical transport.
+// Logical conversations must never share attempt numbers or terminal state.
+func WithoutSession(ctx context.Context) context.Context {
+	return context.WithValue(ctx, contextKey{}, (*Session)(nil))
+}
+
+// ForkWebSocket gives a logical conversation its own bounded recorder, while
+// retaining the authenticated request metadata and diagnostic task matching.
+// Capacity failure masks the parent instead of mixing concurrent traffic.
+func ForkWebSocket(ctx context.Context) (context.Context, *Session) {
+	parent := FromContext(ctx)
+	if parent == nil {
+		return ctx, nil
+	}
+	parent.mu.Lock()
+	meta := parent.meta
+	parent.mu.Unlock()
+	meta.Protocol = "websocket"
+	s := parent.m.Begin(meta)
+	if s == nil {
+		return WithoutSession(ctx), nil
+	}
+	return WithSession(ctx, s), s
+}
+
 type event struct {
 	s       *Session
 	part    Part

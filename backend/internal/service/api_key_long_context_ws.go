@@ -13,7 +13,7 @@ import (
 // WriteAPIKeyLongContextWSFailure sends a standard Responses terminal event
 // before either a relay or its handler closes the socket. Both layers can see
 // the same error, so emit it once. A bare close loses the machine-readable code.
-func WriteAPIKeyLongContextWSFailure(conn *coderws.Conn, err error) {
+func WriteAPIKeyLongContextWSFailure(conn OpenAIWSDownstreamConn, err error) {
 	var policyErr *APIKeyLongContextError
 	if conn == nil || !errors.As(err, &policyErr) || !policyErr.wsFailureSent.CompareAndSwap(false, true) {
 		return

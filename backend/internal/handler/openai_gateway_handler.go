@@ -86,6 +86,12 @@ type openAIWSCyberIdentityDecision struct {
 func (b *openAIWSCyberIdentityBinding) resolve(apiKeyID int64, c *gin.Context, payload []byte, enabled, strict bool) openAIWSCyberIdentityDecision {
 	observed := service.ResolveCyberSessionIdentity(apiKeyID, c, payload)
 	decision := openAIWSCyberIdentityDecision{observed: observed, effective: observed}
+	// Ambiguous identities are a protocol/isolation error, independent of the
+	// optional content-policy switch. Missing identities remain compatible.
+	if observed.Metadata.Status == service.OpenAIClientSessionIdentityConflict || observed.Metadata.Status == service.OpenAIClientSessionIdentityInvalid {
+		decision.reject = true
+		return decision
+	}
 	if !enabled {
 		return decision
 	}
@@ -290,7 +296,7 @@ func openAIWSQueueTurnPermissions(model string, payload []byte) service.APIKeyQu
 // closeOpenAIWSAdmissionError maps a first-turn admission failure to the same
 // close semantics the ingress uses: control loss keeps its typed retryable
 // close, a departed peer closes nothing, and queue failures keep 1013.
-func closeOpenAIWSAdmissionError(wsConn *coderws.Conn, reqLog *zap.Logger, logMessage string, err error) {
+func closeOpenAIWSAdmissionError(wsConn service.OpenAIWSDownstreamConn, reqLog *zap.Logger, logMessage string, err error) {
 	switch {
 	case service.IsOpenAIWSSessionPreemptedError(err):
 		return
@@ -2975,6 +2981,23 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		_ = wsConn.CloseNow()
 	}()
 	wsConn.SetReadLimit(service.ResolveOpenAIWSClientReadLimitBytes(h.cfg))
+	h.serveOpenAIWSStreams(c, wsConn)
+}
+
+// Each logical session owns its Gin context, forwarding history, account
+// affinity, reservations and cyber state. Only the authenticated physical
+// connection and its ingress lease are shared by the stream router.
+func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn service.OpenAIWSDownstreamConn) {
+	c.Set(securityAuditWSTurnContextKey, 1)
+	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	clientIP := ip.GetClientIP(c)
+	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
+	clientLifecycleCtx := c.Request.Context()
+	ctx := clientLifecycleCtx
+	reqLog := requestLogger(c, "handler.openai_gateway.responses_ws",
+		zap.Int64("user_id", subject.UserID), zap.Int64("api_key_id", apiKey.ID),
+		zap.Any("group_id", apiKey.GroupID), zap.Bool("openai_ws_mode", true))
 
 	firstMessageTimeout := service.ResolveOpenAIWSClientFirstMessageTimeout(h.cfg)
 	msgType, firstMessage, firstFrameArrivedAt, err := service.ReadOpenAIWSClientMessageWithArrival(
@@ -2985,45 +3008,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		"missing first response.create message",
 	)
 	if err != nil {
-		if errors.Is(context.Cause(ctx), service.ErrOpenAIWSIngressLeaseLost) {
-			reqLog.Warn("openai.websocket_ingress_lease_lost_before_first_message", zap.Error(err))
-			closeOpenAIClientWS(wsConn, coderws.StatusTryAgainLater, "websocket ingress capacity lease lost; please reconnect")
-			return
-		}
-		closeStatus, closeReason := summarizeWSCloseErrorForLog(err)
-		var localClose *service.OpenAIWSClientCloseError
-		closedByServer := errors.As(err, &localClose)
-		if closedByServer {
-			closeStatus = fmt.Sprintf("%d(%s)", int(localClose.StatusCode()), localClose.StatusCode().String())
-			closeReason = localClose.Reason()
-		}
-		reason := "read_error"
-		peerCloseStatus := coderws.CloseStatus(err)
-		peerDisconnected := errors.Is(err, io.EOF) || peerCloseStatus == coderws.StatusNormalClosure || peerCloseStatus == coderws.StatusGoingAway
-		switch {
-		case closedByServer && localClose.StatusCode() == coderws.StatusPolicyViolation && errors.Is(err, context.DeadlineExceeded):
-			reason = "first_message_timeout"
-		case peerDisconnected:
-			reason = "peer_disconnected"
-		case errors.Is(err, context.Canceled):
-			reason = "request_canceled"
-		}
-		fields := []zap.Field{
-			zap.Error(err),
-			zap.String("client_ip", clientIP),
-			zap.String("close_status", closeStatus),
-			zap.String("close_reason", closeReason),
-			zap.Duration("read_timeout", firstMessageTimeout),
-			zap.String("reason", reason),
-		}
-		if reason == "peer_disconnected" || reason == "request_canceled" {
-			reqLog.Info("openai.websocket_read_first_message_failed", fields...)
-		} else {
-			reqLog.Warn("openai.websocket_read_first_message_failed", fields...)
-		}
-		if !closedByServer && peerCloseStatus == -1 && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
-			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "missing first response.create message")
-		}
+		h.logOpenAIWSFirstReadError(c, wsConn, ctx, err, firstMessageTimeout)
 		return
 	}
 	firstTurnStartedAt := requesttiming.Now(ctx)
@@ -3825,6 +3810,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return checkSimpleModeTurnBilling()
 			},
 			AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
+				defer service.CompleteOpenAIWSDownstreamTurn(wsConn, turnErr)
 				turnStart := getTurnStart(turn)
 				// Each ingress samples its own forward boundary. Callback cleanup is
 				// never queue time. Preserve the current frame across account failover.
@@ -4833,7 +4819,7 @@ func blockedModelAllowlistCandidate(group *service.Group, candidates []string) s
 	return ""
 }
 
-func closeOpenAIClientWS(conn *coderws.Conn, status coderws.StatusCode, reason string) {
+func closeOpenAIClientWS(conn service.OpenAIWSDownstreamConn, status coderws.StatusCode, reason string) {
 	if conn == nil {
 		return
 	}
@@ -4855,7 +4841,7 @@ func openAIWSNextAttemptMessage(current, retryPayload []byte, retryCurrentTurn b
 	return append([]byte(nil), retryPayload...), true
 }
 
-func closeOpenAIWSFailoverExhausted(c *gin.Context, conn *coderws.Conn, failoverErr *service.UpstreamFailoverError) {
+func closeOpenAIWSFailoverExhausted(c *gin.Context, conn service.OpenAIWSDownstreamConn, failoverErr *service.UpstreamFailoverError) {
 	intendedStatus := http.StatusBadGateway
 	errorType := "upstream_error"
 	errorCode := "upstream_ws_failover_exhausted"
@@ -4895,7 +4881,7 @@ func closeOpenAIWSFailoverExhausted(c *gin.Context, conn *coderws.Conn, failover
 	closeOpenAIClientWS(conn, closeStatus, message)
 }
 
-func writeContentModerationWSError(ctx context.Context, conn *coderws.Conn, decision *service.ContentModerationDecision) {
+func writeContentModerationWSError(ctx context.Context, conn service.OpenAIWSDownstreamConn, decision *service.ContentModerationDecision) {
 	if conn == nil || decision == nil {
 		return
 	}
@@ -4925,7 +4911,7 @@ func writeContentModerationWSError(ctx context.Context, conn *coderws.Conn, deci
 
 // writeCyberSessionBlockedWSError sends an error frame telling the client this
 // session is blocked by the cyber session block (F5a) before closing.
-func writeCyberSessionBlockedWSError(ctx context.Context, conn *coderws.Conn) {
+func writeCyberSessionBlockedWSError(ctx context.Context, conn service.OpenAIWSDownstreamConn) {
 	if conn == nil {
 		return
 	}
@@ -4949,16 +4935,16 @@ func writeCyberSessionBlockedWSError(ctx context.Context, conn *coderws.Conn) {
 	_ = service.WriteCapturedWSClient(writeCtx, conn, coderws.MessageText, payload)
 }
 
-func writeCyberSessionIdentityRejectedWSError(ctx context.Context, conn *coderws.Conn, metadata service.OpenAIClientSessionIdentityMetadata) {
+func writeCyberSessionIdentityRejectedWSError(ctx context.Context, conn service.OpenAIWSDownstreamConn, metadata service.OpenAIClientSessionIdentityMetadata) {
 	if conn == nil {
 		return
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	code, message := cyberSessionIdentityError(metadata)
+	code, message := openAIWSSessionIdentityError(metadata)
 	payload, err := json.Marshal(gin.H{
-		"event_id": "evt_cyber_session_identity_rejected",
+		"event_id": "evt_websocket_session_identity_rejected",
 		"type":     "error",
 		"error": gin.H{
 			"type":    "invalid_request_error",
@@ -4967,7 +4953,7 @@ func writeCyberSessionIdentityRejectedWSError(ctx context.Context, conn *coderws
 		},
 	})
 	if err != nil {
-		payload = []byte(`{"event_id":"evt_cyber_session_identity_rejected","type":"error","error":{"type":"invalid_request_error","code":"cyber_session_identity_required","message":"A stable thread_id or session_id is required"}}`)
+		payload = []byte(`{"event_id":"evt_websocket_session_identity_rejected","type":"error","error":{"type":"invalid_request_error","code":"websocket_session_identity_required","message":"A stable thread_id or session_id is required"}}`)
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -5122,6 +5108,15 @@ func buildCyberSessionIdentityRejectedOpsEntry(meta cyberPolicyOpsErrorMeta) *se
 		ErrorOwner:        "client",
 		CreatedAt:         meta.CreatedAt,
 	}
+	if meta.WSTurnAdmission {
+		wsType := int16(service.RequestTypeWSV2)
+		entry.RequestType = &wsType
+		entry.ErrorType = "websocket_session_identity_rejected"
+		entry.ErrorMessage = appendCyberIdentityMetadata("WebSocket session identity conflict; no upstream request was sent", meta)
+		if meta.IdentitySource == service.OpenAIClientSessionIdentitySourceConnection {
+			entry.ErrorOwner = "platform"
+		}
+	}
 	if meta.UserID > 0 {
 		entry.UserID = &meta.UserID
 	}
@@ -5239,6 +5234,17 @@ func cyberSessionIdentityError(metadata service.OpenAIClientSessionIdentityMetad
 		return "cyber_session_identity_invalid", "The session identity is invalid; send a valid thread_id or session_id"
 	default:
 		return "cyber_session_identity_required", "A stable thread_id or session_id is required"
+	}
+}
+
+func openAIWSSessionIdentityError(metadata service.OpenAIClientSessionIdentityMetadata) (string, string) {
+	switch metadata.Status {
+	case service.OpenAIClientSessionIdentityConflict:
+		return "websocket_session_identity_conflict", "Conflicting thread/session identifiers; keep same-kind headers and client_metadata consistent, or open a separate stream/connection for a new conversation"
+	case service.OpenAIClientSessionIdentityInvalid:
+		return "websocket_session_identity_invalid", "Invalid thread/session identifier; send a valid thread_id or session_id"
+	default:
+		return "websocket_session_identity_required", "A stable thread_id or session_id is required for this group"
 	}
 }
 
