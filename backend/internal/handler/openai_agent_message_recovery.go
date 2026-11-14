@@ -28,7 +28,7 @@ func (h *OpenAIGatewayHandler) handleOpenAIAgentRecoveryError(c *gin.Context, er
 
 // The socket has already upgraded when initial scheduling runs. Send the full
 // recovery guidance as an error event; close reasons alone are length limited.
-func (h *OpenAIGatewayHandler) handleOpenAIWSAgentRecoveryError(ctx context.Context, conn *coderws.Conn, err error) bool {
+func (h *OpenAIGatewayHandler) handleOpenAIWSAgentRecoveryError(ctx context.Context, conn service.OpenAIWSDownstreamConn, err error) bool {
 	var recovery *service.OpenAIAgentRecoveryError
 	if !errors.As(err, &recovery) {
 		return false

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,49 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOpenAIWSLogicalStreamExecutionIsolation(t *testing.T) {
+	body := []byte(`{"type":"response.create","client_metadata":{"thread_id":"thread-a"},"input":"fixture"}`)
+	scope := func(key int64, stream string, payload []byte) string {
+		c := newOpenAIWSExecutionScopeTestContext(nil)
+		c.Request = c.Request.WithContext(WithOpenAIWSLogicalStream(context.Background(), stream))
+		value, _ := resolveOpenAIWSExecutionScope(c, payload, key)
+		return value
+	}
+	alpha := scope(11, "alpha", body)
+	require.NotEmpty(t, alpha)
+	require.Equal(t, alpha, scope(11, "alpha", body), "identified reconnects preserve ownership")
+	require.NotEqual(t, alpha, scope(11, "beta", body), "named lanes cannot share turn state")
+	require.NotEqual(t, alpha, scope(12, "alpha", body), "API keys cannot preempt one another")
+	require.NotEqual(t, alpha, scope(11, "", body), "legacy and named execution are separate")
+	missing := []byte(`{"type":"response.create","input":"fixture"}`)
+	require.NotEmpty(t, scope(11, "connection-a|alpha", missing))
+	require.NotEqual(t, scope(11, "connection-a|alpha", missing), scope(11, "connection-b|alpha", missing), "anonymous lanes are scoped to the physical connection")
+}
+
+func TestOpenAIWSLogicalIdentityOmissionKeepsExecutionAndUsage(t *testing.T) {
+	first := []byte(`{"type":"response.create","client_metadata":{"thread_id":"thread-alpha"},"input":"fixture"}`)
+	omitted := []byte(`{"type":"response.create","input":"follow-up"}`)
+	for _, stream := range []string{"", "alpha"} {
+		for _, headers := range []map[string]string{nil, {"Session-Id": "shared-static-session"}} {
+			c := newOpenAIWSExecutionScopeTestContext(headers)
+			ctx := WithOpenAIWSLogicalIdentity(c.Request.Context(), c, first)
+			ctx = WithOpenAIWSLogicalStream(ctx, stream)
+			c.Request = c.Request.WithContext(ctx)
+			original, _ := resolveOpenAIWSExecutionScope(c, first, 11)
+			followup, thread := resolveOpenAIWSExecutionScope(c, omitted, 11)
+			require.Equal(t, original, followup, "omission must not select another socket or turn state")
+			require.Equal(t, "thread-alpha", thread)
+			require.Equal(t, "thread-alpha", ExtractOpenAIClientSessionID(c, omitted), "usage stays with its logical conversation")
+			// Raw inspection keeps the actual source, so security admission can
+			// distinguish inheritance from an explicit conflicting declaration.
+			require.NotEqual(t, OpenAIClientSessionIdentitySourceConnection, InspectOpenAIClientSessionIdentity(c, omitted).Source)
+			c.Request.Header.Set("thread-id", "different-header-thread")
+			require.Equal(t, OpenAIClientSessionIdentityConflict, InspectOpenAIClientSessionIdentity(c, first).Status)
+			require.Empty(t, ExtractOpenAIClientSessionID(c, first), "binding cannot hide a real header/body conflict")
+		}
+	}
+}
 
 func newOpenAIWSExecutionScopeTestContext(headers map[string]string) *gin.Context {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())

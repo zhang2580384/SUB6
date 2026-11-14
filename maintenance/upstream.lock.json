@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
@@ -25,12 +25,12 @@
     "binary_assets": false,
     "container_images": false,
     "release_created": false,
-    "stable_binary_version": "0.1.4",
+    "stable_binary_version": "0.1.5",
     "source_candidate": true
   },
   "maintenance": {
     "date": "2026-11-14",
     "upstream_delta_commits": 79,
-    "report": "2026-11-14-upstream-review.md"
+    "report": "2026-11-14-stable-candidate-sync.md"
   }
 }

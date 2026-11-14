@@ -40,7 +40,7 @@ const openAIWSIngressReaderFrameLimit = 8
 // The handler closes that connection when the session ends.
 type openAIWSIngressReader struct {
 	lastReadAt atomic.Pointer[time.Time]
-	conn       *coderws.Conn
+	conn       OpenAIWSDownstreamConn
 	frames     chan openAIWSClientRead
 	done       chan struct{}
 	err        error // published by closing done
@@ -103,7 +103,7 @@ func IsOpenAIWSClientGoneError(err error) bool {
 // EnsureOpenAIWSIngressReader starts the single shared client reader before the
 // first key queue wait. The ingress service and every account retry reuse it,
 // so a disconnected peer is observed while admission is still running.
-func EnsureOpenAIWSIngressReader(c *gin.Context, conn *coderws.Conn) {
+func EnsureOpenAIWSIngressReader(c *gin.Context, conn OpenAIWSDownstreamConn) {
 	if c == nil || conn == nil {
 		return
 	}
@@ -388,7 +388,7 @@ func OpenAIWSIngressCanFailover(ctx context.Context, c *gin.Context) bool {
 	return true
 }
 
-func openAIWSGetIngressReader(c *gin.Context, conn *coderws.Conn) *openAIWSIngressReader {
+func openAIWSGetIngressReader(c *gin.Context, conn OpenAIWSDownstreamConn) *openAIWSIngressReader {
 	if value, ok := c.Get(openAIWSIngressReaderKey); ok {
 		if reader, valid := value.(*openAIWSIngressReader); valid && reader != nil {
 			return reader
@@ -414,7 +414,7 @@ func openAIWSGetIngressReader(c *gin.Context, conn *coderws.Conn) *openAIWSIngre
 				return
 			}
 			select {
-			case r.frames <- openAIWSClientRead{messageType: kind, payload: payload, receivedAt: requesttiming.Now(clockCtx)}:
+			case r.frames <- openAIWSClientRead{messageType: kind, payload: payload, receivedAt: openAIWSDownstreamFrameArrival(conn, requesttiming.Now(clockCtx))}:
 			default:
 				// Blocking on this queue would stop reading close frames while
 				// upstream/audit work is stalled. Bound the backlog and send an
@@ -567,7 +567,7 @@ func newOpenAIWSDownstreamWriteContext(controlCtx context.Context, hooks *OpenAI
 func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	ctx context.Context,
 	c *gin.Context,
-	clientConn *coderws.Conn,
+	clientConn OpenAIWSDownstreamConn,
 	account *Account,
 	token string,
 	firstClientMessage []byte,

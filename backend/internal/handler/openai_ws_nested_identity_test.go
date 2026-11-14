@@ -139,13 +139,17 @@ func TestIssue600NestedIdentityNetwork(t *testing.T) {
 									case "invalid_root_metadata":
 										rootMeta = "invalid"
 										reject = true
-									case "nested_header_conflict", "true_nested_switch":
+									case "nested_header_conflict":
 										nestedFields["thread_id"] = "fixture-switched-thread"
 										reject = true
+									case "true_nested_switch":
+										nestedFields["thread_id"] = "fixture-switched-thread"
+										nestedFields["x-codex-turn-metadata"] = strings.ReplaceAll(nestedFields["x-codex-turn-metadata"].(string), "fixture-client-thread", "fixture-switched-thread")
+										third = issue600NestedPayload(t, rootMeta, nestedMeta)
 									case "session_only_switch":
 										rootFields["session_id"] = "fixture-switched-session"
 										nestedFields["session_id"] = "fixture-switched-session"
-										reject = true
+										third = issue600NestedPayload(t, rootMeta, nestedMeta)
 									}
 									if reject {
 										third = issue600NestedPayload(t, rootMeta, nestedMeta)
@@ -202,17 +206,10 @@ func TestIssue600NestedInitialPolicy(t *testing.T) {
 							}
 							payload := issue600NestedPayload(t, rootMeta, nestedMeta)
 							h, up := newIssue600NetworkHarness(t, mode, "oauth", strict, nil)
-							issue600Send(t, h, payload, 1, strict)
-							if !strict {
-								issue600Send(t, h, payload, 2, false)
-							}
+							issue600Send(t, h, payload, 1, true)
 							issue600Finish(t, h, nil)
 							frames, _ := up.snapshot()
-							want := 2
-							if strict {
-								want = 0
-							}
-							require.Len(t, frames, want, "initial strict/non-strict policy must not change")
+							require.Empty(t, frames, "an ambiguous identity must never select an upstream, regardless of the optional missing-identity policy")
 						})
 					}
 				})

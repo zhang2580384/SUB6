@@ -13,7 +13,7 @@ func apiKeyLongContextWSCloseReason(err error) string {
 // A bare policy close looks like a disconnected stream to Responses clients.
 // Send the same terminal event as HTTP streaming before closing the socket.
 // Call only before forwarding starts or after the forwarding loop has returned.
-func rejectAPIKeyLongContextWS(conn *coderws.Conn, err error) {
+func rejectAPIKeyLongContextWS(conn service.OpenAIWSDownstreamConn, err error) {
 	if conn == nil {
 		return
 	}

@@ -23,6 +23,27 @@ func WithAPIKeyAdmissionOwner(ctx context.Context) (context.Context, context.Can
 	if HasAPIKeyAdmissionOwner(ctx) {
 		return ctx, func() {}
 	}
+	return newAPIKeyAdmissionOwner(ctx)
+}
+
+// ForkAPIKeyAdmissionOwner gives one logical conversation its own lease-loss
+// cancellation. Parent control loss still stops the child (including detached
+// upstream work), but a child's lease loss cannot cancel its parent or siblings.
+func ForkAPIKeyAdmissionOwner(ctx context.Context) (context.Context, context.CancelFunc) {
+	parent, hasParent := apiKeyAdmissionOwnerFromContext(ctx)
+	child, cancel := newAPIKeyAdmissionOwner(ctx)
+	if !hasParent {
+		return child, cancel
+	}
+	owner, _ := apiKeyAdmissionOwnerFromContext(child)
+	stop := context.AfterFunc(parent.ctx, func() { owner.cancel(context.Cause(parent.ctx)) })
+	return child, func() {
+		stop()
+		cancel()
+	}
+}
+
+func newAPIKeyAdmissionOwner(ctx context.Context) (context.Context, context.CancelFunc) {
 	control, cancelControl := context.WithCancelCause(context.WithoutCancel(ctx))
 	request, cancelRequest := context.WithCancelCause(ctx)
 	owner := &apiKeyAdmissionOwner{ctx: control, cancel: func(err error) {
