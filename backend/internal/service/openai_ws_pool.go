@@ -880,6 +880,14 @@ type openAIWSConnPool struct {
 	workerStopCh chan struct{}
 	workerWg     sync.WaitGroup
 	closeOnce    sync.Once
+
+	// Serialize prewarm registration with shutdown so Close cannot return while
+	// a speculative dial still uses the service's transports or credentials.
+	prewarmMu     sync.Mutex
+	prewarmClosed bool
+	prewarmCtx    context.Context
+	prewarmCancel context.CancelFunc
+	prewarmWg     sync.WaitGroup
 }
 
 func newOpenAIWSConnPool(cfg *config.Config) *openAIWSConnPool {
@@ -932,10 +940,17 @@ func (p *openAIWSConnPool) Close() {
 		return
 	}
 	p.closeOnce.Do(func() {
+		p.prewarmMu.Lock()
+		p.prewarmClosed = true
+		if p.prewarmCancel != nil {
+			p.prewarmCancel()
+		}
+		p.prewarmMu.Unlock()
 		if p.workerStopCh != nil {
 			close(p.workerStopCh)
 		}
 		p.workerWg.Wait()
+		p.prewarmWg.Wait()
 		// 遍历所有账户池，关闭全部空闲连接。
 		p.accounts.Range(func(key, value any) bool {
 			ap, ok := value.(*openAIWSAccountPool)
@@ -1882,6 +1897,11 @@ func (p *openAIWSConnPool) ensureTargetIdleAsync(accountID int64) {
 	if p == nil || accountID <= 0 {
 		return
 	}
+	p.prewarmMu.Lock()
+	defer p.prewarmMu.Unlock()
+	if p.prewarmClosed {
+		return
+	}
 
 	var req openAIWSAcquireRequest
 	generation := uint64(0)
@@ -1927,7 +1947,14 @@ func (p *openAIWSConnPool) ensureTargetIdleAsync(accountID int64) {
 	ap.creating += need
 	p.metrics.scaleUpTotal.Add(int64(need))
 
-	go p.prewarmConns(accountID, req, need, generation)
+	if p.prewarmCtx == nil {
+		p.prewarmCtx, p.prewarmCancel = context.WithCancel(context.Background())
+	}
+	p.prewarmWg.Add(1)
+	go func() {
+		defer p.prewarmWg.Done()
+		p.prewarmConns(p.prewarmCtx, accountID, req, need, generation)
+	}()
 }
 
 func (p *openAIWSConnPool) targetConnCountLocked(ap *openAIWSAccountPool, maxConns int) int {
@@ -1970,15 +1997,17 @@ func (p *openAIWSConnPool) targetConnCountLocked(ap *openAIWSAccountPool, maxCon
 	return target
 }
 
-func (p *openAIWSConnPool) prewarmConns(accountID int64, req openAIWSAcquireRequest, total int, generations ...uint64) {
+func (p *openAIWSConnPool) prewarmConns(parent context.Context, accountID int64, req openAIWSAcquireRequest, total int, generations ...uint64) {
 	generation := uint64(0)
 	if len(generations) > 0 {
 		generation = generations[0]
 	}
 	staleTarget := false
+	remaining := total
 	defer func() {
 		if ap, ok := p.getAccountPool(accountID); ok && ap != nil {
 			ap.mu.Lock()
+			ap.creating = max(0, ap.creating-remaining)
 			ap.prewarmActive = false
 			ap.signalChangedLocked()
 			ap.mu.Unlock()
@@ -1992,7 +2021,10 @@ func (p *openAIWSConnPool) prewarmConns(accountID int64, req openAIWSAcquireRequ
 	}()
 
 	for i := 0; i < total; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), p.dialTimeout()+openAIWSConnPrewarmExtraDelay)
+		if parent.Err() != nil {
+			return
+		}
+		ctx, cancel := context.WithTimeout(parent, p.dialTimeout()+openAIWSConnPrewarmExtraDelay)
 		conn, err := p.dialConn(ctx, req)
 		cancel()
 
@@ -2004,8 +2036,17 @@ func (p *openAIWSConnPool) prewarmConns(accountID int64, req openAIWSAcquireRequ
 			return
 		}
 		ap.mu.Lock()
+		remaining--
 		if ap.creating > 0 {
 			ap.creating--
+		}
+		if parent.Err() != nil {
+			ap.signalChangedLocked()
+			ap.mu.Unlock()
+			if conn != nil {
+				conn.close()
+			}
+			return
 		}
 		if err != nil {
 			ap.prewarmFails++

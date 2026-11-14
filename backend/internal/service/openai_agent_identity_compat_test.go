@@ -272,7 +272,7 @@ func TestOpenAIWSConnPoolHeadersFactoryRunsAtDialAndStalePrewarmIsDiscarded(t *t
 	generation := ap.generation
 	ap.mu.Unlock()
 
-	pool.prewarmConns(accountID, req, 1, generation)
+	pool.prewarmConns(context.Background(), accountID, req, 1, generation)
 	require.Equal(t, 1, factoryCalls, "prewarm must generate authorization inside the actual dial")
 	require.Equal(t, "AgentAssertion dial-1", latestHeader)
 
@@ -284,7 +284,7 @@ func TestOpenAIWSConnPoolHeadersFactoryRunsAtDialAndStalePrewarmIsDiscarded(t *t
 	ap.mu.Unlock()
 
 	// A prewarm captured before ClearAccount must not be admitted after recovery.
-	pool.prewarmConns(accountID, req, 1, generation)
+	pool.prewarmConns(context.Background(), accountID, req, 1, generation)
 	ap.mu.Lock()
 	require.Empty(t, ap.conns)
 	ap.mu.Unlock()

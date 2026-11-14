@@ -2295,7 +2295,7 @@ func TestOpenAIWSConnPool_TargetConnCountAndPrewarmBranches(t *testing.T) {
 		Account: &Account{ID: 999, Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
 		WSURL:   "wss://example.com/v1/responses",
 	}
-	pool.prewarmConns(999, req, 1)
+	pool.prewarmConns(context.Background(), 999, req, 1)
 
 	// prewarm: 拨号失败分支（prewarmFails 累加）
 	accountID := int64(1000)
@@ -2306,7 +2306,7 @@ func TestOpenAIWSConnPool_TargetConnCountAndPrewarmBranches(t *testing.T) {
 	apFail.creating = 1
 	apFail.mu.Unlock()
 	req.Account.ID = accountID
-	failPool.prewarmConns(accountID, req, 1)
+	failPool.prewarmConns(context.Background(), accountID, req, 1)
 	apFail.mu.Lock()
 	require.GreaterOrEqual(t, apFail.prewarmFails, 1)
 	apFail.mu.Unlock()
