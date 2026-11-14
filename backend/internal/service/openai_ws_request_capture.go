@@ -41,7 +41,7 @@ func (c *captureUpstreamFrameConn) ReadFrame(ctx context.Context) (coderws.Messa
 }
 
 // WriteCapturedWSClient observes successfully delivered downstream frames.
-func WriteCapturedWSClient(ctx context.Context, conn *coderws.Conn, t coderws.MessageType, payload []byte) error {
+func WriteCapturedWSClient(ctx context.Context, conn OpenAIWSDownstreamConn, t coderws.MessageType, payload []byte) error {
 	err := conn.Write(ctx, t, payload)
 	capture := requestcapture.FromContext(ctx)
 	if err == nil {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -9,6 +10,40 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
+
+type openAIWSLogicalStreamKey struct{}
+type openAIWSLogicalIdentityKey struct{}
+
+// WithOpenAIWSLogicalIdentity remembers the first validated conversation
+// identity without adding metadata to any client or upstream payload.
+func WithOpenAIWSLogicalIdentity(ctx context.Context, c *gin.Context, body []byte) context.Context {
+	identity := resolveOpenAIClientSessionIdentity(c, body)
+	if identity.metadata.Status != OpenAIClientSessionIdentityResolved {
+		return ctx
+	}
+	return context.WithValue(ctx, openAIWSLogicalIdentityKey{}, identity.identity)
+}
+
+func inheritedOpenAIWSLogicalIdentity(c *gin.Context, current openAIClientSessionIdentityResolution) (openAIClientSessionIdentity, bool) {
+	if c == nil || c.Request == nil {
+		return openAIClientSessionIdentity{}, false
+	}
+	bound, ok := c.Request.Context().Value(openAIWSLogicalIdentityKey{}).(openAIClientSessionIdentity)
+	if !ok {
+		return openAIClientSessionIdentity{}, false
+	}
+	// The body can omit its thread on a continuation. A lower-priority static
+	// session header must not switch execution state or usage back to the root.
+	inherit := current.metadata.Status == OpenAIClientSessionIdentityMissing ||
+		(current.metadata.Status == OpenAIClientSessionIdentityResolved && current.metadata.Source == OpenAIClientSessionIdentitySourceHeader && current.identity.kind == openAIClientSessionKindSession && bound.kind == openAIClientSessionKindThread)
+	return bound, inherit
+}
+
+// WithOpenAIWSLogicalStream isolates transport state without rewriting client
+// thread/session identifiers or changing upstream encrypted ownership.
+func WithOpenAIWSLogicalStream(ctx context.Context, stream string) context.Context {
+	return context.WithValue(ctx, openAIWSLogicalStreamKey{}, stream)
+}
 
 const (
 	openAIWSThreadIDHeader = "thread-id"
@@ -150,6 +185,29 @@ func openAIWSExecutionScopeSeed(apiKeyID int64, identity, value, lane string) st
 // 不是可靠身份，不参与抢占。
 func resolveOpenAIWSExecutionScope(c *gin.Context, body []byte, apiKeyID int64) (scope, threadID string) {
 	lane := resolveOpenAIWSExecutionLane(c, body)
+	var bound openAIClientSessionIdentity
+	inherited := false
+	if c != nil && c.Request != nil {
+		if _, hasBinding := c.Request.Context().Value(openAIWSLogicalIdentityKey{}).(openAIClientSessionIdentity); hasBinding {
+			bound, inherited = inheritedOpenAIWSLogicalIdentity(c, resolveOpenAIClientSessionIdentity(c, body))
+		}
+		if stream, _ := c.Request.Context().Value(openAIWSLogicalStreamKey{}).(string); stream != "" {
+			lane += "|transport_stream=" + stream
+			// Even an identity-free named lane must never inherit another
+			// lane's turn state via a shared cache-affinity header.
+			if !inherited && ResolveCyberSessionIdentity(apiKeyID, c, body).Metadata.Status == OpenAIClientSessionIdentityMissing {
+				scope, _ = deriveOpenAISessionHashes(openAIWSExecutionScopeSeed(apiKeyID, "stream", stream, lane))
+				return scope, ""
+			}
+		}
+	}
+	if inherited {
+		scope, _ = deriveOpenAISessionHashes(openAIWSExecutionScopeSeed(apiKeyID, bound.kind, bound.value, lane))
+		if bound.kind == openAIClientSessionKindThread {
+			threadID = bound.value
+		}
+		return scope, threadID
+	}
 	if threadID = resolveOpenAIWSClientThreadID(c, body); threadID != "" {
 		scope, _ = deriveOpenAISessionHashes(openAIWSExecutionScopeSeed(apiKeyID, "thread", threadID, lane))
 		return scope, threadID

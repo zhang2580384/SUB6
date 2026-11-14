@@ -264,7 +264,7 @@ func issue600Send(t *testing.T, h *openAIWSPassthroughHandlerHarness, payload st
 				return
 			}
 			require.Equal(t, "error", gjson.GetBytes(event, "type").String(), "rejected turn must have no response generation: %s", event)
-			require.Contains(t, []string{"cyber_session_identity_conflict", "cyber_session_identity_invalid", "cyber_session_identity_required"}, gjson.GetBytes(event, "error.code").String())
+			require.Contains(t, []string{"websocket_session_identity_conflict", "websocket_session_identity_invalid", "websocket_session_identity_required"}, gjson.GetBytes(event, "error.code").String())
 			_, _, err = h.clientConn.Read(ctx)
 			require.Equal(t, coderws.StatusPolicyViolation, coderws.CloseStatus(err))
 			return
@@ -320,7 +320,7 @@ func TestIssue600ClientIdentityNetwork(t *testing.T) {
 								{"omitted_identity", nil, stable, omitted, false},
 								{"static_session_inheritance", http.Header{"Session_id": []string{"fixture-static-session"}}, stable, omitted, false},
 								{"genuine_header_body_conflict", http.Header{"Thread-Id": []string{"fixture-client-thread"}}, stable, changed, true},
-								{"true_body_identity_switch", nil, stable, changed, true},
+								{"true_body_identity_switch", nil, stable, changed, false},
 								{"invalid_followup", nil, stable, invalid, true},
 							} {
 								t.Run(tc.name, func(t *testing.T) {
@@ -341,7 +341,11 @@ func TestIssue600ClientIdentityNetwork(t *testing.T) {
 									}
 									for i, frame := range frames {
 										if thread := issue600Thread(frame); thread != "" {
-											require.Equal(t, projected, thread)
+											if tc.name == "true_body_identity_switch" && i == 1 {
+												require.NotEqual(t, projected, thread, "a new thread must have its own projected identity")
+											} else {
+												require.Equal(t, projected, thread)
+											}
 										}
 										if tc.headers.Get("thread-id") != "" {
 											issue600ProjectedHeader(t, mode, outHeaders[i], projected)
@@ -396,7 +400,9 @@ func TestIssue600WSTurnRejectionDiagnostic(t *testing.T) {
 	var meta cyberPolicyOpsErrorMeta
 	require.NoError(t, json.Unmarshal([]byte(`{"WSTurnAdmission":true,"IdentityStatus":"conflict","IdentityKind":"thread","IdentitySource":"header_body"}`), &meta))
 	entry := buildCyberSessionIdentityRejectedOpsEntry(meta)
-	require.Contains(t, entry.ErrorMessage, "websocket turn rejected during session identity admission")
+	require.Contains(t, entry.ErrorMessage, "WebSocket session identity conflict")
+	require.Equal(t, "websocket_session_identity_rejected", entry.ErrorType)
+	require.Equal(t, int16(service.RequestTypeWSV2), *entry.RequestType)
 	require.NotContains(t, entry.ErrorMessage, "before account selection")
 	require.Contains(t, entry.ErrorMessage, "session_identity_status=conflict")
 }
@@ -480,17 +486,18 @@ func TestIssue600InitialIdentityPolicy(t *testing.T) {
 								headers.Set("thread-id", "fixture-client-thread")
 							}
 							h, up := newIssue600NetworkHarness(t, mode, "oauth", strict, headers)
-							issue600Send(t, h, tc.first, 1, strict)
-							if !strict {
+							reject := strict || tc.name != "missing"
+							issue600Send(t, h, tc.first, 1, reject)
+							if !reject {
 								issue600Send(t, h, tc.first, 2, false)
 							}
 							issue600Finish(t, h, headers)
 							frames, _ := up.snapshot()
 							want := 2
-							if strict {
+							if reject {
 								want = 0
 							}
-							require.Len(t, frames, want, "strict policy must remain unchanged at first-frame admission")
+							require.Len(t, frames, want, "invalid or conflicting identities must never reach upstream; missing identity follows strict policy")
 						})
 					}
 				})
@@ -506,10 +513,10 @@ func TestIssue600DisabledSessionBlockKeepsIdentityPolicy(t *testing.T) {
 			headers := http.Header{"Thread-Id": []string{"fixture-client-thread"}}
 			h, up := newIssue600NetworkHarness(t, mode, "oauth", true, headers, issue600FixtureOptions{disableCyber: true})
 			issue600Send(t, h, stable, 1, false)
-			issue600Send(t, h, strings.ReplaceAll(stable, "fixture-client-thread", "fixture-changed-thread"), 2, false)
+			issue600Send(t, h, strings.ReplaceAll(stable, "fixture-client-thread", "fixture-changed-thread"), 2, true)
 			issue600Finish(t, h, headers)
 			frames, _ := up.snapshot()
-			require.Len(t, frames, 2, "disabled session blocking must not acquire a new identity gate")
+			require.Len(t, frames, 1, "disabling content policy must not disable header/body identity integrity")
 		})
 	}
 }

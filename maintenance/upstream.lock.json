@@ -33,11 +33,14 @@
     "base_source": "0d8ee49b8092bda537efab90373d39afd6c3a50e",
     "report": "2026-11-14-v0.1.6-usage.md",
     "new_migrations": 0,
-    "production_deployed": false
+    "production_deployed": false,
+    "integrated_main": "6c6029dda5a9fd60c78c87c59bc3f6e040deef3f",
+    "stable_base": "b3f8199dc3cc1e1520214fdd77832fc01b36578e",
+    "migrations_since_stable": 2
   },
   "maintenance": {
     "date": "2026-11-14",
     "upstream_delta_commits": 79,
-    "report": "2026-11-14-upstream-review.md"
+    "report": "2026-11-14-stable-candidate-sync.md"
   }
 }

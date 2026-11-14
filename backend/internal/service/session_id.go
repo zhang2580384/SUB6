@@ -131,6 +131,9 @@ func ExtractClientSessionID(c *gin.Context) string {
 // scheduling/cache hints, not reliable conversation identities.
 func ExtractOpenAIClientSessionID(c *gin.Context, body []byte) string {
 	resolution := resolveOpenAIClientSessionIdentity(c, body)
+	if bound, inherited := inheritedOpenAIWSLogicalIdentity(c, resolution); inherited {
+		return bound.value
+	}
 	if resolution.metadata.Status != OpenAIClientSessionIdentityResolved {
 		if resolution.metadata.Status == OpenAIClientSessionIdentityMissing {
 			return ClaudeCodeSessionIDFromHeader(c)

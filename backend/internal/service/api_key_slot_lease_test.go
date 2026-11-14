@@ -78,6 +78,33 @@ func TestAPIKeyAdmissionDetachedBuilderReleasePreservesOwner(t *testing.T) {
 	require.ErrorIs(t, context.Cause(upstream), ErrAPIKeySlotLeaseLost)
 }
 
+func TestAPIKeyAdmissionForkIsolatesLeaseLossAndKeepsParentControl(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		parent, cancelParent := WithAPIKeyAdmissionOwner(context.Background())
+		defer cancelParent()
+		alpha, cancelAlpha := ForkAPIKeyAdmissionOwner(parent)
+		defer cancelAlpha()
+		beta, cancelBeta := ForkAPIKeyAdmissionOwner(parent)
+		defer cancelBeta()
+		alphaUpstream, _ := detachUpstreamContext(alpha)
+		betaUpstream, _ := detachUpstreamContext(beta)
+		alphaOwner, ok := apiKeyAdmissionOwnerFromContext(alpha)
+		require.True(t, ok)
+		alphaOwner.cancel(ErrAPIKeySlotLeaseLost)
+		require.ErrorIs(t, context.Cause(alpha), ErrAPIKeySlotLeaseLost)
+		require.ErrorIs(t, context.Cause(alphaUpstream), ErrAPIKeySlotLeaseLost)
+		require.NoError(t, parent.Err())
+		require.NoError(t, beta.Err())
+		require.NoError(t, betaUpstream.Err())
+		parentOwner, ok := apiKeyAdmissionOwnerFromContext(parent)
+		require.True(t, ok)
+		parentOwner.cancel(ErrAPIKeySlotLeaseLost)
+		synctest.Wait()
+		require.ErrorIs(t, context.Cause(beta), ErrAPIKeySlotLeaseLost)
+		require.ErrorIs(t, context.Cause(betaUpstream), ErrAPIKeySlotLeaseLost)
+	})
+}
+
 func TestAPIKeyAdmissionRejectsInvalidCancellationOwner(t *testing.T) {
 	for name, ctx := range map[string]context.Context{
 		"nil context":     nil,

@@ -21,7 +21,7 @@ type openAIWSClientReadResult struct {
 // their close frame, then closes the transport and joins that reader.
 func ReadOpenAIWSClientMessage(
 	controlCtx context.Context,
-	conn *coderws.Conn,
+	conn OpenAIWSDownstreamConn,
 	timeout time.Duration,
 	timeoutStatus coderws.StatusCode,
 	timeoutReason string,
@@ -41,7 +41,7 @@ type openAIWSFrameArrivalKey struct{}
 
 // ReadOpenAIWSClientMessageWithArrival samples receipt before capture/preflight
 // work. Existing callers keep the original read API and legacy timer baseline.
-func ReadOpenAIWSClientMessageWithArrival(controlCtx context.Context, conn *coderws.Conn, timeout time.Duration, status coderws.StatusCode, reason string) (coderws.MessageType, []byte, time.Time, error) {
+func ReadOpenAIWSClientMessageWithArrival(controlCtx context.Context, conn OpenAIWSDownstreamConn, timeout time.Duration, status coderws.StatusCode, reason string) (coderws.MessageType, []byte, time.Time, error) {
 	if controlCtx == nil {
 		controlCtx = context.Background()
 	}
@@ -55,7 +55,7 @@ func ReadOpenAIWSClientMessageWithArrival(controlCtx context.Context, conn *code
 // timeoutActive is nil, a positive timeout starts immediately.
 func readOpenAIWSClientMessageWithTimeoutStart(
 	controlCtx context.Context,
-	conn *coderws.Conn,
+	conn OpenAIWSDownstreamConn,
 	timeout time.Duration,
 	timeoutStatus coderws.StatusCode,
 	timeoutReason string,
@@ -72,7 +72,7 @@ func readOpenAIWSClientMessageWithTimeoutStart(
 	readDone := make(chan openAIWSClientReadResult, 1)
 	go func() {
 		messageType, payload, err := conn.Read(context.Background())
-		readDone <- openAIWSClientReadResult{messageType: messageType, payload: payload, err: err, receivedAt: requesttiming.Now(controlCtx)}
+		readDone <- openAIWSClientReadResult{messageType: messageType, payload: payload, err: err, receivedAt: openAIWSDownstreamFrameArrival(conn, requesttiming.Now(controlCtx))}
 	}()
 
 	var timer *time.Timer
