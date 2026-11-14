@@ -42,7 +42,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
-            :enable-breakdown="!props.observerMode && !filters.platform"
+            :enable-breakdown="!props.observerMode && !filters.platform && !filters.reasoning_effort"
           />
           <GroupDistributionChart
             v-model:metric="groupDistributionMetric"
@@ -52,7 +52,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
-            :enable-breakdown="!props.observerMode && !filters.platform"
+            :enable-breakdown="!props.observerMode && !filters.platform && !filters.reasoning_effort"
           />
         </div>
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -69,7 +69,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
-            :enable-breakdown="!props.observerMode && !filters.platform"
+            :enable-breakdown="!props.observerMode && !filters.platform && !filters.reasoning_effort"
           />
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
@@ -465,7 +465,7 @@ const loadLogs = async () => {
   abortController?.abort(); const c = new AbortController(); abortController = c; loading.value = true
   try {
     const res = await (props.observerMode ? observerUsageAPI.list : adminAPI.usage.list)(
-      buildUsageListParams(pagination.page, pagination.page_size, !props.observerMode && !!filters.value.platform),
+      buildUsageListParams(pagination.page, pagination.page_size, !props.observerMode && !!(filters.value.platform || filters.value.reasoning_effort)),
       { signal: c.signal }
     )
     if(!c.signal.aborted) { usageLogs.value = res.items; pagination.total = res.total }
@@ -532,6 +532,7 @@ const loadModelStats = async (source: ModelDistributionSource, force = false) =>
       account_id: filters.value.account_id,
       group_id: filters.value.group_id,
       platform: filters.value.platform,
+      reasoning_effort: filters.value.reasoning_effort,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       native_compaction_v2: filters.value.native_compaction_v2,
@@ -584,6 +585,7 @@ const loadChartData = async () => {
       account_id: filters.value.account_id,
       group_id: filters.value.group_id,
       platform: filters.value.platform,
+      reasoning_effort: filters.value.reasoning_effort,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       native_compaction_v2: filters.value.native_compaction_v2,
@@ -650,8 +652,8 @@ const handleIpGeoBatchFailed = () => {
 const cancelExport = () => exportAbortController?.abort()
 const openCleanupDialog = () => {
   if (props.observerMode) return
-  if (filters.value.platform) {
-    appStore.showWarning(t('admin.usage.platformCleanupUnavailable'))
+  if (filters.value.platform || filters.value.reasoning_effort) {
+    appStore.showWarning(t(filters.value.reasoning_effort ? 'admin.usage.reasoningCleanupUnavailable' : 'admin.usage.platformCleanupUnavailable'))
     return
   }
   if (!cleanupUsesCalendarDates.value) {
@@ -911,10 +913,13 @@ const rankingRef = ref<InstanceType<typeof UserTokenRanking> | null>(null)
 
 const switchTab = (tab: DetailTab) => {
   if (!detailTabs.value.some(item => item.key === tab)) return
-  const clearPlatform = tab !== 'usage' && !!filters.value.platform
-  if (clearPlatform) filters.value.platform = undefined
+  const clearUsageOnlyFilters = tab !== 'usage' && !!(filters.value.platform || filters.value.reasoning_effort)
+  if (clearUsageOnlyFilters) {
+    filters.value.platform = undefined
+    filters.value.reasoning_effort = undefined
+  }
   activeTab.value = tab
-  if (clearPlatform) applyFilters()
+  if (clearUsageOnlyFilters) applyFilters()
   if (tab === 'errors' && errRows.value.length === 0) loadAdminErrors()
   if (tab === 'ranking') rankingMounted.value = true
 }

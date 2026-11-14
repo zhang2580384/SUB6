@@ -19,6 +19,7 @@ var (
 
 type dashboardTrendCacheKey struct {
 	Platform              string `json:"platform"`
+	ReasoningEffort       string `json:"reasoning_effort"`
 	StartTime             string `json:"start_time"`
 	EndTime               string `json:"end_time"`
 	Granularity           string `json:"granularity"`
@@ -37,6 +38,7 @@ type dashboardTrendCacheKey struct {
 type dashboardModelGroupCacheKey struct {
 	Model                 string `json:"model"`
 	Platform              string `json:"platform"`
+	ReasoningEffort       string `json:"reasoning_effort"`
 	StartTime             string `json:"start_time"`
 	EndTime               string `json:"end_time"`
 	UserID                int64  `json:"user_id"`
@@ -94,7 +96,7 @@ func (h *DashboardHandler) getUsageTrendCached(
 	nativeCompactionV2 *bool,
 	billingType *int8,
 	upstreamModelMismatch *bool,
-	platform string,
+	platform, reasoningEffort string,
 ) ([]usagestats.TrendDataPoint, bool, error) {
 	key := mustMarshalDashboardCacheKey(dashboardTrendCacheKey{
 		StartTime:             startTime.UTC().Format(time.RFC3339Nano),
@@ -111,6 +113,7 @@ func (h *DashboardHandler) getUsageTrendCached(
 		BillingType:           billingType,
 		UpstreamModelMismatch: upstreamModelMismatch,
 		Platform:              platform,
+		ReasoningEffort:       reasoningEffort,
 	})
 	entry, hit, err := dashboardTrendCache.GetOrLoad(key, func() (any, error) {
 		return h.dashboardService.GetUsageTrendWithUsageFilters(ctx, startTime, endTime, granularity, usagestats.UsageLogFilters{
@@ -118,6 +121,7 @@ func (h *DashboardHandler) getUsageTrendCached(
 			Model: model, ModelFilterSource: usagestats.ModelSourceRequested, RequestType: requestType, Stream: stream, NativeCompactionV2: nativeCompactionV2, BillingType: billingType,
 			UpstreamModelMismatch: upstreamModelMismatch,
 			Platform:              platform,
+			ReasoningEffort:       reasoningEffort,
 		})
 	})
 	if err != nil {
@@ -137,7 +141,7 @@ func (h *DashboardHandler) getModelStatsCached(
 	nativeCompactionV2 *bool,
 	billingType *int8,
 	upstreamModelMismatch *bool,
-	platform, model string,
+	platform, model, reasoningEffort string,
 ) ([]usagestats.ModelStat, bool, error) {
 	key := mustMarshalDashboardCacheKey(dashboardModelGroupCacheKey{
 		Model:                 model,
@@ -154,6 +158,7 @@ func (h *DashboardHandler) getModelStatsCached(
 		BillingType:           billingType,
 		UpstreamModelMismatch: upstreamModelMismatch,
 		Platform:              platform,
+		ReasoningEffort:       reasoningEffort,
 	})
 	entry, hit, err := dashboardModelStatsCache.GetOrLoad(key, func() (any, error) {
 		return h.dashboardService.GetModelStatsWithUsageFiltersBySource(ctx, startTime, endTime, usagestats.UsageLogFilters{
@@ -163,6 +168,7 @@ func (h *DashboardHandler) getModelStatsCached(
 			RequestType: requestType, Stream: stream, NativeCompactionV2: nativeCompactionV2, BillingType: billingType,
 			UpstreamModelMismatch: upstreamModelMismatch,
 			Platform:              platform,
+			ReasoningEffort:       reasoningEffort,
 		}, modelSource)
 	})
 	if err != nil {
@@ -181,7 +187,7 @@ func (h *DashboardHandler) getGroupStatsCached(
 	nativeCompactionV2 *bool,
 	billingType *int8,
 	upstreamModelMismatch *bool,
-	platform, model string,
+	platform, model, reasoningEffort string,
 ) ([]usagestats.GroupStat, bool, error) {
 	key := mustMarshalDashboardCacheKey(dashboardModelGroupCacheKey{
 		Model:                 model,
@@ -197,6 +203,7 @@ func (h *DashboardHandler) getGroupStatsCached(
 		BillingType:           billingType,
 		UpstreamModelMismatch: upstreamModelMismatch,
 		Platform:              platform,
+		ReasoningEffort:       reasoningEffort,
 	})
 	entry, hit, err := dashboardGroupStatsCache.GetOrLoad(key, func() (any, error) {
 		return h.dashboardService.GetGroupStatsWithUsageFilters(ctx, startTime, endTime, usagestats.UsageLogFilters{
@@ -206,6 +213,7 @@ func (h *DashboardHandler) getGroupStatsCached(
 			RequestType: requestType, Stream: stream, NativeCompactionV2: nativeCompactionV2, BillingType: billingType,
 			UpstreamModelMismatch: upstreamModelMismatch,
 			Platform:              platform,
+			ReasoningEffort:       reasoningEffort,
 		})
 	})
 	if err != nil {

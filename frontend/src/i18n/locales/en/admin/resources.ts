@@ -532,6 +532,12 @@ export default {
       unknownPlatform: 'Unknown (legacy)',
       platformHistoryHint: 'Uses the platform recorded for each request. Older records without a platform remain under Unknown (legacy).',
       platformCleanupUnavailable: 'Reset the platform filter before cleaning up records.',
+      reasoningEffort: 'Reasoning effort',
+      allReasoningEfforts: 'All reasoning efforts',
+      unknownReasoningEffort: 'Unspecified / unrecorded',
+      reasoningEffortHint: 'Filters by the recorded requested effort; older records use the effective effort at the time.',
+      reasoningCleanupUnavailable: 'Reset the reasoning effort filter before cleaning up records.',
+      reasoningEffortLevels: { none: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' },
 
       title: 'Usage Records',
       description: 'View and manage all user usage records',

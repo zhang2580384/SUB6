@@ -10,7 +10,10 @@ const { getTraffic, getTrafficKeys, getTrafficHealth, searchUsers, searchApiKeys
 }))
 vi.mock('@/api/admin', () => ({ adminAPI: { usage: { searchUsers, searchApiKeys }, groups: { list: listGroups } } }))
 vi.mock('@/api/traffic', async importOriginal => ({ ...await importOriginal<typeof import('@/api/traffic')>(), getTraffic, getTrafficKeys, getTrafficHealth }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-i18n', async importOriginal => ({
+  ...await importOriginal<typeof import('vue-i18n')>(),
+  useI18n: () => ({ t: (key: string) => key }),
+}))
 vi.mock('@/api/client', () => ({ apiClient: { get: vi.fn() } }))
 vi.mock('vue-chartjs', () => ({ Bar: { name: 'Bar', props: ['data', 'options'], template: '<div data-testid="traffic-chart" />' } }))
 

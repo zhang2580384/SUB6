@@ -10,10 +10,12 @@ import GroupDistributionChart from '@/components/charts/GroupDistributionChart.v
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import UserBreakdownSubTable from '@/components/charts/UserBreakdownSubTable.vue'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
+import { REASONING_EFFORT_LEVELS } from '@/constants/channel'
+import GroupBadge from '@/components/common/GroupBadge.vue'
 import zh from '@/i18n/locales/zh'
 import en from '@/i18n/locales/en'
 
-const api = vi.hoisted(() => ({ list: vi.fn(), stats: vi.fn(), export: vi.fn(), models: vi.fn(), snapshot: vi.fn(), breakdown: vi.fn() }))
+const api = vi.hoisted(() => ({ list: vi.fn(), stats: vi.fn(), export: vi.fn(), models: vi.fn(), snapshot: vi.fn(), breakdown: vi.fn(), groups: vi.fn() }))
 vi.mock('vue-chartjs', () => ({ Doughnut: { template: '<div />' } }))
 vi.mock('@/api/admin/dashboard', () => ({ getUserBreakdown: api.breakdown }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { id: 41 } }) }))
@@ -22,7 +24,7 @@ vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
 vi.mock('@/api/admin', () => ({ adminAPI: {
   usage: { list: api.list, getStats: api.stats, searchUsers: vi.fn().mockResolvedValue([]), searchApiKeys: vi.fn().mockResolvedValue([]) },
   dashboard: { getModelStats: api.models, getSnapshotV2: api.snapshot },
-  groups: { list: vi.fn().mockResolvedValue({ items: [{ id: 7, name: 'Synthetic group' }] }) },
+  groups: { list: api.groups },
 } }))
 vi.mock('@/api/admin/ops', () => ({ listErrorLogs: vi.fn().mockResolvedValue({ items: [], total: 0 }) }))
 vi.mock('@/api/admin/usage', () => ({ adminUsageAPI: { list: api.export } }))
@@ -50,7 +52,7 @@ async function choose(container: ReturnType<VueWrapper['get']>, label: string) {
   await flushPromises()
 }
 
-describe('admin usage platform behavior with real filters', () => {
+describe('admin usage platform and reasoning behavior with real filters', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     localStorage.clear()
@@ -61,6 +63,7 @@ describe('admin usage platform behavior with real filters', () => {
     api.models.mockResolvedValue({ models: [] })
     api.snapshot.mockResolvedValue({ trend: [], models: [], groups: [] })
     api.export.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    api.groups.mockResolvedValue({ items: [{ id: 7, name: 'Synthetic group' }] })
   })
   afterEach(() => {
     wrapper?.unmount()
@@ -232,5 +235,123 @@ describe('admin usage platform behavior with real filters', () => {
     await tabs[0].trigger('click')
     await flushPromises()
     expect(wrapper.get('[data-testid="usage-platform-filter"] .select-trigger').text()).toBe('All platforms')
+  })
+
+  it.each(['en', 'zh'])('places localized reasoning options immediately after request type (%s)', async locale => {
+    render(locale)
+    await flushPromises()
+    const filter = wrapper.get('[data-testid="usage-reasoning-filter"]')
+    expect(filter.element.previousElementSibling?.querySelector('label')?.textContent).toBe(locale === 'en' ? 'Type' : '类型')
+    expect(filter.get('.select-trigger').text()).toBe(locale === 'en' ? 'All reasoning efforts' : '全部推理强度')
+    expect(filter.get('.select-trigger').attributes('aria-describedby')).toBe('usage-reasoning-effort-hint')
+    await filter.get('.select-trigger').trigger('click')
+    const labels = filter.findAll('[role="option"]').map(option => option.text())
+    for (const level of REASONING_EFFORT_LEVELS) expect(labels.some(label => label.endsWith(`(${level})`))).toBe(true)
+    expect(labels).toContain(locale === 'en' ? 'Unspecified / unrecorded' : '未设置 / 未记录')
+    expect(labels).toHaveLength(REASONING_EFFORT_LEVELS.length + 2)
+  })
+
+  it('applies every reasoning level to list, totals, charts and export with the other filters', async () => {
+    render()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    Object.assign(vm.filters, { user_id: 42, api_key_id: 8, account_id: 9, group_id: 7, model: 'fixture-model', platform: 'openai' })
+    wrapper.findComponent(Pagination).vm.$emit('update:page', 3)
+    await flushPromises()
+    expect(api.list.mock.lastCall?.[0].page).toBe(3)
+    const filter = wrapper.get('[data-testid="usage-reasoning-filter"]')
+    const levels = [
+      ['none', 'Off (none)'], ['minimal', 'Minimal (minimal)'], ['low', 'Low (low)'],
+      ['medium', 'Medium (medium)'], ['high', 'High (high)'], ['xhigh', 'Extra high (xhigh)'],
+      ['max', 'Max (max)'], ['unknown', 'Unspecified / unrecorded'],
+    ]
+    for (const [level, label] of levels) {
+      await choose(filter, label)
+      const expected = { reasoning_effort: level, platform: 'openai', user_id: 42, api_key_id: 8, account_id: 9, group_id: 7, model: 'fixture-model' }
+      expect(api.list.mock.lastCall?.[0]).toMatchObject({ ...expected, page: 1, exact_total: true })
+      expect(api.stats.mock.lastCall?.[0]).toMatchObject(expected)
+      expect(api.models.mock.lastCall?.[0]).toMatchObject(expected)
+      expect(api.snapshot.mock.lastCall?.[0]).toMatchObject(expected)
+      await vm.exportToExcel()
+      expect(api.export.mock.lastCall?.[0]).toMatchObject({ ...expected, exact_total: true })
+    }
+    await choose(filter, 'All reasoning efforts')
+    expect(api.list.mock.lastCall?.[0].reasoning_effort).toBeUndefined()
+    expect(api.list.mock.lastCall?.[0].group_id).toBe(7)
+    await choose(filter, 'High (high)')
+    wrapper.findComponent(UsageFilters).vm.$emit('reset')
+    await flushPromises()
+    expect(api.list.mock.lastCall?.[0].reasoning_effort).toBeUndefined()
+    expect(api.list.mock.lastCall?.[0].exact_total).toBe(false)
+  })
+
+  it('pins reasoning across export pages even when the visible selection changes', async () => {
+    render()
+    await flushPromises()
+    await choose(wrapper.get('[data-testid="usage-reasoning-filter"]'), 'High (high)')
+    let release!: (value: unknown) => void
+    api.export.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    api.export.mockResolvedValueOnce({ items: [{ model: 'fixture-model', total_cost: 1 }], total: 101 })
+    const exporting = (wrapper.vm as any).exportToExcel()
+    await flushPromises()
+    await choose(wrapper.get('[data-testid="usage-reasoning-filter"]'), 'Low (low)')
+    release({ items: Array.from({ length: 100 }, () => ({ model: 'fixture-model', total_cost: 1 })), total: 101 })
+    await exporting
+    expect(api.export).toHaveBeenCalledTimes(2)
+    for (const [index, call] of api.export.mock.calls.entries()) expect(call[0]).toMatchObject({ reasoning_effort: 'high', page: index + 1 })
+  })
+
+  it('disables unsupported cleanup and chart breakdown, and clears reasoning on tab changes', async () => {
+    render()
+    await flushPromises()
+    await choose(wrapper.get('[data-testid="usage-reasoning-filter"]'), 'High (high)')
+    const cleanup = wrapper.findComponent(UsageFilters).findAll('button').find(button => button.classes().includes('btn-danger'))!
+    expect(cleanup.attributes('disabled')).toBeDefined()
+    expect(cleanup.attributes('title')).toContain('reasoning effort')
+    for (const chart of [ModelDistributionChart, GroupDistributionChart, EndpointDistributionChart]) {
+      expect(wrapper.findComponent(chart).props('enableBreakdown')).toBe(false)
+    }
+    const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
+    await tabs[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="usage-reasoning-filter"]').exists()).toBe(false)
+    expect(api.stats.mock.lastCall?.[0].reasoning_effort).toBeUndefined()
+    await tabs[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="usage-reasoning-filter"] .select-trigger').text()).toBe('All reasoning efforts')
+  })
+
+  it('retains group names, platform colors, rates and subscription tags in options and selection', async () => {
+    const colors = [
+      ['openai', 'text-green-700'], ['anthropic', 'text-amber-700'], ['gemini', 'text-sky-700'],
+      ['antigravity', 'text-fuchsia-700'], ['grok', 'text-zinc-700'], ['kimi', 'text-pink-700'],
+      ['zhipu', 'text-indigo-700'], ['deepseek', 'text-teal-700'], ['minimax', 'text-rose-700'],
+      ['mistral', 'text-orange-700'], ['composite', 'text-cyan-800'],
+    ]
+    const groups = colors.map(([platform], index) => ({ id: index + 1, name: `${platform} group with its complete descriptive name`, platform, rate_multiplier: 1.25, subscription_type: 'standard' }))
+    groups.push({ id: 99, name: 'Subscription fixture', platform: 'anthropic', rate_multiplier: 2, subscription_type: 'subscription' })
+    api.groups.mockResolvedValue({ items: groups })
+    render()
+    await flushPromises()
+    const filter = wrapper.get('[data-testid="usage-group-filter"]')
+    expect(filter.get('.select-trigger').text()).toBe('All Groups')
+    await filter.get('.select-trigger').trigger('click')
+    const options = filter.findAll('[role="option"]')
+    for (const [index, [, color]] of colors.entries()) {
+      const badge = options[index + 1].getComponent(GroupBadge)
+      expect(badge.classes()).toContain(color)
+      expect(badge.props('truncate')).toBe(false)
+      expect(badge.text()).toContain(groups[index].name)
+      expect(badge.text()).toContain('1.25x')
+    }
+    expect(options.at(-1)!.text()).toContain('Subscription')
+    await options[1].trigger('click')
+    await flushPromises()
+    expect(filter.get('.select-trigger').getComponent(GroupBadge).classes()).toContain('text-green-700')
+    expect(api.list.mock.lastCall?.[0].group_id).toBe(1)
+    await filter.get('.select-trigger').trigger('click')
+    await filter.get('.select-search-input').setValue('anthropic')
+    expect(filter.findAll('[role="option"]')).toHaveLength(1)
+    expect(filter.get('[role="option"]').getComponent(GroupBadge).classes()).toContain('text-amber-700')
   })
 })

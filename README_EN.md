@@ -1,6 +1,6 @@
 # SUB6
 
-SUB6 is an independently maintained open-source distribution of [Ranxi Sub2API](https://github.com/ranxi2001/sub2api). The **0.1.5 source candidate** is based on Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`), synchronized at production `7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a`. The latest packaged release remains **0.1.4**; two new database migrations require an operator-reviewed upgrade plan before a new packaged release.
+SUB6 is an independently maintained open-source distribution of [Ranxi Sub2API](https://github.com/ranxi2001/sub2api). This branch's **0.1.6 source candidate** is based on Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`), synchronized at production `7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a`. Packaged versions are listed in [Releases](https://github.com/zhang2580384/SUB6/releases). The inherited upstream range contains two database migrations requiring an operator-reviewed upgrade plan. The new reasoning-effort filter and colored group labels add no migrations; see the [0.1.6 validation report](maintenance/2026-11-14-v0.1.6-usage.md).
 
 Google OAuth application credentials are not embedded. Antigravity and Gemini CLI login/refresh require explicit client configuration; see `deploy/.env.example` and the maintenance report. Remote credential-service endpoints default to empty and must be configured independently.
 

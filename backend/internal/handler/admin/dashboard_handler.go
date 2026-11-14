@@ -203,6 +203,12 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 	}
 	granularity := c.DefaultQuery("granularity", "day")
 
+	reasoningEffort, err := parseUsageReasoningEffort(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	platform, err := parseUsagePlatform(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -276,7 +282,7 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 		return
 	}
 
-	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch, platform)
+	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch, platform, reasoningEffort)
 	if err != nil {
 		response.Error(c, 500, "Failed to get usage trend")
 		return
@@ -296,6 +302,12 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 // Query params: start_date, end_date (YYYY-MM-DD), user_id, api_key_id, account_id, group_id, request_type, stream, billing_type
 func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	reasoningEffort, err := parseUsageReasoningEffort(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -378,7 +390,7 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 		return
 	}
 
-	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, modelSource, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch, platform, strings.TrimSpace(c.Query("model")))
+	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, modelSource, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch, platform, strings.TrimSpace(c.Query("model")), reasoningEffort)
 	if err != nil {
 		response.Error(c, 500, "Failed to get model statistics")
 		return
@@ -397,6 +409,12 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 // Query params: start_date, end_date (YYYY-MM-DD), user_id, api_key_id, account_id, group_id, request_type, stream, billing_type
 func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	reasoningEffort, err := parseUsageReasoningEffort(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -469,7 +487,7 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 		return
 	}
 
-	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch, platform, strings.TrimSpace(c.Query("model")))
+	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch, platform, strings.TrimSpace(c.Query("model")), reasoningEffort)
 	if err != nil {
 		response.Error(c, 500, "Failed to get group statistics")
 		return

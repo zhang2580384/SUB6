@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
@@ -25,8 +25,15 @@
     "binary_assets": false,
     "container_images": false,
     "release_created": false,
-    "stable_binary_version": "0.1.4",
+    "stable_binary_version": "0.1.5",
     "source_candidate": true
+  },
+  "feature_update": {
+    "version": "0.1.6",
+    "base_source": "0d8ee49b8092bda537efab90373d39afd6c3a50e",
+    "report": "2026-11-14-v0.1.6-usage.md",
+    "new_migrations": 0,
+    "production_deployed": false
   },
   "maintenance": {
     "date": "2026-11-14",

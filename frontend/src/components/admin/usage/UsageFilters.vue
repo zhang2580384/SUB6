@@ -147,6 +147,20 @@
             <Select v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
           </div>
 
+          <div v-if="mode === 'usage' && !observerMode" data-testid="usage-reasoning-filter" class="w-full sm:w-auto sm:min-w-[200px]">
+            <label for="usage-reasoning-effort" class="input-label" :title="t('admin.usage.reasoningEffortHint')">{{ t('admin.usage.reasoningEffort') }}</label>
+            <Select
+              id="usage-reasoning-effort"
+              :model-value="filters.reasoning_effort ?? null"
+              :options="reasoningEffortOptions"
+              :aria-label="t('admin.usage.reasoningEffort')"
+              aria-describedby="usage-reasoning-effort-hint"
+              @update:model-value="filters.reasoning_effort = $event || undefined"
+              @change="emitChange"
+            />
+            <span id="usage-reasoning-effort-hint" class="sr-only">{{ t('admin.usage.reasoningEffortHint') }}</span>
+          </div>
+
           <!-- Native compaction is independent of the transport request type. -->
           <div v-if="mode !== 'errors' && mode !== 'connections' && mode !== 'latency'" class="w-full sm:w-auto sm:min-w-[180px]">
             <label class="input-label">{{ t('usage.compactionFilter') }}</label>
@@ -189,9 +203,17 @@
           </div>
 
           <!-- Group Filter -->
-          <div class="w-full sm:w-auto sm:min-w-[200px]">
-            <label class="input-label">{{ t('admin.usage.group') }}</label>
-            <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
+          <div data-testid="usage-group-filter" class="w-full sm:w-72">
+            <label for="usage-group" class="input-label">{{ t('admin.usage.group') }}</label>
+            <Select id="usage-group" :model-value="filters.group_id ?? null" :options="groupOptions" :aria-label="t('admin.usage.group')" searchable @update:model-value="filters.group_id = $event ?? undefined" @change="emitChange">
+              <template #selected="{ option }">
+                <UsageGroupOption :option="option" />
+              </template>
+              <template #option="{ option, selected }">
+                <UsageGroupOption :option="option" class="min-w-0 flex-1" />
+                <Icon v-if="selected" name="check" size="sm" class="shrink-0 text-primary-500" />
+              </template>
+            </Select>
           </div>
         </template>
 
@@ -207,7 +229,7 @@
         </button>
         <slot name="after-reset" />
         <template v-if="mode === 'usage'">
-          <button v-if="!observerMode" type="button" @click="$emit('cleanup')" :disabled="!!filters.platform" :title="filters.platform ? t('admin.usage.platformCleanupUnavailable') : undefined" class="btn btn-danger">
+          <button v-if="!observerMode" type="button" @click="$emit('cleanup')" :disabled="!!(filters.platform || filters.reasoning_effort)" :title="filters.reasoning_effort ? t('admin.usage.reasoningCleanupUnavailable') : filters.platform ? t('admin.usage.platformCleanupUnavailable') : undefined" class="btn btn-danger">
             {{ t('admin.usage.cleanup.button') }}
           </button>
           <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
@@ -227,11 +249,15 @@ import { observerUsageAPI, type UsageFilterOption } from '@/api/observerUsage'
 import { observerUsageContext } from './observerUsageContext'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
+import UsageGroupOption from './UsageGroupOption.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 import NewFeatureBadge from '@/components/common/NewFeatureBadge.vue'
 import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
 import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
+import { REASONING_EFFORT_LEVELS } from '@/constants/channel'
 import type { SimpleUser } from '@/api/admin/usage'
+import type { Group } from '@/types'
 
 type ModelValue = Record<string, any>
 
@@ -310,7 +336,16 @@ const platformOptions = computed<SelectOption[]>(() => [
   ...CONCRETE_PLATFORM_OPTIONS,
   { value: 'unknown', label: t('admin.usage.unknownPlatform') },
 ])
-const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
+const groups = ref<Array<Group | UsageFilterOption>>([])
+const groupOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allGroups') },
+  ...groups.value.map(group => ({ value: group.id, label: group.name, group })),
+])
+const reasoningEffortOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allReasoningEfforts') },
+  ...REASONING_EFFORT_LEVELS.map(level => ({ value: level, label: `${t(`admin.usage.reasoningEffortLevels.${level}`)} (${level})` })),
+  { value: 'unknown', label: t('admin.usage.unknownReasoningEffort') },
+])
 
 const requestTypeOptions = ref<SelectOption[]>([
   { value: null, label: t('admin.usage.allTypes') },
@@ -593,7 +628,7 @@ onMounted(async () => {
     const gs = observerMode
       ? { items: await observerUsageAPI.filterOptions('group') }
       : await adminAPI.groups.list(1, 1000)
-    groupOptions.value.push(...gs.items.map((g: any) => ({ value: g.id, label: g.name })))
+    groups.value = gs.items
   } catch {
     // Ignore filter option loading errors (page still usable)
   }

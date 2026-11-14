@@ -38,6 +38,7 @@ type dashboardSnapshotV2Response struct {
 
 type dashboardSnapshotV2Filters struct {
 	Platform              string
+	ReasoningEffort       string
 	UserID                int64
 	APIKeyID              int64
 	AccountID             int64
@@ -52,6 +53,7 @@ type dashboardSnapshotV2Filters struct {
 
 type dashboardSnapshotV2CacheKey struct {
 	Platform              string `json:"platform"`
+	ReasoningEffort       string `json:"reasoning_effort"`
 	StartTime             string `json:"start_time"`
 	EndTime               string `json:"end_time"`
 	Granularity           string `json:"granularity"`
@@ -111,6 +113,7 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 		AccountID:             filters.AccountID,
 		GroupID:               filters.GroupID,
 		Platform:              filters.Platform,
+		ReasoningEffort:       filters.ReasoningEffort,
 		Model:                 filters.Model,
 		RequestType:           filters.RequestType,
 		Stream:                filters.Stream,
@@ -200,6 +203,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.BillingType,
 			filters.UpstreamModelMismatch,
 			filters.Platform,
+			filters.ReasoningEffort,
 		)
 		if err != nil {
 			return nil, errors.New("failed to get usage trend")
@@ -224,6 +228,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.UpstreamModelMismatch,
 			filters.Platform,
 			filters.Model,
+			filters.ReasoningEffort,
 		)
 		if err != nil {
 			return nil, errors.New("failed to get model statistics")
@@ -247,6 +252,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.UpstreamModelMismatch,
 			filters.Platform,
 			filters.Model,
+			filters.ReasoningEffort,
 		)
 		if err != nil {
 			return nil, errors.New("failed to get group statistics")
@@ -266,13 +272,18 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 }
 
 func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filters, error) {
+	reasoningEffort, err := parseUsageReasoningEffort(c)
+	if err != nil {
+		return nil, err
+	}
 	platform, err := parseUsagePlatform(c)
 	if err != nil {
 		return nil, err
 	}
 	filters := &dashboardSnapshotV2Filters{
-		Platform: platform,
-		Model:    strings.TrimSpace(c.Query("model")),
+		Platform:        platform,
+		ReasoningEffort: reasoningEffort,
+		Model:           strings.TrimSpace(c.Query("model")),
 	}
 
 	if userIDStr := strings.TrimSpace(c.Query("user_id")); userIDStr != "" {

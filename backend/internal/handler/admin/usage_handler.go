@@ -112,6 +112,12 @@ func (h *UsageHandler) List(c *gin.Context) {
 		groupID = id
 	}
 
+	reasoningEffort, err := parseUsageReasoningEffort(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	platform, err := parseUsagePlatform(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -201,6 +207,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 	}
 	filters := usagestats.UsageLogFilters{
 		Platform:              platform,
+		ReasoningEffort:       reasoningEffort,
 		UserID:                userID,
 		APIKeyID:              apiKeyID,
 		AccountID:             accountID,
@@ -268,6 +275,12 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 			return
 		}
 		groupID = id
+	}
+
+	reasoningEffort, err := parseUsageReasoningEffort(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
 	}
 
 	platform, err := parseUsagePlatform(c)
@@ -367,6 +380,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	// Build filters and call GetStatsWithFilters
 	filters := usagestats.UsageLogFilters{
 		Platform:              platform,
+		ReasoningEffort:       reasoningEffort,
 		UserID:                userID,
 		APIKeyID:              apiKeyID,
 		AccountID:             accountID,

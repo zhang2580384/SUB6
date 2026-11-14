@@ -446,6 +446,7 @@ describe('admin usage platform filter', () => {
     const wrapper = mountFilters(defaultFilters(), mode)
     await flushPromises()
     expect(wrapper.find('[data-testid="usage-platform-filter"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="usage-reasoning-filter"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -456,6 +457,7 @@ describe('admin usage platform filter', () => {
     })
     await flushPromises()
     expect(wrapper.find('[data-testid="usage-platform-filter"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="usage-reasoning-filter"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

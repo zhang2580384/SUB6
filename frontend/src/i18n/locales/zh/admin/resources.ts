@@ -529,6 +529,12 @@ export default {
       unknownPlatform: '未知（历史记录）',
       platformHistoryHint: '按请求发生时记录的平台筛选。未记录平台的历史数据保留在“未知（历史记录）”中。',
       platformCleanupUnavailable: '清理记录前请重置平台筛选。',
+      reasoningEffort: '推理强度',
+      allReasoningEfforts: '全部推理强度',
+      unknownReasoningEffort: '未设置 / 未记录',
+      reasoningEffortHint: '按记录中的请求推理强度筛选；旧记录使用当时的实际推理强度。',
+      reasoningCleanupUnavailable: '清理记录前请重置推理强度筛选。',
+      reasoningEffortLevels: { none: '关闭', minimal: '最低', low: '低', medium: '中', high: '高', xhigh: '超高', max: '最大' },
 
       title: '使用记录',
       description: '查看和管理所有用户的使用记录',

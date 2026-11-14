@@ -1,6 +1,6 @@
 # SUB6
 
-SUB6 は [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) を基に独立して保守するオープンソース配布版です。現在のソース候補は **0.1.5**、最新バイナリリリースは **0.1.4** です。Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`) を基に、production `7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a` まで同期しています。新しいデータベース移行が 2 件あり、運用者による移行計画の確認が必要です。
+SUB6 は [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) を基に独立して保守するオープンソース配布版です。このブランチのソース候補は **0.1.6** です。公開済みのバイナリは [Releases](https://github.com/zhang2580384/SUB6/releases) を参照してください。Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`) を基に、production `7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a` まで同期しています。継承した上流範囲には移行が 2 件あり、運用者による確認が必要です。0.1.6 の推論強度フィルターと色付きグループ表示による新しい移行はありません。[検証記録](maintenance/2026-11-14-v0.1.6-usage.md) を参照してください。
 
 [ビルド手順・中文](README.md) · [移行と互換性](maintenance/2026-11-14-upstream-review.md) · [配備](deploy/README.md)
 

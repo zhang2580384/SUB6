@@ -82,6 +82,7 @@ export interface CreateUsageCleanupTaskRequest {
 
 export interface AdminUsageQueryParams extends UsageQueryParams {
   platform?: string
+  reasoning_effort?: string
   request_id?: string
   user_id?: number
   exact_total?: boolean
@@ -120,6 +121,7 @@ export async function list(
  */
 export async function getStats(params: {
   platform?: string
+  reasoning_effort?: string
   user_id?: number
   api_key_id?: number
   account_id?: number
