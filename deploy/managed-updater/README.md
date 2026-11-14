@@ -55,4 +55,9 @@ fingerprint 是按排序后的 backend/migrations/*.sql 文件，将每个相对
 回滚只允许已保留且迁移集合相同的版本；不还原整个数据库，不覆盖升级期间的账单。
 新控制器代码本身需要运维另行审查更新，不通过网页远程替换。
 
+SUB6 0.1.6 相对正式 0.1.5 增加两项平台快照迁移，真实 fingerprint 不同，
+发行明确声明 rolling_compatible=false。当前控制器会拒绝安装，这是预期保护。
+使用[0.1.6 人工维护窗口和应用回退流程](../../maintenance/UPGRADE-v0.1.6.md)，
+不要修改 fingerprint、账本或此检查来绕过门禁；网页 has_update 仅表示发现新版本。
+
 测试：`python3 -m unittest discover -s deploy/managed-updater -p test_controller.py -v`。

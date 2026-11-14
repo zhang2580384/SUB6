@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 import io
+import hashlib
 import json
 import os
 import stat
@@ -89,6 +90,64 @@ class ReleaseBoundaryTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 controller.copy_runtime_config(source, root / 'out')
             self.assertFalse((root / 'out/config.yaml').exists())
+
+
+class MigrationReleaseBoundaryTests(unittest.TestCase):
+    def test_verified_release_cannot_cross_the_stable_migration_boundary(self):
+        old_fingerprint = 'a6990935dd92d8132f2d487ba2b3320ac10d8819e72363db2d240bca23e4063f'
+        binary = b'synthetic binary; never executed'
+        commit = 'a' * 40
+        for same_schema, rolling in [(False, True), (True, False), (True, True)]:
+            with self.subTest(same_schema=same_schema, rolling=rolling), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                fingerprint = old_fingerprint if same_schema else 'b' * 64
+                metadata = {'distribution': 'SUB6', 'version': '0.1.6', 'build_type': 'release',
+                            'target': 'linux/amd64', 'source_commit': commit,
+                            'binary_sha256': hashlib.sha256(binary).hexdigest(),
+                            'managed_upgrade': {'controller_protocol': 1, 'deployment_probe_protocol': 1,
+                                                'rolling_compatible': rolling,
+                                                'migrations_fingerprint': fingerprint}}
+                archive_bytes = io.BytesIO()
+                with tarfile.open(fileobj=archive_bytes, mode='w:gz') as tar:
+                    for name, data in [('sub6-linux-amd64', binary),
+                                       ('build-info.json', json.dumps(metadata).encode()),
+                                       ('resources/fixture.json', b'{}')]:
+                        member = tarfile.TarInfo(name)
+                        member.size = len(data)
+                        tar.addfile(member, io.BytesIO(data))
+                archive = archive_bytes.getvalue()
+                archive_name = 'sub6_0.1.6_linux_amd64.tar.gz'
+                download = 'https://github.com/zhang2580384/SUB6/releases/download/v0.1.6/'
+                release = {'tag_name': 'v0.1.6', 'assets': [
+                    {'name': name, 'browser_download_url': download + name}
+                    for name in [archive_name, 'checksums.txt']]}
+                values = {'/releases/latest': json.dumps(release).encode(),
+                          '/git/ref/tags/v0.1.6': json.dumps({'object': {'type': 'commit', 'sha': commit}}).encode(),
+                          '/checksums.txt': (hashlib.sha256(archive).hexdigest() + '  ' + archive_name + '\n').encode(),
+                          '/' + archive_name: archive}
+                c = object.__new__(controller.Controller)
+                c.config = {'current': {'version': '0.1.5', 'migrations_fingerprint': old_fingerprint},
+                            'runtime_image': 'local-reviewed-runtime'}
+                c.phase = lambda *args, **kwargs: None
+                commands = []
+                c.run = lambda args, **kwargs: commands.append(args)
+
+                def fetch(url, limit, destination=None, api=False):
+                    data = next(value for suffix, value in values.items() if url.endswith(suffix))
+                    if destination:
+                        destination.write_bytes(data)
+                    else:
+                        return data
+                c.fetch = fetch
+                if same_schema and rolling:
+                    result = c.release_image('0.1.6', root)
+                    self.assertEqual(old_fingerprint, result['migrations_fingerprint'])
+                    self.assertEqual(1, len(commands))
+                else:
+                    with self.assertRaisesRegex(ValueError, 'operator migration review'):
+                        c.release_image('0.1.6', root)
+                    self.assertEqual([], commands, 'migration mismatch must precede Docker build or rollout')
+                self.assertEqual(old_fingerprint, c.config['current']['migrations_fingerprint'])
 
 
 class RouteTests(unittest.TestCase):

@@ -26,6 +26,24 @@ func TestUpdateServiceProvenanceSurvivesCache(t *testing.T) {
 	require.Greater(t, compareVersions("0.1.1", "0.1.0"), 0)
 }
 
+func TestStable015Detects016WithoutGrantingMigrationCompatibility(t *testing.T) {
+	client := &updateServiceGitHubClientStub{release: &GitHubRelease{
+		TagName: "v0.1.6", Name: "SUB6 0.1.6",
+		Body:    "Operator maintenance required; migration fingerprints differ.",
+		HTMLURL: "https://github.com/zhang2580384/SUB6/releases/tag/v0.1.6",
+		Assets:  []GitHubAsset{{Name: "sub6_0.1.6_linux_amd64.tar.gz", BrowserDownloadURL: "https://github.com/zhang2580384/SUB6/releases/download/v0.1.6/sub6_0.1.6_linux_amd64.tar.gz"}},
+	}}
+	service := NewUpdateService(&updateServiceCacheStub{}, client, "0.1.5", "release")
+	info, err := service.CheckUpdate(context.Background(), true)
+	require.NoError(t, err)
+	require.True(t, info.HasUpdate, "discovery reports a newer version; installation remains the controller's decision")
+	require.Equal(t, "0.1.5", info.CurrentVersion)
+	require.Equal(t, "0.1.6", info.LatestVersion)
+	require.Equal(t, "release", info.BuildType)
+	require.Contains(t, info.ReleaseInfo.Body, "Operator maintenance required")
+	require.Equal(t, githubRepo, client.latestRepo)
+}
+
 type updateServiceCacheStub struct {
 	data string
 }

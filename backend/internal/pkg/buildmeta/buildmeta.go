@@ -4,7 +4,7 @@ package buildmeta
 const (
 	Distribution          = "SUB6"
 	UpstreamVersion       = "2.21.2"
-	UpstreamCommit        = "ccf997c73868083d96c0bec56e71c1a34d26c98a"
+	UpstreamCommit        = "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a"
 	UpstreamReleaseCommit = "dbed7697aa56e76c6eb48c4914fa441496b67bdd"
 )
 

@@ -107,7 +107,7 @@ jobs:
         working-directory: backend
         run: >-
           go test -p 2 -race -tags integration ./internal/repository
-          -run '^(TestUsagePlatform|TestHTTP2|TestOAuth429)'
+          -run '^(TestUsagePlatform|TestUsageReasoningEffort|TestSUB6V016Upgrade|TestHTTP2|TestOAuth429|TestUsageBillingRepositoryApply_SettlesSoftDeletedAPIKey)'
           -count=1 -v -timeout=10m
       - name: Migration-only CLI and repeat against disposable database
         working-directory: backend
@@ -122,6 +122,28 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/sub6-migrations" ./cmd/server
           "$RUNNER_TEMP/sub6-migrations" --migrate-only --migration-timeout=5m
           "$RUNNER_TEMP/sub6-migrations" --migrate-only --migration-timeout=5m
+      - name: Read exact stable 0.1.5 source for rollback verification
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b3f8199dc3cc1e1520214fdd77832fc01b36578e
+          path: stable-rollback-source
+          persist-credentials: false
+      - name: Actual stable binary migration reader and billing on upgraded schema
+        working-directory: stable-rollback-source/backend
+        env:
+          DATABASE_HOST: 127.0.0.1
+          DATABASE_PORT: '5432'
+          DATABASE_USER: sub6_test
+          DATABASE_PASSWORD: sub6-test-only
+          DATABASE_DBNAME: sub6_test
+          DATABASE_SSLMODE: disable
+        run: |
+          test "$(git rev-parse HEAD)" = b3f8199dc3cc1e1520214fdd77832fc01b36578e
+          CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/sub6-stable-migrations" ./cmd/server
+          "$RUNNER_TEMP/sub6-stable-migrations" --migrate-only --migration-timeout=5m
+          go test -p 2 -race -tags integration ./internal/repository \
+            -run '^(TestUsageLogRepoSuite|TestUsageBillingRepositoryApply_(DeduplicatesBalanceBilling|DeduplicatesSubscriptionBilling|RequestFingerprintConflict|SettlesSoftDeletedAPIKey))$' \
+            -count=1 -v -timeout=10m
   sidecar:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
