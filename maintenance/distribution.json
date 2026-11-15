@@ -1,0 +1,11 @@
+{
+  "version": "0.1.8",
+  "target": "linux/amd64",
+  "upstream_version": "2.21.3",
+  "upstream_commit": "aa8e596e6d6f3e4648d6beba73b39b240dd5357a",
+  "migrations_fingerprint": "63ce16fa855d9f331372aada34df859275777becb181535372c8abec25cf481b",
+  "controller_protocol": 2,
+  "deployment_probe_protocol": 1,
+  "online_migration_plan": "usage-platform-v1",
+  "upgrade_guide": "maintenance/UPGRADE-v0.1.8.md"
+}

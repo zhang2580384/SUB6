@@ -91,7 +91,7 @@ RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
     VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
-    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
+    CGO_ENABLED=0 GOTOOLCHAIN=local GOMAXPROCS=2 GOMEMLIMIT=2GiB GOGC=50 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -p 2 -mod=readonly \
     -tags embed \
     -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
     -trimpath \
@@ -107,11 +107,15 @@ FROM ${POSTGRES_IMAGE} AS pg-client
 # Stage 4: Final Runtime Image
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
+ARG VERSION
+ARG COMMIT
 
 # Labels
 LABEL maintainer="SUB6 Maintainers"
 LABEL description="SUB6 - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/zhang2580384/SUB6"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.revision="${COMMIT}"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
@@ -144,7 +148,8 @@ COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
 COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources
 
 COPY THIRD_PARTY_NOTICES.md /app/THIRD_PARTY_NOTICES.md
-COPY LICENSES/BEpusdt-GPL-3.0.txt /app/LICENSES/BEpusdt-GPL-3.0.txt
+COPY LICENSE /app/LICENSE
+COPY LICENSES/ /app/LICENSES/
 
 # Create data directory
 RUN mkdir -p /app/data && chown sub2api:sub2api /app/data

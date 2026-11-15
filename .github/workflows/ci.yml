@@ -47,6 +47,9 @@ jobs:
       - name: Backend unit tests
         working-directory: backend
         run: go test -p 2 -tags unit ./... -count=1 -timeout=20m
+      - name: Official Kimi, GLM and Gemini billing regressions
+        working-directory: backend
+        run: go test -p 2 -race -tags unit ./internal/service -run '^Test(KimiGLM|GeminiCarbon|ExtractGeminiUsage)' -count=1 -timeout=5m
       - name: WebSocket logical-session race regressions
         working-directory: backend
         run: >-
@@ -69,6 +72,23 @@ jobs:
         run: |
           make build-release RELEASE_OUTPUT="$RUNNER_TEMP/sub6" RELEASE_COMMIT="$SUB6_BUILD_COMMIT"
           "$RUNNER_TEMP/sub6" -version
+  distribution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and smoke-test exact clean distribution and image
+        run: python3 maintenance/package-distribution.py --output "$RUNNER_TEMP/sub6-distribution"
+      - name: Retain reviewed candidate assets; never publish or deploy automatically
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sub6-distribution-${{ github.sha }}
+          path: ${{ runner.temp }}/sub6-distribution/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
   quota-integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
