@@ -1,0 +1,1238 @@
+{
+  "schema": 1,
+  "public_base": "a8483cb4aabc8972793171ebc761dd283cec3a0a",
+  "upstream_base": "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a",
+  "upstream_target": "aa8e596e6d6f3e4648d6beba73b39b240dd5357a",
+  "observed_production": "e90811e27bc442763a496027f935a7bb1fb4396b",
+  "reviewed_commits": [
+    "74b8ec09e9ad085fc8625502478c2a588a7d7acd",
+    "96ba36a85edab665ad5a035788fc07a40fd18762",
+    "5d8d14b960c2beda3627ee514ee09eead32a771a",
+    "51dc1dbbb0bd9c4cb619b72b8bb5cb8d3da6451c",
+    "64b7c4de211903376e43d370aaaa15ecb2d3e257",
+    "84e47f1b57acba77f1cfae08a63e8dd9d32a7991",
+    "0ca5b7a9413d0983c72788c902775aaf50827717",
+    "de22aee45109504ce66ea40e4ecb67559906ef30",
+    "2ec2e6ca19f60ccff0267e1f1768542e7c30e8dc",
+    "f71b36d5c0b41e19415009446318ba2fa471341b",
+    "e59321cbf7e919f980ca90690ec70159180761f2",
+    "a431cb2a71ee3ce67064a0528ffad95044abbc4a",
+    "d2b2b246fc0235740e87c742b24be5a5c9e055e0",
+    "faeba37279b55917ea9c3a45a7ecdf1793bcdaee",
+    "74ca49c87818eb5adbbae4a8c37ecd0dc778b524",
+    "d023408b8a48eac7247faad17086e2aa7c7107e9",
+    "8198162549f52b99bbef81dfcc128bd111ff020a",
+    "1fb872a2b4b3a96a32501b3143a08a22f1474d39",
+    "0765de30bf7a3de7c14f65461df16f4a879bcc3e",
+    "189ec887c80e679e35cbc70f63cddf3fa14644d4",
+    "885004f6ff9ac02ff702f94c76e8f7ee9b86a125",
+    "04f6149b3b385da893379eb7a7facbfc14a7567e",
+    "5e83d0b73611a447b425ad5692f883de120da9ed",
+    "d1dc5fe39257d3c202fff95b5fe55a0237779b18",
+    "e3f02e705afe860d5a245a7e944b0b47ddcf5bd9",
+    "77c246f14101403a1043df566370a8c9cfcbebdd",
+    "52d9a3348e4c9ec49af258bbfa1e8e505a9ade1d",
+    "d7d91eda195488b4d4800c50b64708ac000dca7e",
+    "afd362e7684bed025859c7fed2a30c710b99b860",
+    "b5892afda5d176cf4ec5c346b07add48f224ab28",
+    "bbcfe59a1f7b9f99b55e48df6a57b4eeaf24932e",
+    "12ebeb88b3365a2823cb9962963024d0bf3e5363",
+    "94bb4a53e9e5057990cd851ab0620d99b116ad41",
+    "de793b03750f14e482121bde26ed49bf2edb499f",
+    "b6346c41f5fd2b5f61b514799dbec4a2db0b0657",
+    "0b1f540abe6ffa1d0f9837186bbd0efe333458ec",
+    "f6a3b90b9322ee4a01422839e5fb33523cd1454b",
+    "f26a014b9e989faabaaeffa2b736be3f170bd079",
+    "ceed61d478116dc0ef1ccf5c830bb6bb3d995270",
+    "568c099200be68259f5fa752de488c4a1f3220a8",
+    "3f045726c31d79633ec9d0dbb553dfd49fcf6749",
+    "0b146cc15b8aa315d96cbf8218af079fba7ba2ca",
+    "fed6841ede054500bc5ea03c3cbaadaf5db4e6bf",
+    "f25ece871764b8e15bded41eb805729191db4e5d",
+    "15c347a327efb90f1aed9e2c906148a4805d078d",
+    "d70bd5839dd2056983ecd879982ddafdcbc7262b",
+    "545504296e694f7c57154fa4710568a2a7fdf16d",
+    "11aed07eb4ac0741388f7699fc0427b7328b01b7",
+    "8949202b7c10cf641a570d0d822850508f2e7c26",
+    "cd38ac2cea67aabc2ffcfa3d6cbd42b17d6ee8a6",
+    "66182075e4aeeca81e0f3c1c16968ffb6d2178f3",
+    "1c6e1b15511ffb0ed579809d95b7a94d0aea084b",
+    "63f4c560fe213f39645b39acfa6f107ff9a8da72",
+    "f5e1e9c037ebeb913b1966fbe35400adf14e52e4",
+    "8e44cf263a9ae13666743a0dc2d6a210c52a72d4",
+    "d7ddf8bac09ac4556dd5065705a2a3082fd3824b",
+    "a044f6b7f08dcdcaee8c22965b7f5ba38ac62cf9",
+    "d764722452e0d3b0b66e0bd873c87eaf83676d04",
+    "cf2c96ddf377e60a3df7fdd636c37669d6167d17",
+    "26f599df4c68bafa18cdeb8ab1c4bd101cfec994",
+    "ea037400e965c521a8ad18b1ea92ea9e95af0820",
+    "40b4869453c8d36e4085ff633ad1f16ed74a8a2c",
+    "8e678492348b21b6cf3a3a8d21587a9ce8c4c852",
+    "782f39e9951c90225f50a89d4498108890877da7",
+    "b0e80430b67b42a5bca7af574a5412959218071c",
+    "cdb0e1009d37e13867535904e77ea8941d2e22df",
+    "1a159c1f947f0c5acc0775fe8edb419dbf23269e",
+    "3b7a8d965a433c38f095d56eb14dc0b963f9cc9d",
+    "189785bd4418faf4accdb593135aaccd23e92a51",
+    "fa9ec49d433a9898becdb779e0b3f7960df4dfae",
+    "a6d478607501df759ba5d550178b4b130e6d3a6a",
+    "f73b3c62377d770e77c886a09a98c746e6c9890e",
+    "0bde0ea69024018c0060db34f807aa5291ee5d64",
+    "d8bf2bd7b0b0284bda58e520d275a6b1e2d02cf8",
+    "f39c3d166f9f592229f4f686321341b10509f233",
+    "529b97cd3d87d6b0eb9e55e8be77c17283b5b6e3",
+    "51356e47c0b327d2162fbc6bf8dc575f0d418fd3",
+    "0100c2915db1830adf5c175c8f50a310030a260d",
+    "b347249687db84dac3f5272189fda6cf86eb9035",
+    "e809afee5705d966c8e2f6363537d7ec62012c73",
+    "0556b3511cfc46a95d90730a01a072602c607109",
+    "daccc06db7d0538509105c5522090e109b04a74f",
+    "2024b007a52d071c8487c699dd505e083747ebdf",
+    "f2c799caced055d494358b57487ab938c240ba6f",
+    "edf550fee16cf35c56a22fe0880d70e28390606b",
+    "8f13c3b19456bfbfb073cb730d27082431573fb7",
+    "89e06c086fcdcc200238e5d208af2219e2d21e43",
+    "6da23a318667b59b03527a3ba652794092d5ff23",
+    "6c25275f4261980fd0ca7aa77bc25411a6275e6f",
+    "fe05da993c32873bfcece732df4d2c57495d94d0",
+    "cdd9d7901041d02aa39291ae0e1615c5a6853da0",
+    "4189ed821d6e4308b2f5fc3791b73d2eb53cda8a",
+    "7a417668d54ab1fc5bade1447a5145cf930d96dc",
+    "0ae69182fc6aba8a7e6896c047bedc446b946b89",
+    "3c89befc8c9465045bf282e8ddb0ea800b8161c6",
+    "afa7dbd6fccffef950febadc666b9243bba2454d",
+    "4917f65e4feec4b80f35915f108f18bfca467c72",
+    "816d090528f006877d24b3e6ac3748dca9479cc7",
+    "d5801b7c4d8b75c3d406fc55ed8b6c71666eac00",
+    "7968fb36df2923ae1b406c05c08ae74e395bafcf",
+    "ae4300a0217471f4646c51ee5c1f67eb8dbe6c10",
+    "9aeeeb3a235014a09994ce5dc6c441edcdd9f1b3",
+    "ba931a98bd23d169975a4aaccdf58fe35b86a00b",
+    "112d342e9d1fb1ac5c2796d980eded4d71f646d9",
+    "087d3e7095fc78d3c2f23729113fdbff28c12ec2",
+    "3361f063cf743d688407c8b5254a9f74d99413ee",
+    "3db131a6b025ae583badd06657619d0c5caf9333",
+    "36758a7c9cba216e69b7648a76a5e01867c5939f",
+    "fcfb9cebb0c7ce8f871a58b31b6c52e5bd970040",
+    "878b70857a023a588b50ccee579408b53b4e5c8d",
+    "62bd8651f91141b8e5784eb45e3b2d041b5e7902",
+    "37dc4620a41a68abaeab329358c15821c41e3f7f",
+    "02c30b748944dd7a405b33f3757293d15d7a5578",
+    "ae42e4f8cc9c40e389d0189956472ca476fd1ce3",
+    "190e3c6f8ad37f2ad1c2babaebcf1b62b8f67d70",
+    "f6ac19ffe390124e3a951f4d107ecbdad591317b",
+    "602808e179aded7d908d01a79e2f6572e3209298",
+    "aa8e596e6d6f3e4648d6beba73b39b240dd5357a"
+  ],
+  "deferred_commits": [
+    "631a315a79a960a77253a70a2d2190249eab6d19",
+    "60870a2e85b61f63059bdf4851c5f09610b04258",
+    "ee558fbabd44a87c3e04245849ba668bba21158a",
+    "b9a0545158ea5b52e37f3d742a1b0dbd71db5a6d",
+    "839687a402689faeb1c825bb631dae39ca6e2004",
+    "29abb11c9f6bc73c4b9489c7a6921d07a38ab454",
+    "43947af63fea0b9e0ebef8afdbd6f9f2fabaa7dd",
+    "4bb51c0e5fb8cc80316ced6c37b94204be30ae63",
+    "aa0b1abfe5b32c483b32c70fe0c813659ef58083",
+    "78c7bc87b39b697ebe96ca9aa1a7ac93df75407e",
+    "865e70dee823a99d4208cadb5c94c00e42e21125",
+    "e6d6e704964474f7df066a8a5b42f3b82ccd4d85",
+    "abd4ec88df7aac94802e1fdbf56f8606f9c92f31",
+    "6e484999208c7d30359a0bd6acd36801cab7b86b",
+    "999d599f411040de435a012765bff031f72c5df1",
+    "e90811e27bc442763a496027f935a7bb1fb4396b"
+  ],
+  "paths": [
+    {
+      "path": "Makefile",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/cmd/server/wire_gen.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_handler_list_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/admin/content_moderation_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/admin/moderation_upstream_scope_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/admin/openai_auth_connections.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/admin/openai_auth_connections_account_type_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/batch_image_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gateway_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gateway_handler_chat_completions.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gateway_handler_responses.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gateway_systemone.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gateway_web_search.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gemini_cached_contents_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/gemini_v1beta_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/grok_audio.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/grok_media.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/http2_peer_reset_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/image_task_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_dispatch_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_http_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_images_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_scope.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_scope_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_systemone_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/moderation_upstream_ws_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_400_omit_history_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_http_rebuild_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_omit_history_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_readable_continuation_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_shadow_http_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_shadow_race_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_ws_audit_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_ws_oracle_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_409_ws_rebuild_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_alpha_search.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_chat_completions.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_embeddings.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_excel_bps_failover_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_count_tokens.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_handler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_images.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_images_failover_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_images_native_route_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_issue805_owner_policy_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_issue805_ws_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_live.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_responses_failover_cancel_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_ws_client_identity_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/openai_ws_v2_passthrough_cyber_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/ops_error_logger.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/handler/security_audit_helper.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/account_quality.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/account_repo.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/ai_ops.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/gateway_cache_agent_shadow_epoch.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/gateway_cache_readable_shadow.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/http2_ai_ops_evidence_integration_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/http2_ai_ops_identity_integration_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/moderation_upstream_scope_export_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/moderation_upstream_scope_integration_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/pelican_scheduled_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/quality_manual_fencing_integration_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/scheduled_test_repo.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/temp_unsched_real_redis_integration_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/temp_unsched_trigger_counter.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/temp_unsched_trigger_counter_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/repository/wire.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/coordinator.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/coordinator_legacy.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/penalty.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/penalty_integration_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/prompt_guard.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/prompt_recovered_context_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/prompt_repository.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/prompt_service.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/prompt_snapshot.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/securityaudit/prompt_types.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/server/middleware/audit_connection_authorization_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/server/middleware/audit_log.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/server/routes/admin.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/account.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/account_ops_balance.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/account_ops_balance_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_claude.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_compat.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_gemini.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_upstream.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/basispoints_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/bridge_failure.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/function_code_transport.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/request.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/service_tier_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/stream.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/tool_arguments_diagnostic.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/tool_arguments_diagnostic_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/tool_schema.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/basispoints/tools.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/batch_image_public.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation_input.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation_input_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation_reminder_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation_responses_continuation_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation_upstream_scope.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/content_moderation_upstream_scope_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/gateway_forward.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/gateway_forward_as_chat_completions.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/gateway_forward_as_responses.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/gateway_systemone.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/gemini_chat_completions_compat_service.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/gemini_messages_compat_service.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/grok_audio.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/grok_media.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/http2_peer_reset_followup_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/minimax_h3.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_400_omit_history.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_400_omit_history_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_409_omit_history.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_409_omit_history_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_409_readable_shadow.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_409_ws_ticket_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_account_runtime_block_fastpath.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_account_scheduler.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_agent_message_delivery.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_agent_message_recovery.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_agent_message_recovery_error.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_alpha_search.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_auth_connection_oauth.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_auth_connection_status.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_auth_connection_status_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_auth_connections_account_type_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_account_identity_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_transform.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_embeddings.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_bridge_failure_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_repair_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_wire_contract_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_cc_pipeline.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_forward.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_messages.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_messages_chat_fallback.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_passthrough.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_record_usage_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_responses_chat_fallback.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_upstream_errors.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_history_omission.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_images.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_live.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_live_types.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_agent_recovery.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_agent_recovery_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_ingress.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_payload.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_support.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_v2.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_http_bridge.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_readable_continuation.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/quality_5xx_immediate_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/ratelimit_service.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/recovered_context_privacy.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_port.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/seedance.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/temp_unsched.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/temp_unsched_pending_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/temp_unsched_stream_timing_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/temp_unsched_trigger_counter.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/temp_unsched_ws_forward_test.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "backend/internal/service/wire.go",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/bps-diagnostics-authorization.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/encrypted-agent-owner-policy.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/encrypted-history-409-beta.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/encrypted-history-readable-continuation.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/excel-bps.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/future-readable-shadow.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/http-readable-task-rebuild-tdd.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/implementation/moderation-upstream-account-scope.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "docs/shadow-review-repair-and-ws-tdd.md",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/api/admin/accountOps.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/api/admin/openaiAuthConnections.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/api/admin/riskControl.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/account/CreateAccountModal.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/account/EditAccountModal.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/account/OpenAIAuthConnections.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/OpenAIAuthConnections.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/moderation/ModerationUpstreamAccountSelector.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/moderation/__tests__/ModerationUpstreamAccountSelector.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsBalanceStatus.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsBatchRuleDialog.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsRuleList.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsBalanceStatus.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsRuleList.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/charts/TokenUsageTrend.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/charts/__tests__/TokenUsageTrend.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/components/common/__tests__/NewFeatureBadge.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/constants/newFeatureNotices.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/accountOps.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/accounts.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/channels.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/settings.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/openaiAuth.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/accountOps.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/accounts.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/channels.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/settings.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/openaiAuth.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/usageRate.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/utils/usageRate.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountOpsView.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/views/admin/RiskControlView.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/views/admin/UsageView.vue",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/RiskControlView.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/UsageView.spec.ts",
+      "action": "three-way-integrate"
+    },
+    {
+      "path": ".github/fixtures/pr838-ui/Dockerfile",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/fixtures/pr838-ui/compose.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/account-alert-data-ux.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/assert-future-shadow.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/assert-http-task-rebuild.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/assert-readable-continuation.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/assert-ws-readable.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/bps-auth-preview.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/ci-ubuntu-mirrors.sh",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/exclude-later-400-red-fixtures.sh",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/exclude-later-http2-red-fixtures.sh",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/moderation-scope-preview.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/mutate-future-shadow.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/mutate-http-rebuild-owner-scan.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/oauth429-weekly-only-bridge-compat.patch",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/oauth429-weekly-only-bridge-compat.sh",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/oauth429-weekly-only-evidence.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/pelican-complete-rounds.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/pelican-question-e2e.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/pr838-ui-browser.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/pr838-ui-build.mjs",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/pr838-ws-phase-evidence.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/prepare-moderation-red-fixtures.sh",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/test_assert_future_shadow.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/test_assert_http_task_rebuild.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/test_assert_readable_continuation.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/scripts/test_assert_ws_readable.py",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/account-alert-data-ux.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/backend-ci.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/bps-diagnostics-auth.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/encrypted-history-400.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/encrypted-history-409.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/future-shadow.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/http-task-rebuild.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/http2-stream-reset.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/issue715-agent-recovery.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/issue805-owner-policy.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/issue817-manual-fencing.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/moderation-upstream-scope.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/oauth-degradation-native-controls.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/oauth429-weekly-only.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/openai-connection-account-type-regression.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/pr838-compat-count.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/pr838-ui-acceptance.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/pr838-ws-phase.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/readable-continuation-409.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/shadow-review-repair.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": ".github/workflows/ws-readable-continuation.yml",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": "backend/cmd/server/VERSION",
+      "action": "exclude-preserve-SUB6-version"
+    },
+    {
+      "path": "docs/screenshots/bps-auth-confirmation/README.md",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": "docs/screenshots/bps-auth-confirmation/evidence.json",
+      "action": "exclude-upstream-CI-or-evidence"
+    },
+    {
+      "path": "docs/testing/oauth429-weekly-only.md",
+      "action": "exclude-upstream-CI-or-evidence"
+    }
+  ],
+  "manual_conflicts": {
+    "docs/testing/oauth429-weekly-only.md": "retain public absence; upstream historical CI evidence excluded"
+  }
+}

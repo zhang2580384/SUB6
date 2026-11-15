@@ -3,9 +3,9 @@ package buildmeta
 
 const (
 	Distribution          = "SUB6"
-	UpstreamVersion       = "2.21.2"
-	UpstreamCommit        = "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a"
-	UpstreamReleaseCommit = "dbed7697aa56e76c6eb48c4914fa441496b67bdd"
+	UpstreamVersion       = "2.21.3"
+	UpstreamCommit        = "aa8e596e6d6f3e4648d6beba73b39b240dd5357a"
+	UpstreamReleaseCommit = "aa8e596e6d6f3e4648d6beba73b39b240dd5357a"
 )
 
 // Revision and BuiltAt are initialized by the executable before serving requests.

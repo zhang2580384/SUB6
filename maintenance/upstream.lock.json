@@ -1,33 +1,37 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
-    "base": "ccf997c73868083d96c0bec56e71c1a34d26c98a",
-    "commit": "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a",
-    "tree": "c25fb506fee5a26c2670935b39111c6646b16feb",
+    "base": "7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a",
+    "commit": "aa8e596e6d6f3e4648d6beba73b39b240dd5357a",
+    "tree": "9b7d4e7514386fc4fa2d6fd8a5c0aabdc00e533f",
     "main_observed": "e1317a4fdbb3c9bbb07bdd3318c6df2c3dbacf28",
-    "latest_release": "v2.21.2",
-    "release_commit": "dbed7697aa56e76c6eb48c4914fa441496b67bdd",
-    "release_tag_object": "45b9d194e9e26062717aa7d9590383801f1a9e7e"
+    "latest_release": "v2.21.3",
+    "release_commit": "aa8e596e6d6f3e4648d6beba73b39b240dd5357a",
+    "release_tag_object": "1dbf88d3b796d520ff06db1eac911d0cf6822609",
+    "production_observed": "e90811e27bc442763a496027f935a7bb1fb4396b"
   },
   "review": {
-    "date": "2026-11-14",
-    "commits": 79,
-    "changed_files": 184,
-    "coverage": "risk-focused manual review plus regression tests; not a line-by-line audit of all changed files"
+    "date": "2026-11-15",
+    "commits": 118,
+    "changed_files": 272,
+    "coverage": "risk-focused manual review plus regression tests; not a line-by-line audit of all changed files",
+    "excluded_paths": 52,
+    "deferred_post_release_commits": 16
   },
   "publication": {
     "repository": "https://github.com/zhang2580384/SUB6",
     "history": "sanitized root; inherited integration history remains private",
-    "binary_assets": true,
+    "binary_assets": false,
     "container_images": false,
     "stable_binary_version": "0.1.6",
-    "source_candidate": false,
-    "release_tag": "v0.1.6",
-    "managed_upgrade_mode": "operator-maintenance; existing rolling controller rejects changed migrations"
+    "source_candidate": true,
+    "release_tag": null,
+    "managed_upgrade_mode": "operator-maintenance; existing rolling controller rejects changed migrations",
+    "production_deployed": false
   },
   "feature_update": {
     "version": "0.1.6",
@@ -40,8 +44,8 @@
     "new_migrations_for_feature": 0
   },
   "maintenance": {
-    "date": "2026-11-14",
-    "upstream_delta_commits": 79,
-    "report": "2026-11-14-v0.1.6-release.md"
+    "date": "2026-11-15",
+    "upstream_delta_commits": 118,
+    "report": "2026-11-15-upstream-review.md"
   }
 }

@@ -53,6 +53,12 @@ jobs:
           go test -p 2 -race -tags unit ./internal/handler ./internal/service ./internal/requestcapture
           -run 'Test(OpenAIWSStream|OpenAIWSLogical|OpenAIWSConnPool_Close|APIKeyAdmissionFork|Issue600(ClientIdentityNetwork|InitialIdentityPolicy|DisabledSessionBlockKeepsIdentityPolicy|NestedIdentityNetwork)|OpenAIResponsesWebSocket_.*FirstMessage|WebSocketFork)'
           -count=1 -timeout=5m
+      - name: Committed ownership, readable recovery and moderation race regressions
+        working-directory: backend
+        run: >-
+          go test -p 2 -race -tags unit ./internal/handler ./internal/service ./internal/repository
+          -run '^Test(Issue805|OpenAI409|ModerationUpstream|TempUnsched|OpenAIWSReadable)'
+          -count=1 -timeout=10m
       - name: Embedded payment engine tests
         working-directory: backend
         run: go test github.com/v03413/bepusdt/app/conf github.com/v03413/bepusdt/app/task github.com/v03413/bepusdt/app/task/notify -count=1 -timeout=5m
@@ -108,6 +114,25 @@ jobs:
         run: >-
           go test -p 2 -race -tags integration ./internal/repository
           -run '^(TestUsagePlatform|TestUsageReasoningEffort|TestSUB6V016Upgrade|TestHTTP2|TestOAuth429|TestUsageBillingRepositoryApply_SettlesSoftDeletedAPIKey)'
+          -count=1 -v -timeout=10m
+      - name: Manual worker fencing, selected moderation and real Redis reset
+        working-directory: backend
+        run: >-
+          go test -p 2 -race -tags integration ./internal/repository
+          -run '^Test(Issue817Manual(Worker|Update|Generation)|ModerationUpstream|TempUnschedRealRedis)'
+          -count=1 -v -timeout=10m
+      - name: Create disposable prompt audit database
+        env:
+          PGPASSWORD: sub6-test-only
+        run: psql -h 127.0.0.1 -U sub6_test -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE sub6_audit;'
+      - name: Recovered context privacy and asynchronous penalty transaction
+        working-directory: backend
+        env:
+          PROMPT_AUDIT_TEST_POSTGRES_DSN: 'host=127.0.0.1 port=5432 dbname=sub6_audit user=sub6_test password=sub6-test-only sslmode=disable'
+          PROMPT_AUDIT_TEST_REDIS_ADDR: '127.0.0.1:6379'
+        run: >-
+          go test -p 2 -race -tags integration ./internal/securityaudit
+          -run '^Test(RecoveredContext|SecurityPenaltyAsyncFinding|SecurityPenaltyConcurrent)'
           -count=1 -v -timeout=10m
       - name: Migration-only CLI and repeat against disposable database
         working-directory: backend

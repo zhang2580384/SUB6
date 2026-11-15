@@ -1,6 +1,6 @@
 # SUB6
 
-SUB6 は [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) を基に独立して保守するオープンソース配布版です。**0.1.6** は正式 0.1.5 の WS 分離修正、推論強度フィルターとグループの色付き完全表示を含みます。Ranxi v2.21.2 (`dbed7697aa56e76c6eb48c4914fa441496b67bdd`) を基に、production `7827a2f5f900ce50aafa37ab71ca1918dfe7cf8a` まで同期しています。正式 0.1.5 からは SQL 移行が 2 件あります。既存の管理コントローラーは直接のローリング更新を拒否するため、[0.1.6 移行・復旧手順](maintenance/UPGRADE-v0.1.6.md) に従って運用者が実行してください。[Releases](https://github.com/zhang2580384/SUB6/releases) と [機能検証記録](maintenance/2026-11-14-v0.1.6-usage.md) を参照してください。
+SUB6 は [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) を基に独立して保守する配布版です。現在のソース候補は **0.1.7**、上流の正式版は **v2.21.3** (`aa8e596e6d6f3e4648d6beba73b39b240dd5357a`) です。最新のインストール可能な正式版は [v0.1.6](https://github.com/zhang2580384/SUB6/releases/tag/v0.1.6) のままです。安定 0.1.5 の WS 分離と 0.1.6 のフィルター、グループ配色、接続プール終了修正を保持します。0.1.6 以降の追加 SQL 移行はありません。0.1.5 からの 2 件の移行には [保守手順](maintenance/UPGRADE-v0.1.6.md) が必要です。[今回の審査](maintenance/2026-11-15-upstream-review.md) を参照してください。本番環境には配備していません。
 
 [ビルド手順・中文](README.md) · [移行と互換性](maintenance/2026-11-14-upstream-review.md) · [配備](deploy/README.md)
 
