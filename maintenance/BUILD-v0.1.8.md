@@ -27,16 +27,21 @@ Six assets are required:
   runtime instructions and operator-verified-runtime Dockerfile.
 - `sub6_0.1.8_source.tar.gz`: complete corresponding source from the exact commit,
   including local BEpusdt/SQLite modules and legal notices.
-- `sub6_0.1.8_docker_linux_amd64.tar.gz`: clean `docker save` image archive.
+- `sub6_0.1.8_docker_linux-amd64.tar.gz`: clean `docker save` image archive.
 - `build-info.json`: version, provenance, hashes and managed-upgrade contract.
 - `checksums.txt`: SHA256 of the other five assets.
 
-After checksum verification, `docker load -i sub6_0.1.8_docker_linux_amd64.tar.gz`
+After checksum verification, `docker load -i sub6_0.1.8_docker_linux-amd64.tar.gz`
 loads `sub6:0.1.8`. This is a downloadable container archive, not a GHCR/Docker Hub
 registry publication. It requires independently configured PostgreSQL/Redis,
 persistent storage and secrets; see [deployment](../deploy/README.md). The
 existing updater consumes the matching runtime/binary assets and does not need
 to load the optional image archive.
+
+The image archive deliberately uses `linux-amd64`; only the installable runtime
+archive contains `linux_amd64`. This preserves legacy updater asset selection
+without requiring a change to an already-deployed client. Packaging rejects a
+second asset with the legacy substring.
 
 Build gates run the image without network/config/database, check the full
 version/commit banner, pg_dump and psql 18, UID 1000 and writable runtime resource

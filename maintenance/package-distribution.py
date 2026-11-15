@@ -121,7 +121,9 @@ def main():
             run('docker', 'rm', container)
         raw_image = work / 'image.tar'
         run('docker', 'save', '--output', str(raw_image), image)
-        image_name = 'sub6_' + version + '_docker_linux_amd64.tar.gz'
+        # Existing unmanaged updaters select the substring "linux_amd64".
+        # Keep it exclusive to the installable runtime archive.
+        image_name = 'sub6_' + version + '_docker_linux-amd64.tar.gz'
         with raw_image.open('rb') as source, (out / image_name).open('wb') as dest:
             with gzip.GzipFile(fileobj=dest, mode='wb', filename='', mtime=timestamp) as gz:
                 shutil.copyfileobj(source, gz)
@@ -166,6 +168,7 @@ def main():
         pack_runtime(staging, out / ('sub6_' + version + '_linux_amd64.tar.gz'), timestamp)
     assets = sorted(path for path in out.iterdir() if path.is_file())
     assert len(assets) == 5
+    assert [path.name for path in assets if 'linux_amd64' in path.name] == ['sub6_' + version + '_linux_amd64.tar.gz']
     (out / 'checksums.txt').write_text(''.join(digest(path) + '  ' + path.name + '\n' for path in assets))
     print(json.dumps(metadata, indent=2))
 
