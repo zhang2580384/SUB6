@@ -65,3 +65,32 @@ func TestManagedUpdaterConfiguredInvalidlyDoesNotBecomeStandalone(t *testing.T) 
 	t.Setenv("SUB6_UPDATE_CONTROLLER_SOCKET", "")
 	require.Nil(t, NewManagedUpdateClientFromEnvironment())
 }
+
+func TestManagedUpdaterPreflightIsAuthenticatedReadOnlyAndPreservesRejection(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("production controller uses Linux Unix sockets")
+	}
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "ctl.sock")
+	tokenFile := filepath.Join(dir, "token")
+	token := strings.Repeat("p", 64)
+	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0600))
+	listener, err := net.Listen("unix", sock)
+	require.NoError(t, err)
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v1/preflight", r.URL.Path)
+		require.Equal(t, "0.1.7", r.URL.Query().Get("version"))
+		require.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
+		_ = json.NewEncoder(w).Encode(ManagedUpdateStatus{Allowed: false, ReasonCode: "migration_review_required"})
+	})}
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() { _ = server.Close() })
+	t.Setenv("SUB6_UPDATE_CONTROLLER_SOCKET", sock)
+	t.Setenv("SUB6_UPDATE_CONTROLLER_TOKEN_FILE", tokenFile)
+	result, err := NewManagedUpdateClientFromEnvironment().Preflight(context.Background(), "0.1.7")
+	require.NoError(t, err)
+	require.True(t, result.Managed)
+	require.False(t, result.Allowed)
+	require.Equal(t, "migration_review_required", result.ReasonCode)
+}

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
@@ -27,10 +27,10 @@
     "history": "sanitized root; inherited integration history remains private",
     "binary_assets": false,
     "container_images": false,
-    "stable_binary_version": "0.1.6",
+    "stable_binary_version": "0.1.7",
     "source_candidate": true,
     "release_tag": null,
-    "managed_upgrade_mode": "operator-maintenance; existing rolling controller rejects changed migrations",
+    "managed_upgrade_mode": "protocol-2 reviewed plan; source candidate has no installable assets",
     "production_deployed": false
   },
   "feature_update": {
@@ -46,6 +46,8 @@
   "maintenance": {
     "date": "2026-11-15",
     "upstream_delta_commits": 118,
-    "report": "2026-11-15-upstream-review.md"
+    "report": "2026-11-15-v0.1.8-stable-sync.md",
+    "upstream_review": "2026-11-15-upstream-review.md",
+    "stable_fix_source": "d93b4f48e7bbb35a85894df774926548444f60d0"
   }
 }

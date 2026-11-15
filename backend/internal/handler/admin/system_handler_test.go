@@ -167,6 +167,28 @@ func TestSystemHandlerManagedControllerFailureNeverMutatesStandaloneBinary(t *te
 	require.Zero(t, stub.rollbackToCall)
 }
 
+func TestSystemHandlerUpdateDiscoveryDoesNotGrantInstallationWhenControllerUnavailable(t *testing.T) {
+	t.Setenv("SUB6_UPDATE_CONTROLLER_SOCKET", "invalid-relative-path")
+	t.Setenv("SUB6_UPDATE_CONTROLLER_TOKEN_FILE", "missing-token")
+	stub := &systemHandlerUpdateServiceStub{updateInfo: &service.UpdateInfo{HasUpdate: true, LatestVersion: "0.1.7"}}
+	h := NewSystemHandler(stub, nil)
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/?force=true", nil)
+	h.CheckUpdates(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data service.UpdateInfo `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.True(t, body.Data.HasUpdate)
+	require.NotNil(t, body.Data.Installation)
+	require.True(t, body.Data.Installation.Managed)
+	require.False(t, body.Data.Installation.Allowed)
+	require.Equal(t, "controller_preflight_unavailable", body.Data.Installation.ReasonCode)
+	require.Zero(t, stub.performCall)
+}
+
 func TestSystemHandlerPerformUpdateFailureStillReturnsInternalError(t *testing.T) {
 	updateSvc := &systemHandlerUpdateServiceStub{
 		performErr: errors.New("download failed"),

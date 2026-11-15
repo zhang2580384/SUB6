@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,9 @@ type ManagedUpdateStatus struct {
 	CurrentVersion string            `json:"current_version,omitempty"`
 	Error          string            `json:"error,omitempty"`
 	Versions       []RollbackVersion `json:"versions,omitempty"`
+	Allowed        bool              `json:"allowed"`
+	ReasonCode     string            `json:"reason_code,omitempty"`
+	SchemaMode     string            `json:"schema_mode,omitempty"`
 }
 
 // A configured but broken controller fails closed; it never falls back to
@@ -66,6 +70,11 @@ func NewManagedUpdateClientFromEnvironment() *ManagedUpdateClient {
 
 func (c *ManagedUpdateClient) Status(ctx context.Context) (*ManagedUpdateStatus, error) {
 	return c.call(ctx, http.MethodGet, "/v1/status", nil)
+}
+
+// Preflight is read-only. A missing or unreachable controller never grants installation.
+func (c *ManagedUpdateClient) Preflight(ctx context.Context, version string) (*ManagedUpdateStatus, error) {
+	return c.call(ctx, http.MethodGet, "/v1/preflight?version="+url.QueryEscape(version), nil)
 }
 
 func (c *ManagedUpdateClient) Start(ctx context.Context, action, version string) (*ManagedUpdateStatus, error) {
