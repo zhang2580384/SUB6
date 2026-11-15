@@ -758,6 +758,11 @@ func (s *BillingService) initFallbackPricing() {
 	// GLM-4.6 与 GLM-4.5 在 z.ai 国际版上定价一致；GLM-4.5 国内按 ¥0.8/¥2，汇率换算后约 $0.112/$0.28，与国际版 $0.6/$2.2 不同，本分支采用国际版 USD 口径与现有 Claude/GPT 一致。
 	// GLM-5.3 / GLM-5.2 与 GLM-5.1 在 z.ai 上同价。
 	// GLM-5.3-Flash 列表价 $0.15/$0.50（2026-09-09 前五折促销，此处按列表价，与其它模型口径一致）。
+	s.fallbackPrices["glm-5.3-flashx"] = &ModelPricing{
+		InputPricePerToken:     0.37e-6,
+		OutputPricePerToken:    1.25e-6,
+		CacheReadPricePerToken: 0.075e-6,
+	}
 	s.fallbackPrices["glm-5.3-flash"] = &ModelPricing{
 		InputPricePerToken:     0.15e-6, // $0.15 per MTok
 		OutputPricePerToken:    0.5e-6,  // $0.50 per MTok
@@ -858,20 +863,55 @@ func (s *BillingService) initFallbackPricing() {
 	//       交叉验证：https://www.tmtpost.com/7961404.html (USD 口径)
 	// Moonshot V1 (¥2/¥5/¥10 多 tier) 公开页未直接标注 USD 价，本分支不覆盖，避免误计价。
 	// K2-0905 / K2-0711 官方页面未保留定价，不覆盖。
-	// Kimi K3 国际站 USD 价目：https://platform.kimi.ai/docs/pricing/chat-k3.md
+	// Kimi 国际站 USD 价目：https://platform.kimi.ai/docs/pricing/chat
+	// 核对日期：2026-11-15。K3 高速版的缓存读取不随输入/输出价格翻倍。
+	s.fallbackPrices["kimi-k3.1-pro"] = &ModelPricing{
+		InputPricePerToken:         2e-6,
+		OutputPricePerToken:        10e-6,
+		CacheReadPricePerToken:     0.2e-6,
+		CacheCreationPricePerToken: 2e-6,
+		CacheCreation5mPrice:       2e-6,
+		CacheCreation1hPrice:       4e-6,
+		SupportsCacheBreakdown:     true,
+	}
+	s.fallbackPrices["kimi-k3.1-pro-highspeed"] = &ModelPricing{
+		InputPricePerToken:         4e-6,
+		OutputPricePerToken:        20e-6,
+		CacheReadPricePerToken:     0.2e-6,
+		CacheCreationPricePerToken: 4e-6,
+		CacheCreation5mPrice:       4e-6,
+		CacheCreation1hPrice:       8e-6,
+		SupportsCacheBreakdown:     true,
+	}
 	// Kimi Code bare aliases（k3 / k3-256k）官方无按 token 价目；复用 API Platform
 	// kimi-k3 档位作代理计费 fallback（同 kimi-for-coding 对 K2.6 的处理口径）。
 	s.fallbackPrices["kimi-k3"] = &ModelPricing{
-		InputPricePerToken:     3e-6,    // $3.00 per MTok (cache miss)
-		OutputPricePerToken:    15e-6,   // $15.00 per MTok
-		CacheReadPricePerToken: 0.30e-6, // $0.30 per MTok (cache hit)
-		SupportsCacheBreakdown: false,
+		InputPricePerToken:         3e-6,    // $3.00 per MTok (cache miss)
+		OutputPricePerToken:        15e-6,   // $15.00 per MTok
+		CacheReadPricePerToken:     0.30e-6, // $0.30 per MTok (cache hit)
+		CacheCreationPricePerToken: 3e-6,
+		CacheCreation5mPrice:       3e-6,
+		CacheCreation1hPrice:       6e-6,
+		SupportsCacheBreakdown:     true,
+	}
+	s.fallbackPrices["kimi-k2.7-code"] = &ModelPricing{
+		InputPricePerToken:         0.95e-6,
+		OutputPricePerToken:        4e-6,
+		CacheReadPricePerToken:     0.19e-6,
+		CacheCreationPricePerToken: 0.95e-6,
+	}
+	s.fallbackPrices["kimi-k2.7-code-highspeed"] = &ModelPricing{
+		InputPricePerToken:         1.9e-6,
+		OutputPricePerToken:        8e-6,
+		CacheReadPricePerToken:     0.38e-6,
+		CacheCreationPricePerToken: 1.9e-6,
 	}
 	s.fallbackPrices["kimi-k2.6"] = &ModelPricing{
-		InputPricePerToken:     0.95e-6, // $0.95 per MTok (cache miss)
-		OutputPricePerToken:    4e-6,    // $4.00 per MTok
-		CacheReadPricePerToken: 0.15e-6, // $0.15 per MTok (cache hit, ¥1.10)
-		SupportsCacheBreakdown: false,
+		InputPricePerToken:         0.95e-6, // $0.95 per MTok (cache miss)
+		OutputPricePerToken:        4e-6,    // $4.00 per MTok
+		CacheReadPricePerToken:     0.16e-6, // $0.16 per MTok (cache hit)
+		CacheCreationPricePerToken: 0.95e-6,
+		SupportsCacheBreakdown:     false,
 	}
 	// kimi-for-coding 走 Kimi Coding endpoint，按当前 K2.6 coding 档位兜底计费。
 	s.fallbackPrices["kimi-for-coding"] = &ModelPricing{
@@ -1164,6 +1204,16 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	// ---- 国产 LLM 兜底匹配 ----
 	// 匹配策略：长 key 优先（具体模型 → 系列 / 厂商），未知型号不回退以避免误计价。
 	// 与 DeepSeek 一样采用"白名单"语义：未在本表命中的国产模型 alias 一律不返回兜底价。
+	// 新 SKU 先按完整模型名匹配，防止 FlashX 被 Flash 的子串规则吞掉，
+	// 或 K2.7 高速版退到旧 K2 价。仅忽略提供商路径前缀，不猜测未知后缀。
+	cnModel := modelLower[strings.LastIndex(modelLower, "/")+1:]
+	switch cnModel {
+	case "kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "kimi-k2.7-code", "kimi-k2.7-code-highspeed", "glm-5.3-flashx":
+		return s.fallbackPrices[cnModel]
+	}
+	if strings.HasPrefix(cnModel, "kimi-k2.7-code") || strings.HasPrefix(cnModel, "glm-5.3-flashx") {
+		return nil
+	}
 
 	// 智谱 GLM（z.ai 公开 SKU：glm-5.3 / glm-5.3-flash / glm-5.2 / glm-5.1 / glm-5 / glm-5-turbo / glm-4.7 / glm-4.6 / glm-4.5 等）
 	// 匹配顺序：先判别最高 tier，再依次降级。
