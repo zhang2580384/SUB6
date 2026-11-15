@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
@@ -24,10 +24,10 @@
     "history": "sanitized root; inherited integration history remains private",
     "binary_assets": true,
     "container_images": false,
-    "stable_binary_version": "0.1.6",
+    "stable_binary_version": "0.1.7",
     "source_candidate": false,
-    "release_tag": "v0.1.6",
-    "managed_upgrade_mode": "operator-maintenance; existing rolling controller rejects changed migrations"
+    "release_tag": "v0.1.7",
+    "managed_upgrade_mode": "protocol-2; reviewed usage-platform-v1 online migration only"
   },
   "feature_update": {
     "version": "0.1.6",
@@ -40,8 +40,9 @@
     "new_migrations_for_feature": 0
   },
   "maintenance": {
-    "date": "2026-11-14",
-    "upstream_delta_commits": 79,
-    "report": "2026-11-14-v0.1.6-release.md"
+    "date": "2026-11-15",
+    "upstream_delta_commits": 0,
+    "report": "2026-11-15-v0.1.7-online-upgrade.md",
+    "stable_base": "a8483cb4aabc8972793171ebc761dd283cec3a0a"
   }
 }

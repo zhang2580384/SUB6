@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   performUpdate: vi.fn(),
   restartService: vi.fn(),
   getUpdateStatus: vi.fn(),
+  installation: undefined as { managed: boolean; allowed: boolean; reason_code: string } | undefined,
 }))
 
 vi.mock('@/stores', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/stores', () => ({
   useAppStore: () => ({
     currentVersion: '0.1.2', latestVersion: '0.1.3', hasUpdate: true,
     versionLoading: false, buildType: mocks.buildType,
+    installation: mocks.installation,
     releaseInfo: { html_url: 'https://github.com/zhang2580384/SUB6/releases/tag/v0.1.3' },
     fetchVersion: mocks.fetchVersion, clearVersionCache: mocks.clearVersionCache,
   }),
@@ -39,6 +41,7 @@ describe('VersionBadge update flow', () => {
     vi.clearAllMocks()
     mocks.admin = true
     mocks.buildType = 'release'
+    mocks.installation = undefined
     mocks.fetchVersion.mockResolvedValue(undefined)
     mocks.performUpdate.mockResolvedValue({ need_restart: true })
     mocks.getUpdateStatus.mockResolvedValue({ managed: false, phase: 'idle' })
@@ -54,6 +57,23 @@ describe('VersionBadge update flow', () => {
     await wrapper.get('button').trigger('click')
     return wrapper
   }
+
+  it('shows the migration reason and never starts an update rejected by preflight', async () => {
+    mocks.installation = { managed: true, allowed: false, reason_code: 'migration_review_required' }
+    const badge = await openBadge()
+    expect(badge.text()).toContain('尚未获准在线迁移')
+    const blocked = badge.findAll('button').find(button => button.text() === '暂不能自动更新')!
+    expect(blocked.attributes('disabled')).toBeDefined()
+    await blocked.trigger('click')
+    expect(mocks.performUpdate).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the controller cannot check compatibility', async () => {
+    mocks.installation = { managed: true, allowed: false, reason_code: 'controller_preflight_unavailable' }
+    const badge = await openBadge()
+    expect(badge.text()).toContain('暂时无法确认升级兼容性')
+    expect(badge.findAll('button').some(button => button.text() === '立即更新')).toBe(false)
+  })
 
   it('waits for all managed services and never offers an in-place restart', async () => {
     vi.useFakeTimers()

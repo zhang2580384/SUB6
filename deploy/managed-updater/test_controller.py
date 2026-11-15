@@ -120,10 +120,13 @@ class MigrationReleaseBoundaryTests(unittest.TestCase):
                 download = 'https://github.com/zhang2580384/SUB6/releases/download/v0.1.6/'
                 release = {'tag_name': 'v0.1.6', 'assets': [
                     {'name': name, 'browser_download_url': download + name}
-                    for name in [archive_name, 'checksums.txt']]}
+                    for name in [archive_name, 'checksums.txt', 'build-info.json']]}
+                metadata_bytes = json.dumps(metadata).encode()
                 values = {'/releases/latest': json.dumps(release).encode(),
                           '/git/ref/tags/v0.1.6': json.dumps({'object': {'type': 'commit', 'sha': commit}}).encode(),
-                          '/checksums.txt': (hashlib.sha256(archive).hexdigest() + '  ' + archive_name + '\n').encode(),
+                          '/checksums.txt': (hashlib.sha256(archive).hexdigest() + '  ' + archive_name + '\n'
+                                             + hashlib.sha256(metadata_bytes).hexdigest() + '  build-info.json\n').encode(),
+                          '/build-info.json': metadata_bytes,
                           '/' + archive_name: archive}
                 c = object.__new__(controller.Controller)
                 c.config = {'current': {'version': '0.1.5', 'migrations_fingerprint': old_fingerprint},
@@ -230,6 +233,57 @@ class FakeController(controller.Controller):
 
 
 class RolloutTests(unittest.TestCase):
+    def test_online_migration_finishes_before_routes_or_new_servers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['current']['migrations_fingerprint'] = controller.PLATFORM_BASE
+            c.release_image = lambda *args: {'version': '0.1.7', 'image': 'new-image',
+                'migrations_fingerprint': controller.PLATFORM_SCHEMA, 'schema_mode': controller.PLATFORM_PLAN}
+            def migrate(*args):
+                c.events.append(('migrated',))
+                c.config['database_migrations_fingerprint'] = controller.PLATFORM_SCHEMA
+            c.migrate_online = migrate
+            c.work()
+            self.assertEqual('completed', c.state['phase'])
+            self.assertLess(c.events.index(('migrated',)), c.events.index(('create', 'gateway')))
+            self.assertTrue(c.running['old-gateway'])
+            self.assertEqual(controller.PLATFORM_SCHEMA,
+                             json.loads((Path(tmp) / 'config.json').read_text())['database_migrations_fingerprint'])
+
+    def test_failed_online_migration_keeps_old_nodes_and_partial_transition_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['current']['migrations_fingerprint'] = controller.PLATFORM_BASE
+            c.release_image = lambda *args: {'migrations_fingerprint': controller.PLATFORM_SCHEMA,
+                                            'schema_mode': controller.PLATFORM_PLAN}
+            def migrate(*args):
+                c.config['schema_transition'] = {'phase': 'incomplete'}
+                raise ValueError('lock timeout')
+            c.migrate_online = migrate
+            original = (Path(tmp) / 'Caddyfile').read_text()
+            c.work()
+            self.assertEqual('failed', c.state['phase'])
+            self.assertTrue(c.running['old-main'])
+            self.assertTrue(c.running['old-gateway'])
+            self.assertNotIn(('create', 'gateway'), c.events)
+            self.assertEqual(original, (Path(tmp) / 'Caddyfile').read_text())
+            self.assertEqual('incomplete', json.loads((Path(tmp) / 'config.json').read_text())['schema_transition']['phase'])
+
+    def test_cutover_failure_does_not_undo_the_real_database_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp), fail_main=True)
+            c.config['current']['migrations_fingerprint'] = controller.PLATFORM_BASE
+            c.release_image = lambda *args: {'migrations_fingerprint': controller.PLATFORM_SCHEMA,
+                                            'schema_mode': controller.PLATFORM_PLAN, 'image': 'new-image'}
+            def migrate(*args):
+                c.config['database_migrations_fingerprint'] = controller.PLATFORM_SCHEMA
+            c.migrate_online = migrate
+            c.work()
+            self.assertEqual('failed', c.state['phase'])
+            self.assertTrue(c.running['old-main'])
+            self.assertEqual(controller.PLATFORM_BASE, c.config['current']['migrations_fingerprint'])
+            self.assertEqual(controller.PLATFORM_SCHEMA, c.config['database_migrations_fingerprint'])
+
     def test_stop_timeout_after_actual_stop_still_recovers_old_main(self):
         with tempfile.TemporaryDirectory() as tmp:
             c = FakeController(Path(tmp))
@@ -298,6 +352,106 @@ class RolloutTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 c.start('update', '0.1.4')
             self.assertEqual('test', c.start('update', '0.1.3')['operation_id'])
+
+
+class MigrationDecisionTests(unittest.TestCase):
+    def test_preflight_only_reads_metadata_and_never_downloads_binary_or_changes_current(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['current']['migrations_fingerprint'] = controller.PLATFORM_BASE
+            c.config['migration_database'] = {'container': 'fixture'}
+            before = copy.deepcopy(c.config)
+            c.release_metadata = lambda version: ({}, {}, '', self.info())
+            c.migration_preflight = lambda: {}
+            self.assertTrue(c.preflight('0.1.7')['allowed'])
+            self.assertEqual([], c.events)
+            self.assertEqual(before, c.config)
+            def blocked():
+                raise ValueError('fixture database busy')
+            c.migration_preflight = blocked
+            self.assertEqual('database_preflight_failed', c.preflight('0.1.7')['reason_code'])
+            self.assertEqual(before, c.config)
+
+    def info(self, **values):
+        contract = dict(rolling_compatible=True, controller_protocol=2, deployment_probe_protocol=1,
+                        migrations_fingerprint=controller.PLATFORM_SCHEMA,
+                        online_migration_plan=controller.PLATFORM_PLAN)
+        contract.update(values)
+        return {'version': '0.1.7', 'managed_upgrade': contract}
+
+    def test_only_explicitly_reviewed_transition_and_protocol_are_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['current']['migrations_fingerprint'] = controller.PLATFORM_BASE
+            c.config['migration_database'] = {'container': 'fixture'}
+            self.assertTrue(c.installation(self.info())['allowed'])
+            for values in ({'rolling_compatible': False}, {'migrations_fingerprint': 'f' * 64},
+                           {'online_migration_plan': 'unreviewed'}, {'controller_protocol': 1},
+                           {'controller_protocol': 3}, {'controller_protocol': True},
+                           {'deployment_probe_protocol': True}, {'deployment_probe_protocol': 0}):
+                with self.subTest(values=values):
+                    self.assertFalse(c.installation(self.info(**values))['allowed'])
+            del c.config['migration_database']
+            self.assertEqual('migration_database_unconfigured', c.installation(self.info())['reason_code'])
+
+    def test_actual_expanded_schema_supports_retry_without_reapplying_or_forging_old_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['current']['migrations_fingerprint'] = controller.PLATFORM_BASE
+            c.config['database_migrations_fingerprint'] = controller.PLATFORM_SCHEMA
+            self.assertEqual('unchanged', c.installation(self.info())['schema_mode'])
+            self.assertFalse(c.installation(self.info(rolling_compatible=False))['allowed'])
+            self.assertEqual(controller.PLATFORM_BASE, c.config['current']['migrations_fingerprint'])
+
+    def test_rollback_across_schema_requires_the_exact_verified_stable_binary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['database_migrations_fingerprint'] = controller.PLATFORM_SCHEMA
+            c.verify_platform_schema = lambda: c.events.append(('verified-schema',))
+            target = {'migrations_fingerprint': controller.PLATFORM_BASE,
+                      'source_commit': 'b3f8199dc3cc1e1520214fdd77832fc01b36578e'}
+            c.prepare_schema(target, 'rollback', Path(tmp))
+            self.assertEqual([('verified-schema',)], c.events)
+            target['source_commit'] = 'a' * 40
+            with self.assertRaises(ValueError):
+                c.prepare_schema(target, 'rollback', Path(tmp))
+
+    def test_database_preflight_blocks_long_transactions_and_low_capacity_without_migration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            c.config['migration_database'] = {'data_directory': tmp}
+            c.schema_snapshot = lambda: {'table_bytes': 1, 'long_transactions': 1}
+            with self.assertRaisesRegex(ValueError, 'Long database'):
+                c.migration_preflight()
+            c.schema_snapshot = lambda: {'table_bytes': 1, 'long_transactions': 0}
+            with patch.object(controller.shutil, 'disk_usage') as disk:
+                disk.return_value.free = 4 * 1024 ** 3
+                with self.assertRaisesRegex(ValueError, 'headroom'):
+                    c.migration_preflight()
+            self.assertFalse(any(e[:1] == ('create',) for e in c.events))
+
+    def test_post_migration_requires_real_ledger_and_valid_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = FakeController(Path(tmp))
+            value = {'column': {'nullable': 'YES'}, 'ledger': controller.PLATFORM_MIGRATIONS,
+                     'index': {'valid': True, 'definition': 'CREATE INDEX idx_usage_logs_platform_created ON public.usage_logs USING btree (platform, created_at DESC, id DESC)'}}
+            c.schema_snapshot = lambda: value
+            c.verify_platform_schema()
+            for changed in ({'ledger': {}}, {'index': {'valid': False}}, {'column': None},
+                            {'index': {'valid': True, 'definition': 'CREATE INDEX idx_usage_logs_platform_created ON public.other_table USING btree (platform, created_at DESC, id DESC)'}}):
+                previous = value.copy()
+                value.update(changed)
+                with self.assertRaises(ValueError):
+                    c.verify_platform_schema()
+                value.clear()
+                value.update(previous)
+
+    def test_checksum_parser_never_accepts_missing_or_duplicate_manifest_hash(self):
+        valid = 'a' * 64 + '  build-info.json\n'
+        self.assertEqual('a' * 64, controller.release_checksum(valid, 'build-info.json'))
+        for value in ('', valid + valid, 'invalid  build-info.json\n'):
+            with self.assertRaises(ValueError):
+                controller.release_checksum(value, 'build-info.json')
 
 
 if __name__ == '__main__':

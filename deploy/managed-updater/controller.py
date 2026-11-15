@@ -31,6 +31,21 @@ VERSION = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+$')
 SHA256 = re.compile(r'^[0-9a-f]{64}$')
 TERMINAL = {'idle', 'completed', 'failed'}
 MODEL_PATHS = '/v1/* /v1beta/* /openai/* /anthropic/* /responses /responses/* /messages /messages/* /chat/* /backend-api/codex/* /api/v3/contents/* /v3/contents/* /contents/* /models /usage'
+PLATFORM_BASE = 'a6990935dd92d8132f2d487ba2b3320ac10d8819e72363db2d240bca23e4063f'
+PLATFORM_SCHEMA = '63ce16fa855d9f331372aada34df859275777becb181535372c8abec25cf481b'
+PLATFORM_PLAN = 'usage-platform-v1'
+PLATFORM_MIGRATIONS = {
+    '343_usage_log_platform_snapshot.sql': 'c2746f945d71ad861140220a05df2a68a5a014a8217cb3cb8e8975a05876fbc2',
+    '344_usage_log_platform_index_notx.sql': '2b6aab65b6030af5de39c2ccce0c833cc16c0e9500b41a2bc79d8893814f5711',
+}
+
+
+def release_checksum(text, name):
+    found = [parts[0] for line in text.splitlines()
+             if len(parts := line.split()) == 2 and parts[1].lstrip('*') == name]
+    if len(found) != 1 or not SHA256.fullmatch(found[0]):
+        raise ValueError('Missing, invalid or duplicate mandatory release checksum')
+    return found[0]
 
 
 def atomic_json(path, value):
@@ -201,6 +216,85 @@ class Controller:
                                    if v['version'] != self.config['current']['version']])
             return value
 
+    def installation(self, info):
+        """A release may request only a transition already reviewed in this controller."""
+        contract = info.get('managed_upgrade', {})
+        actual = self.config.get('database_migrations_fingerprint',
+                                 self.config['current']['migrations_fingerprint'])
+        target = contract.get('migrations_fingerprint')
+        result = {'managed': True, 'allowed': False, 'reason_code': 'migration_review_required',
+                  'current_version': self.config['current']['version'], 'target_version': info['version']}
+        if (contract.get('rolling_compatible') is not True
+                or type(contract.get('controller_protocol')) is not int
+                or contract.get('controller_protocol') not in (1, 2)
+                or type(contract.get('deployment_probe_protocol')) is not int
+                or contract.get('deployment_probe_protocol') != 1):
+            return result
+        if target == actual:
+            return dict(result, allowed=True, reason_code='', schema_mode='unchanged')
+        if (actual == PLATFORM_BASE and target == PLATFORM_SCHEMA
+                and contract.get('controller_protocol') == 2
+                and contract.get('online_migration_plan') == PLATFORM_PLAN):
+            if not self.config.get('migration_database'):
+                return dict(result, reason_code='migration_database_unconfigured')
+            return dict(result, allowed=True, reason_code='', schema_mode=PLATFORM_PLAN)
+        return result
+
+    def schema_snapshot(self):
+        database = self.config['migration_database']
+        keys = ('container', 'user', 'database', 'data_directory')
+        if any(not isinstance(database.get(k), str) or not database[k] for k in keys):
+            raise ValueError('Migration database configuration is incomplete')
+        # Only operator-owned configuration supplies a container or database name.
+        query = """SET statement_timeout='5s'; SET lock_timeout='1s';
+SELECT json_build_object(
+ 'read_only',current_setting('transaction_read_only'),
+ 'long_transactions',(SELECT count(*) FROM pg_stat_activity WHERE datname=current_database()
+    AND pid<>pg_backend_pid() AND xact_start<now()-interval '60 seconds'),
+ 'table_bytes',pg_relation_size('public.usage_logs'),
+ 'column',(SELECT json_build_object('type',data_type,'length',character_maximum_length,
+    'nullable',is_nullable,'default',column_default) FROM information_schema.columns WHERE table_schema='public'
+    AND table_name='usage_logs' AND column_name='platform'),
+ 'index',(SELECT json_build_object('valid',i.indisvalid,'definition',pg_get_indexdef(i.indexrelid))
+    FROM pg_index i WHERE i.indexrelid=to_regclass('public.idx_usage_logs_platform_created')),
+ 'ledger',(SELECT coalesce(json_object_agg(filename,checksum),'{}'::json) FROM schema_migrations
+    WHERE filename IN ('343_usage_log_platform_snapshot.sql','344_usage_log_platform_index_notx.sql')));"""
+        args = ['docker', 'exec', '-i', database['container'], 'psql', '-X', '-qAt',
+                '-v', 'ON_ERROR_STOP=1', '--username=' + database['user'], '--dbname=' + database['database']]
+        process = subprocess.run(args, input=query, text=True, capture_output=True, timeout=15)
+        if process.returncode:
+            raise ValueError('Migration database preflight is unavailable; serving nodes were retained')
+        value = json.loads(process.stdout.strip())
+        if value['read_only'] != 'off':
+            raise ValueError('Migration target must be the writable primary database')
+        column = value.get('column')
+        if column and column != {'type': 'character varying', 'length': 50, 'nullable': 'YES', 'default': None}:
+            raise ValueError('The platform column does not match the reviewed nullable schema')
+        if any(PLATFORM_MIGRATIONS.get(k) != v for k, v in value['ledger'].items()):
+            raise ValueError('Reviewed migration checksums differ from the database ledger')
+        return value
+
+    def migration_preflight(self):
+        value = self.schema_snapshot()
+        database = self.config['migration_database']
+        minimum = max(5 * 1024 ** 3, 2 * value['table_bytes'])
+        if shutil.disk_usage(database['data_directory']).free < minimum:
+            raise ValueError('The database disk needs more headroom for the concurrent index')
+        if value['long_transactions']:
+            raise ValueError('Long database transactions must finish before this online migration')
+        return value
+
+    def preflight(self, version):
+        checked_version(version)
+        _, _, _, info = self.release_metadata(version)
+        result = self.installation(info)
+        if result['allowed'] and result.get('schema_mode') == PLATFORM_PLAN:
+            try:
+                self.migration_preflight()
+            except (ValueError, OSError, subprocess.SubprocessError):
+                result.update(allowed=False, reason_code='database_preflight_failed')
+        return result
+
     def phase(self, name, **fields):
         with self.mutex:
             self.state.update(phase=name, **fields)
@@ -265,43 +359,27 @@ class Controller:
         except (urllib.error.URLError, TimeoutError) as exc:
             raise RuntimeError('Release download is temporarily unavailable') from exc
 
-    def release_image(self, version, directory):
-        self.phase('downloading')
+    def release_metadata(self, version):
         base = 'https://api.github.com/repos/' + REPOSITORY
         release = json.loads(self.fetch(base + '/releases/latest', 2 * 1024 ** 2, api=True))
         if release.get('tag_name') != 'v' + version or release.get('draft') or release.get('prerelease'):
             raise ValueError('Only the current stable SUB6 release can be installed')
-        names = {'archive': 'sub6_' + version + '_linux_amd64.tar.gz', 'checksums': 'checksums.txt'}
+        names = {'archive': 'sub6_' + version + '_linux_amd64.tar.gz',
+                 'checksums': 'checksums.txt', 'metadata': 'build-info.json'}
         assets = {a['name']: a for a in release.get('assets', [])}
         for name in names.values():
             expected = 'https://github.com/' + REPOSITORY + '/releases/download/v' + version + '/' + name
             if name not in assets or assets[name]['browser_download_url'] != expected:
                 raise ValueError('A trusted SUB6 release asset is missing')
         sums = self.fetch(assets[names['checksums']]['browser_download_url'], 64 * 1024).decode('utf-8')
-        checksum = None
-        for line in sums.splitlines():
-            parts = line.split()
-            if len(parts) == 2 and parts[1].lstrip('*') == names['archive']:
-                if checksum is not None or not SHA256.fullmatch(parts[0]):
-                    raise ValueError('Invalid or duplicate release checksum')
-                checksum = parts[0]
-        if checksum is None:
-            raise ValueError('The release archive has no mandatory SHA256 checksum')
-        archive = directory / names['archive']
-        self.fetch(assets[names['archive']]['browser_download_url'], 500 * 1024 ** 2, archive)
-        self.phase('verifying')
-        if file_sha256(archive) != checksum:
-            raise ValueError('The release checksum does not match')
-        source = directory / 'runtime'
-        safe_unpack(archive, source)
-        info = json.loads((source / 'build-info.json').read_text())
+        metadata = self.fetch(assets[names['metadata']]['browser_download_url'], 64 * 1024)
+        if hashlib.sha256(metadata).hexdigest() != release_checksum(sums, names['metadata']):
+            raise ValueError('The release metadata checksum does not match')
+        info = json.loads(metadata)
         if (info.get('distribution') != 'SUB6' or info.get('version') != version
                 or info.get('build_type') != 'release' or info.get('target') != 'linux/amd64'
                 or not re.fullmatch(r'[0-9a-f]{40}', info.get('source_commit', ''))):
             raise ValueError('The release build metadata is incompatible')
-        binary_hash = file_sha256(source / 'sub6-linux-amd64')
-        if binary_hash != info.get('binary_sha256'):
-            raise ValueError('The release binary does not match its build manifest')
         obj = json.loads(self.fetch(base + '/git/ref/tags/v' + version, 64 * 1024, api=True))['object']
         for _ in range(4):
             if obj['type'] == 'commit':
@@ -311,12 +389,31 @@ class Controller:
             obj = json.loads(self.fetch(base + '/git/tags/' + obj['sha'], 64 * 1024, api=True))['object']
         if obj.get('type') != 'commit' or obj['sha'] != info['source_commit']:
             raise ValueError('The release tag and binary source commit differ')
+        return assets, names, sums, info
+
+    def release_image(self, version, directory):
+        self.phase('preflight')
+        assets, names, sums, info = self.release_metadata(version)
+        decision = self.installation(info)
+        if not decision['allowed']:
+            raise ValueError('This release requires operator migration review before rolling deployment ('
+                             + decision['reason_code'] + ')')
+        if decision['schema_mode'] == PLATFORM_PLAN:
+            self.migration_preflight()
+        self.phase('downloading')
+        archive = directory / names['archive']
+        self.fetch(assets[names['archive']]['browser_download_url'], 500 * 1024 ** 2, archive)
+        self.phase('verifying')
+        if file_sha256(archive) != release_checksum(sums, names['archive']):
+            raise ValueError('The release checksum does not match')
+        source = directory / 'runtime'
+        safe_unpack(archive, source)
+        if json.loads((source / 'build-info.json').read_text()) != info:
+            raise ValueError('Archive and separately verified release metadata differ')
+        binary_hash = file_sha256(source / 'sub6-linux-amd64')
+        if binary_hash != info.get('binary_sha256'):
+            raise ValueError('The release binary does not match its build manifest')
         contract = info.get('managed_upgrade', {})
-        if (contract.get('rolling_compatible') is not True
-                or contract.get('controller_protocol') != 1
-                or contract.get('deployment_probe_protocol') != 1
-                or contract.get('migrations_fingerprint') != self.config['current']['migrations_fingerprint']):
-            raise ValueError('This release requires operator migration review before rolling deployment')
         dockerfile = source / 'Dockerfile.controller'
         dockerfile.write_text('ARG RUNTIME_IMAGE\nFROM $' + '{RUNTIME_IMAGE}\n'
                               'COPY --chmod=0755 sub6-linux-amd64 /app/sub2api\n'
@@ -332,7 +429,84 @@ class Controller:
                   '-t', image, str(source)], timeout=300)
         return {'version': version, 'image': image, 'source_commit': info['source_commit'],
                 'binary_sha256': binary_hash, 'migrations_fingerprint': contract['migrations_fingerprint'],
-                'deployment_probe_protocol': 1}
+                'deployment_probe_protocol': 1, 'schema_mode': decision['schema_mode']}
+
+    def migrate_online(self, release, directory):
+        """Run the official bounded CLI, never SQL or commands supplied by the browser."""
+        self.phase('migrating')
+        self.migration_preflight()
+        spec = self.inspect(self.config['current']['main_container'])
+        env = dict(line.split('=', 1) for line in spec['Config']['Env'] if '=' in line)
+        env['PGOPTIONS'] = '-c lock_timeout=2000 -c statement_timeout=600000'
+        env.pop('SUB6_UPDATE_CONTROLLER_SOCKET', None)
+        env.pop('SUB6_UPDATE_CONTROLLER_TOKEN_FILE', None)
+        if any('\n' in k + v or '\r' in k + v for k, v in env.items()):
+            raise ValueError('Container environment cannot be represented safely')
+        env_file = directory / 'migration.env'
+        env_file.write_text(''.join(k + '=' + v + '\n' for k, v in env.items()))
+        os.chmod(env_file, 0o600)
+        data = directory / 'migration-data'
+        source = next(m['Source'] for m in spec['Mounts'] if m['Destination'] == '/app/data')
+        copy_runtime_config(source, data)
+        os.chown(data, 1000, 1000)
+        for path in data.iterdir():
+            os.chown(path, 1000, 1000)
+        name = 'sub6-migration-' + self.state['operation_id']
+        command = ['docker', 'create', '--name', name, '--restart=no', '--user', '1000:1000',
+                   '--network', self.config['primary_network'], '--memory', '768m',
+                   '--env-file', str(env_file), '--mount', 'type=bind,src=' + str(data) + ',dst=/app/data',
+                   '--entrypoint', '/app/sub2api', release['image'],
+                   '--migrate-only', '--migration-timeout=10m']
+        self.run(command)
+        self.config['schema_transition'] = {'plan': PLATFORM_PLAN, 'to': PLATFORM_SCHEMA,
+                                            'phase': 'running', 'operation_id': self.state['operation_id']}
+        atomic_json(self.config_path, self.config)
+        try:
+            for network in self.config.get('additional_networks', []):
+                self.run(['docker', 'network', 'connect', network, name])
+            try:
+                result = subprocess.run(['docker', 'start', '--attach', name], text=True,
+                                        capture_output=True, timeout=620)
+            except subprocess.TimeoutExpired:
+                self.run(['docker', 'stop', '--time', '10', name])
+                raise ValueError('Online migration timed out; the old serving nodes were retained') from None
+            (directory / 'migration.log').write_text(result.stdout + result.stderr)
+            exit_code = self.inspect(name)['State']['ExitCode']
+            if result.returncode or exit_code:
+                raise ValueError('Online migration did not complete; retry after database locks are released')
+            self.verify_platform_schema()
+            self.config['database_migrations_fingerprint'] = PLATFORM_SCHEMA
+            self.config['schema_transition']['phase'] = 'complete'
+            atomic_json(self.config_path, self.config)
+        except Exception:
+            self.config['schema_transition']['phase'] = 'incomplete'
+            atomic_json(self.config_path, self.config)
+            raise
+
+    def verify_platform_schema(self):
+        value = self.schema_snapshot()
+        index = value.get('index') or {}
+        if (not value.get('column') or value['ledger'] != PLATFORM_MIGRATIONS
+                or index.get('valid') is not True
+                or index.get('definition') != ('CREATE INDEX idx_usage_logs_platform_created '
+                    'ON public.usage_logs USING btree (platform, created_at DESC, id DESC)')):
+            raise ValueError('The migrated platform schema or ledger failed verification')
+
+    def prepare_schema(self, release, action, directory):
+        actual = self.config.get('database_migrations_fingerprint',
+                                 self.config['current']['migrations_fingerprint'])
+        target = release['migrations_fingerprint']
+        if target == actual:
+            return
+        if actual == PLATFORM_BASE and target == PLATFORM_SCHEMA and release.get('schema_mode') == PLATFORM_PLAN:
+            self.migrate_online(release, directory)
+            return
+        # Only the exact retained stable binary was tested against the expanded schema.
+        if (action in ('rollback', 'restart') and actual == PLATFORM_SCHEMA and target == PLATFORM_BASE
+                and release.get('source_commit') == 'b3f8199dc3cc1e1520214fdd77832fc01b36578e'):
+            self.verify_platform_schema()
+            return
+        raise ValueError('Deployment would cross an unreviewed database migration boundary')
 
     def clone_instance(self, template, role, image, directory):
         name = 'sub6-' + role + '-' + self.state['operation_id']
@@ -512,8 +686,9 @@ class Controller:
             else:
                 release = copy.deepcopy(next(v for v in self.config['history'] if v['version'] == version))
                 self.inspect(release['image'])
-            if release['migrations_fingerprint'] != current['migrations_fingerprint']:
-                raise ValueError('Rollback would cross an unreviewed database migration boundary')
+            self.prepare_schema(release, action, directory)
+            # Preserve real database state even if a later candidate or cutover fails.
+            previous_config = copy.deepcopy(self.config)
             self.phase('starting')
             gateway = 'sub6-gateway-' + self.state['operation_id']
             gateway, gateway_endpoint = self.clone_instance(current['gateway_container'], 'gateway', release['image'], directory)
@@ -568,7 +743,11 @@ class Controller:
             if committed:
                 self.phase('failed', error='The new deployment is active; final status persistence needs operator review')
                 return
+            schema_state = {k: self.config[k] for k in ('schema_transition', 'database_migrations_fingerprint')
+                            if k in self.config}
             self.config = previous_config
+            self.config.update(schema_state)
+            atomic_json(self.config_path, self.config)
             recovered = True
             if old_stopped:
                 try:
@@ -653,6 +832,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         if self.authenticated():
             if self.path == '/v1/status':
                 self.answer(200, self.server.controller.status())
+            elif self.path.startswith('/v1/preflight?'):
+                try:
+                    query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, strict_parsing=True)
+                    if set(query) != {'version'} or len(query['version']) != 1:
+                        raise ValueError('Invalid preflight version')
+                    self.answer(200, self.server.controller.preflight(query['version'][0]))
+                except (ValueError, KeyError, OSError, RuntimeError, subprocess.SubprocessError):
+                    self.answer(200, {'managed': True, 'allowed': False, 'reason_code': 'preflight_unavailable'})
             else:
                 self.answer(404, {'error': 'Unknown controller endpoint'})
 

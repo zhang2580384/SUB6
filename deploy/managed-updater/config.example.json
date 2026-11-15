@@ -7,6 +7,12 @@
   "primary_network": "sub6-private",
   "additional_networks": ["sub6-egress"],
   "drain_timeout_seconds": 1800,
+  "migration_database": {
+    "container": "sub6-postgres-example",
+    "user": "sub6_example",
+    "database": "sub6_example",
+    "data_directory": "/var/lib/sub6-example/postgres"
+  },
   "routes": [
     {"name": "origin", "path": "/etc/site/Caddyfile", "container": "site-proxy", "container_path": "/etc/caddy/Caddyfile", "admin_url": "http://127.0.0.1:2020"}
   ],

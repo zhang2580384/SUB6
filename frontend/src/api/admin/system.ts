@@ -25,6 +25,7 @@ export interface VersionInfo {
   cached: boolean
   warning?: string
   build_type: string // "source" for manual builds, "release" for CI builds
+  installation?: ManagedUpdateStatus
 }
 
 /**
@@ -60,6 +61,9 @@ export interface ManagedUpdateStatus {
   target_version?: string
   current_version?: string
   error?: string
+  allowed?: boolean
+  reason_code?: string
+  schema_mode?: string
 }
 
 export async function getUpdateStatus(): Promise<ManagedUpdateStatus> {

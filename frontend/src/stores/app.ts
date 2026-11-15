@@ -10,7 +10,8 @@ import { i18n } from '@/i18n'
 import {
   checkUpdates as checkUpdatesAPI,
   type VersionInfo,
-  type ReleaseInfo
+  type ReleaseInfo,
+  type ManagedUpdateStatus
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
 
@@ -46,6 +47,7 @@ export const useAppStore = defineStore('app', () => {
   const upstreamCommit = ref('')
   const buildCommit = ref('')
   const releaseInfo = ref<ReleaseInfo | null>(null)
+  const installation = ref<ManagedUpdateStatus | undefined>()
 
   // Auto-incrementing ID for toasts
   let toastIdCounter = 0
@@ -250,6 +252,7 @@ export const useAppStore = defineStore('app', () => {
         current_version: currentVersion.value,
         latest_version: latestVersion.value,
         has_update: hasUpdate.value,
+        installation: installation.value,
         build_type: buildType.value,
         upstream_version: upstreamVersion.value,
         upstream_commit: upstreamCommit.value,
@@ -270,6 +273,7 @@ export const useAppStore = defineStore('app', () => {
       currentVersion.value = data.current_version
       latestVersion.value = data.latest_version
       hasUpdate.value = data.has_update
+      installation.value = data.installation
       buildType.value = data.build_type || 'source'
       upstreamVersion.value = data.upstream_version || ''
       upstreamCommit.value = data.upstream_commit || ''
@@ -291,6 +295,7 @@ export const useAppStore = defineStore('app', () => {
   function clearVersionCache(): void {
     versionLoaded.value = false
     hasUpdate.value = false
+    installation.value = undefined
   }
 
   // ==================== Public Settings Management ====================
@@ -475,6 +480,7 @@ export const useAppStore = defineStore('app', () => {
     currentVersion,
     latestVersion,
     hasUpdate,
+    installation,
     buildType,
     upstreamVersion,
     upstreamCommit,

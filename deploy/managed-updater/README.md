@@ -48,16 +48,41 @@ Compose 实际镜像、数据目录及网络会写入 compose.active.json；应�
 避免旧 Compose 把实例重建回旧版。保留旧镜像、数据和最近三次部署信息；本工具
 不会删除历史容器/镜像/数据。运维需要另行规划磁盘清理。
 
-托管自动更新仅接受 controller_protocol=1、deployment_probe_protocol=1、
-rolling_compatible=true 且 migrations_fingerprint 与当前完全一致的发行包。
+托管更新协议 2 增加升级前只读检查：`GET /v1/preflight?version=0.1.7`。
+管理员界面保留新版提示，但预检拒绝或不可用时显示具体原因，不启动安装；
+提交更新时还会重新预检。旧控制器没有该接口，须先由运维审查和更新控制器文件。
+控制器安装不会重启业务容器。不要用应用原位替换绕过托管模式。
+
+迁移集合相同的包继续兼容协议 1。只有 `rolling_compatible=true`、
+`deployment_probe_protocol=1` 的正式发行包可以自动安装。协议 2 仅增加一个
+已审查的在线计划 `usage-platform-v1`：精确的 0.1.5 迁移 fingerprint
+`a6990935dd92d8132f2d487ba2b3320ac10d8819e72363db2d240bca23e4063f`
+到 343/344 两项新增后的
+`63ce16fa855d9f331372aada34df859275777becb181535372c8abec25cf481b`。
+包还必须声明 `controller_protocol=2` 和 `online_migration_plan=usage-platform-v1`。
+不会依据包提供的任意脚本、SQL、URL 或路径增加允许范围。
+
+使用该计划须在运维私有配置增加 `migration_database`，包含已有 PostgreSQL
+容器名 `container`、`user`、`database` 和宿主数据盘路径 `data_directory`。
+安装前检查主库可写、长事务、可用空间、现有字段及新增迁移校验和。使用已验证的
+新程序运行 `--migrate-only --migration-timeout=10m`，限制锁等待 2 秒、语句 10 分钟；
+旧服务继续运行。迁移完成后核对可空字段、有效索引及两项真实账本，才启动候选节点。
+锁超时或索引中断会保留旧服务，后续由同一迁移器重试；不能手工补记成功。
+迁移扫描会消耗 I/O 和 WAL，升级前仍需保存可恢复备份并评估业务规模。
+
+真实数据库状态独立记录为 `database_migrations_fingerprint`；即使候选启动或切换失败，
+也不会回写旧值冒充撤销迁移。新增列、索引和交易保持不动。跨该边界仅允许回退到
+已保留且验证过的正式 0.1.5 精确提交；其他跨迁移回退仍拒绝。
+
 fingerprint 是按排序后的 backend/migrations/*.sql 文件，将每个相对路径、NUL、
-原始内容、NUL 顺序拼接后计算 SHA256。新增迁移必须由运维先审查和执行兼容方案。
-回滚只允许已保留且迁移集合相同的版本；不还原整个数据库，不覆盖升级期间的账单。
+原始内容、NUL 顺序拼接后计算 SHA256。所有其他新增迁移仍需独立审查和兼容方案。
+不还原整个数据库，不覆盖升级期间的账单。
 新控制器代码本身需要运维另行审查更新，不通过网页远程替换。
 
 SUB6 0.1.6 相对正式 0.1.5 增加两项平台快照迁移，真实 fingerprint 不同，
 发行明确声明 rolling_compatible=false。当前控制器会拒绝安装，这是预期保护。
 使用[0.1.6 人工维护窗口和应用回退流程](../../maintenance/UPGRADE-v0.1.6.md)，
 不要修改 fingerprint、账本或此检查来绕过门禁；网页 has_update 仅表示发现新版本。
+后续 0.1.7 包具有独立的协议 2 声明，可按上述已审查的在线计划升级；先更新控制器。
 
 测试：`python3 -m unittest discover -s deploy/managed-updater -p test_controller.py -v`。

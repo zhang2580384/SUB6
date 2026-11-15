@@ -139,7 +139,7 @@
                     <p class="text-sm font-medium text-red-700 dark:text-red-300">
                       {{ t('version.updateFailed') }}
                     </p>
-                    <p class="truncate text-xs text-red-600/70 dark:text-red-400/70">
+                    <p class="break-words text-xs text-red-600/70 dark:text-red-400/70">
                       {{ updateError }}
                     </p>
                   </div>
@@ -148,7 +148,7 @@
                 <!-- Retry button -->
                 <button
                   @click="handleUpdate"
-                  :disabled="updating"
+                  :disabled="updating || installationBlocked"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {{ t('version.retry') }}
@@ -332,10 +332,14 @@
                   </div>
                 </div>
 
+                <p v-if="installationBlocked" class="break-words rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300" role="status">
+                  {{ installationReason }}
+                </p>
+
                 <!-- Update button -->
                 <button
                   @click="handleUpdate"
-                  :disabled="updating"
+                  :disabled="updating || installationBlocked"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <svg v-if="updating" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -354,7 +358,7 @@
                     ></path>
                   </svg>
                   <Icon v-else name="download" size="sm" :stroke-width="2" />
-                  {{ updating ? t('version.updating') : t('version.updateNow') }}
+                  {{ updating ? t('version.updating') : installationBlocked ? t('version.updateNeedsReview') : t('version.updateNow') }}
                 </button>
 
                 <!-- View release link -->
@@ -692,6 +696,15 @@ const latestVersion = computed(() => appStore.latestVersion)
 const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
+const installationBlocked = computed(() => appStore.installation?.managed === true && appStore.installation.allowed !== true)
+const installationReason = computed(() => {
+  switch (appStore.installation?.reason_code) {
+    case 'migration_review_required': return t('version.migrationReviewRequired')
+    case 'migration_database_unconfigured': return t('version.migrationDatabaseUnconfigured')
+    case 'database_preflight_failed': return t('version.databasePreflightFailed')
+    default: return t('version.preflightUnavailable')
+  }
+})
 
 // Update process states (local to this component)
 const updating = ref(false)
@@ -703,7 +716,8 @@ const restartCountdown = ref(0)
 const managedPhase = ref('')
 let componentDisposed = false
 const managedProgressText = computed(() => {
-  if (managedPhase.value === 'downloading' || managedPhase.value === 'verifying') return t('version.managedPreparing')
+  if (['preflight', 'downloading', 'verifying'].includes(managedPhase.value)) return t('version.managedPreparing')
+  if (managedPhase.value === 'migrating') return t('version.managedMigrating')
   if (managedPhase.value === 'draining') return t('version.managedDraining')
   return t('version.managedSwitching')
 })
@@ -775,7 +789,7 @@ async function refreshVersion(force = true) {
 }
 
 async function handleUpdate() {
-  if (updating.value || rollingBack.value) return
+  if (updating.value || rollingBack.value || installationBlocked.value) return
 
   updating.value = true
   updateError.value = ''

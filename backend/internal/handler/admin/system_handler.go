@@ -91,6 +91,12 @@ func (h *SystemHandler) CheckUpdates(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if h.managed != nil && info != nil && info.HasUpdate {
+		info.Installation, err = h.managed.Preflight(c.Request.Context(), info.LatestVersion)
+		if err != nil {
+			info.Installation = &service.ManagedUpdateStatus{Managed: true, ReasonCode: "controller_preflight_unavailable"}
+		}
+	}
 	response.Success(c, info)
 }
 
@@ -129,6 +135,11 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 		}
 		if info == nil || !info.HasUpdate {
 			response.Success(c, gin.H{"already_up_to_date": true, "need_restart": false})
+			return
+		}
+		preflight, err := h.managed.Preflight(c.Request.Context(), info.LatestVersion)
+		if err != nil || preflight == nil || !preflight.Allowed {
+			response.Error(c, http.StatusConflict, "更新预检未通过，请刷新版本信息查看原因；当前服务继续运行")
 			return
 		}
 		h.startManagedUpdate(c, "update", info.LatestVersion)

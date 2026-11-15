@@ -144,6 +144,18 @@ jobs:
           go test -p 2 -race -tags integration ./internal/repository \
             -run '^(TestUsageLogRepoSuite|TestUsageBillingRepositoryApply_(DeduplicatesBalanceBilling|DeduplicatesSubscriptionBilling|RequestFingerprintConflict|SettlesSoftDeletedAPIKey))$' \
             -count=1 -v -timeout=10m
+      - name: Real online controller migration, lock timeout and retry
+        env:
+          SUB6_ONLINE_UPGRADE_FIXTURE: '1'
+          DATABASE_HOST: 127.0.0.1
+          DATABASE_PORT: '5432'
+          DATABASE_USER: sub6_test
+          DATABASE_PASSWORD: sub6-test-only
+          DATABASE_SSLMODE: disable
+        run: >-
+          sudo --preserve-env=GITHUB_ACTIONS,SUB6_ONLINE_UPGRADE_FIXTURE,DATABASE_HOST,DATABASE_PORT,DATABASE_USER,DATABASE_PASSWORD,DATABASE_SSLMODE
+          python3 deploy/managed-updater/test_online_migration.py
+          "$RUNNER_TEMP/sub6-migrations" "$RUNNER_TEMP/sub6-stable-migrations"
   sidecar:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
