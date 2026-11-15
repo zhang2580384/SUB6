@@ -34,9 +34,10 @@ MODEL_PATHS = '/v1/* /v1beta/* /openai/* /anthropic/* /responses /responses/* /m
 PLATFORM_BASE = 'a6990935dd92d8132f2d487ba2b3320ac10d8819e72363db2d240bca23e4063f'
 PLATFORM_SCHEMA = '63ce16fa855d9f331372aada34df859275777becb181535372c8abec25cf481b'
 PLATFORM_PLAN = 'usage-platform-v1'
+# The Go runner hashes strings.TrimSpace(SQL), unlike the raw-file release fingerprint.
 PLATFORM_MIGRATIONS = {
-    '343_usage_log_platform_snapshot.sql': 'c2746f945d71ad861140220a05df2a68a5a014a8217cb3cb8e8975a05876fbc2',
-    '344_usage_log_platform_index_notx.sql': '2b6aab65b6030af5de39c2ccce0c833cc16c0e9500b41a2bc79d8893814f5711',
+    '343_usage_log_platform_snapshot.sql': '171092cdd5d69cd0103086c4a6d6748b6bac54392576496e7d047832a10c7ca4',
+    '344_usage_log_platform_index_notx.sql': '4507e6c3d3854de779c1a85a29adf940c8057293932f33a8f53597c26287ab27',
 }
 
 

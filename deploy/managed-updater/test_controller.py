@@ -355,6 +355,12 @@ class RolloutTests(unittest.TestCase):
 
 
 class MigrationDecisionTests(unittest.TestCase):
+    def test_reviewed_ledger_hashes_match_sql_normalization_in_the_go_runner(self):
+        root = Path(__file__).resolve().parents[2]
+        for name, expected in controller.PLATFORM_MIGRATIONS.items():
+            raw = (root / 'backend' / 'migrations' / name).read_bytes()
+            self.assertEqual(expected, hashlib.sha256(raw.strip()).hexdigest())
+
     def test_preflight_only_reads_metadata_and_never_downloads_binary_or_changes_current(self):
         with tempfile.TemporaryDirectory() as tmp:
             c = FakeController(Path(tmp))
