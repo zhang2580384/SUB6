@@ -13,6 +13,7 @@ var errOpenAIAgentRecoveryUnavailable = errors.New("encrypted agent continuation
 type OpenAIAgentRecoveryError struct {
 	Reason  string
 	RetryAt time.Time
+	Stage   string // bounded internal diagnostic; never contains request data
 }
 
 func (e *OpenAIAgentRecoveryError) Error() string { return e.ClientMessage() }
@@ -82,6 +83,10 @@ func (e *OpenAIAgentRecoveryError) ClientMessage() string {
 
 func openAIAgentRecoveryError(reason string) error {
 	return &OpenAIAgentRecoveryError{Reason: reason}
+}
+
+func openAIAgentRecoveryWireError(stage string) error {
+	return &OpenAIAgentRecoveryError{Reason: "wire_changed", Stage: stage}
 }
 
 // Preserve completed upstream accounting while propagating downstream failure.
