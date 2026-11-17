@@ -141,3 +141,10 @@ leaves the prior real response available for continuation. A native WS provider
 continues to handle its own protocol prewarm.
 An inline plaintext prewarm message can carry a client item `id`. It is discarded
 with that message and is never a provider response ID or a continuation anchor.
+
+After an admitted passthrough `session.update`, the gateway may deliver a local
+`session.updated` acknowledgment on that same logical connection. Unsolicited
+acknowledgments are dropped. No provider metadata, usage or response identity
+is copied into the notice. Long-context policy refusals have no invented
+provider response ID. A bridge response-header timeout after upload does not
+resend the request.

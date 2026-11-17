@@ -3134,6 +3134,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	if strings.TrimSpace(tc.midPayload) != "" {
 		frameCount++
 	}
+	var grokReply atomic.Uint64
 	upstreamPayloadCh := make(chan []byte, frameCount)
 	upstreamErrCh := make(chan error, 1)
 	var channelSvc *service.ChannelService
@@ -3152,7 +3153,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 			}
 			upstreamPayloadCh <- payload
 			w.Header().Set("Content-Type", "text/event-stream")
-			_, _ = fmt.Fprintf(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_grok_test\",\"model\":%q,\"usage\":{\"input_tokens\":2,\"output_tokens\":1}}}\n\n", gjson.GetBytes(payload, "model").String())
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_grok_test_%d\",\"model\":%q,\"usage\":{\"input_tokens\":2,\"output_tokens\":1}}}\n\n", grokReply.Add(1), gjson.GetBytes(payload, "model").String())
 			return
 		}
 		conn, err := coderws.Accept(w, r, &coderws.AcceptOptions{
@@ -3201,6 +3202,13 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				tc.timing.writeWS(conn, frame, payload)
 				continue
 			}
+			if frame == 1 && tc.midPayload != "" {
+				// The provider cannot send an unsolicited control on this lane.
+				if err := conn.Write(r.Context(), coderws.MessageText, []byte(`{"type":"session.updated","metadata":"fixture-unsolicited"}`)); err != nil {
+					upstreamErrCh <- err
+					return
+				}
+			}
 			response := fmt.Sprintf(
 				`{"type":"response.completed","response":{"id":"resp_usage_e2e_%d","model":%q,"usage":{"input_tokens":2,"output_tokens":1}}}`,
 				frame,
@@ -3208,7 +3216,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 			)
 			if gjson.GetBytes(payload, "type").String() == "session.update" {
 				// Session configuration is acknowledged without creating a billable turn.
-				response = `{"type":"session.updated"}`
+				response = `{"type":"session.updated","metadata":"fixture-private","usage":{"input_tokens":987}}`
 			}
 			writeCtx, cancelWrite := context.WithTimeout(r.Context(), 3*time.Second)
 			writeErr := conn.Write(writeCtx, coderws.MessageText, []byte(response))
@@ -3514,6 +3522,13 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		cancelRead()
 		require.NoError(t, readErr)
 		require.Equal(t, "session.updated", gjson.GetBytes(event, "type").String())
+		ack := map[string]string{"type": "session.updated"}
+		if lane := gjson.Get(tc.midPayload, "stream_id").String(); lane != "" {
+			ack["stream_id"] = lane
+		}
+		want, marshalErr := json.Marshal(ack)
+		require.NoError(t, marshalErr)
+		require.JSONEq(t, string(want), string(event), "only the scoped local acknowledgment may reach the client")
 	}
 	if strings.TrimSpace(tc.secondPayload) != "" && (turnCount >= 2) {
 		if tc.timing != nil {

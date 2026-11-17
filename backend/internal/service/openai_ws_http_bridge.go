@@ -658,7 +658,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID,
 					UpstreamStatusCode: http.StatusGatewayTimeout, Kind: phaseTimeout.phase, Message: phaseTimeout.Error()})
 				setOpsUpstreamError(c, http.StatusGatewayTimeout, phaseTimeout.Error(), "")
-				clientError := buildOpenAIWSHTTPBridgeErrorEvent(http.StatusGatewayTimeout, "Upstream request timed out")
+				message := "Upstream request timed out"
+				if phaseTimeout.phase == "response_header_timeout" {
+					message = "Upstream response header timed out; automatic replay disabled"
+				}
+				clientError := buildOpenAIWSHTTPBridgeErrorEvent(http.StatusGatewayTimeout, message)
 				if writeErr := writeClientMessage(clientError); writeErr == nil {
 					markOpenAIWSClientVisibleFailure(c, "error", clientError)
 				}

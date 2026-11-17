@@ -7,7 +7,6 @@ import (
 	"time"
 
 	coderws "github.com/coder/websocket"
-	"github.com/google/uuid"
 )
 
 // WriteAPIKeyLongContextWSFailure sends a standard Responses terminal event
@@ -21,7 +20,7 @@ func WriteAPIKeyLongContextWSFailure(conn OpenAIWSDownstreamConn, err error) {
 	payload, marshalErr := json.Marshal(map[string]any{
 		"type": "response.failed", "sequence_number": 0,
 		"response": map[string]any{
-			"id": "resp_" + uuid.NewString(), "object": "response",
+			"object":     "response",
 			"created_at": time.Now().Unix(), "status": "failed", "output": []any{},
 			"error": map[string]any{"code": APIKeyContextLengthExceededCode, "message": APIKeyContextLengthExceededMessage},
 		},
@@ -29,6 +28,6 @@ func WriteAPIKeyLongContextWSFailure(conn OpenAIWSDownstreamConn, err error) {
 	if marshalErr == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_ = conn.Write(ctx, coderws.MessageText, payload)
+		_ = conn.Write(context.WithValue(ctx, openAIWSLocalNoticeKey{}, true), coderws.MessageText, payload)
 	}
 }

@@ -242,16 +242,16 @@ func (f *smartProtocolNetwork) events(body []byte) []string {
 	}
 
 	if strings.HasPrefix(f.fail, "p1_") && seed == "partial" {
-		return append(events, `{"type":"response.in_progress","response":{"id":"resp_partial","usage":{"input_tokens":3,"output_tokens":2}}}`)
+		return append(events, fmt.Sprintf(`{"type":"response.in_progress","response":{"id":%q,"usage":{"input_tokens":3,"output_tokens":2}}}`, id))
 	}
 	if f.fail == "partial_usage" {
-		return append(events, `{"type":"response.in_progress","response":{"id":"resp_partial","usage":{"input_tokens":3,"output_tokens":2}}}`)
+		return append(events, fmt.Sprintf(`{"type":"response.in_progress","response":{"id":%q,"usage":{"input_tokens":3,"output_tokens":2}}}`, id))
 	}
 	if f.fail == "eof" || f.fail == "cancel" {
 		return events
 	}
 	if f.fail == "event_error" {
-		return append(events, `{"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"synthetic failure"},"usage":{"input_tokens":3,"output_tokens":2}}}`)
+		return append(events, fmt.Sprintf(`{"type":"response.failed","response":{"id":%q,"status":"failed","error":{"code":"server_error","message":"synthetic failure"},"usage":{"input_tokens":3,"output_tokens":2}}}`, id))
 	}
 	events = append(events, `{"type":"response.function_call_arguments.delta","delta":"{}","item_id":"fc_synthetic","output_index":0}`, `{"type":"response.output_item.done","item":{"id":"fc_synthetic","type":"function_call","call_id":"call_synthetic","name":"lookup","arguments":"{}"}}`, `{"type":"response.output_text.delta","delta":"ok"}`)
 	if f.fail == "missing_usage" {

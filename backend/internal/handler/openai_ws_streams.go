@@ -515,6 +515,17 @@ func (s *openAIWSLogicalSession) Write(ctx context.Context, kind coderws.Message
 	r := s.router
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
+	if service.IsOpenAIWSLocalNotice(ctx) {
+		// A policy refusal or a solicited session.update acknowledgment is not a
+		// provider response. Still require this exact live logical session.
+		r.mu.Lock()
+		live := !s.cancelled && !s.isStopped() && s.ctx.Err() == nil && r.sessions[s.key] == s
+		r.mu.Unlock()
+		if !live || kind != coderws.MessageText || (eventType != "response.failed" && eventType != "session.updated") || id != "" || !valid {
+			return context.Canceled
+		}
+		return r.conn.Write(ctx, kind, body)
+	}
 	if err := s.checkFrameOwner(id, valid); err != nil {
 		return err
 	}

@@ -17,6 +17,14 @@ type OpenAIWSDownstreamConn interface {
 	CloseNow() error
 }
 
+// Local notices cannot carry provider data or settle a billable turn. Only
+// constructors inside this package can mark a context as such.
+type openAIWSLocalNoticeKey struct{}
+
+func IsOpenAIWSLocalNotice(ctx context.Context) bool {
+	return ctx.Value(openAIWSLocalNoticeKey{}) == true
+}
+
 var _ OpenAIWSDownstreamConn = (*coderws.Conn)(nil)
 
 func openAIWSDownstreamFrameArrival(conn OpenAIWSDownstreamConn, fallback time.Time) time.Time {

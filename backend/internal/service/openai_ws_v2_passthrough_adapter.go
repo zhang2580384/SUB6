@@ -1051,6 +1051,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	completedTurns := atomic.Int32{}
 	activeTurn := atomic.Int32{}
 	activeTurn.Store(1)
+	var pendingUpdates atomic.Int32
 	var identityTurn int32
 	var identityID string
 	// A response.create accepted from the client is not upstream-active until
@@ -1436,6 +1437,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if (msgType == coderws.MessageText || msgType == coderws.MessageBinary) && strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
 				return msgType, payload, nil
 			}
+			// Non-generation controls are written here, outside the relay's turn hooks.
+			if (msgType == coderws.MessageText || msgType == coderws.MessageBinary) && gjson.GetBytes(payload, "type").Str == "session.update" && pendingUpdates.Add(1) > 64 {
+				return msgType, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "too many pending session updates", nil)
+			}
 			if writeErr := upstreamFrameConn.WriteFrame(readCtx, msgType, payload); writeErr != nil {
 				return msgType, payload, writeErr
 			}
@@ -1611,6 +1616,19 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			},
 			BeforeWriteClient: func(msgType coderws.MessageType, payload []byte, wroteDownstream bool) error {
 				id, valid := OpenAIWSFrameResponseID(payload)
+				if msgType == coderws.MessageText && gjson.GetBytes(payload, "type").Str == "session.updated" {
+					// Only a solicited notice on this physical socket may be
+					// acknowledged, with no provider-supplied fields or usage.
+					if valid && id == "" && pendingUpdates.Load() > 0 {
+						pendingUpdates.Add(-1)
+						wctx, cancel := newOpenAIWSDownstreamWriteContext(ctx, hooks, s.openAIWSWriteTimeout())
+						defer cancel()
+						if err := WriteCapturedWSClient(context.WithValue(wctx, openAIWSLocalNoticeKey{}, true), clientConn, coderws.MessageText, []byte(`{"type":"session.updated"}`)); err != nil {
+							return err
+						}
+					}
+					return openaiwsv2.ErrIgnoreInactiveFrame
+				}
 				// The reader alone mutates these counters. The router also rejects previously settled IDs on the same downstream connection.
 				turn := activeTurn.Load()
 				if pendingUpstreamTurn.Load() || turn == 0 {

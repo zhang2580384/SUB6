@@ -165,6 +165,19 @@ func TestOpenAIResponsesWebSocket_SessionUpdateRotationBypassRejected(t *testing
 	})
 }
 
+// A control acknowledgment belongs to the named lane and cannot carry provider data.
+func TestOpenAIResponsesWebSocket_SessionUpdateNamedLane(t *testing.T) {
+	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+		firstPayload:  `{"type":"response.create","stream_id":"lane-a","model":"gpt-5.4","stream":false}`,
+		midPayload:    `{"type":"session.update","stream_id":"lane-a","session":{"model":"gpt-5.4"}}`,
+		secondPayload: `{"type":"response.create","stream_id":"lane-a","stream":false}`,
+		group:         wsAllowlistGroup(true, "gpt-5.4"),
+	})
+	if len(got.logs) != 2 || len(got.clientEvents) != 2 || len(got.upstreamPayloads) != 3 {
+		t.Fatal("expected two generations, two usage records and one control")
+	}
+}
+
 // 轮换后的会话模型本身在白名单内时，省略 model 的后续 turn 正常放行。
 func TestOpenAIResponsesWebSocket_SessionUpdateToAllowedModelStillWorks(t *testing.T) {
 	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
