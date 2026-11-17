@@ -1,12 +1,14 @@
 # SUB6
 
-SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前正式版本为 [**0.1.8**](https://github.com/zhang2580384/SUB6/releases/tag/v0.1.8)，基于已审查 Ranxi **v2.21.3**，精确同步 SHA：`aa8e596e6d6f3e4648d6beba73b39b240dd5357a`。发行与生产部署分别验收。
+SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。当前正式版本为 [**0.1.9**](https://github.com/zhang2580384/SUB6/releases/tag/v0.1.9)，基于已审查 Ranxi **v2.21.3**，精确同步 SHA：`aa8e596e6d6f3e4648d6beba73b39b240dd5357a`。发行与生产部署分别验收。
 
 [English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-14-upstream-review.md) · [部署说明](deploy/README.md)
 
 本版本已整合稳定 0.1.5 的 WS 隔离修复；历史版本区分见 [稳定与候选分支说明](maintenance/2026-11-14-stable-candidate-sync.md)。
 
 ## 来源与功能
+
+0.1.9 在完整 0.1.8 基础上修复同一原生 API-key 上游的 HTTP / WS→HTTP 续接误拒绝，并在 WS 续接拒绝时先返回明确错误事件。旧缓存无需迁移，账号、凭据、历史完整性和交付检查继续生效；详见 [修复范围](maintenance/2026-11-17-ws-http-agent-continuation.md)。本次没有新增 SQL、依赖或设置。
 
 本版整合正式 v2.21.3 的内容审核范围、人工任务租约、临时冷却、HTTP/WS 会话恢复和诊断修复，保留正式 0.1.5 的 WS 隔离、0.1.6 的推理筛选与分组配色及连接池关闭修复。新一轮没有增加 SQL 迁移；相对正式 0.1.5 仍有两项迁移。本版已整合 0.1.7 的升级资格预检及经审查的在线计划，需先由运维安装协议 2 控制器；未知迁移继续拒绝自动安装。提供完整安装包和容器镜像归档；协议 2 更新器须通过预检后安装。新增 Kimi/GLM/Gemini 计价修复；Carbon 到期时间及自定义价卡优先级见 [计价说明](maintenance/PRICING-gemini-20261115.md)。合并说明见 [稳定修复同步](maintenance/2026-11-15-v0.1.8-stable-sync.md)。具体范围、排除项与验证见 [本轮审查](maintenance/2026-11-15-upstream-review.md)。
 
@@ -24,7 +26,7 @@ pnpm --dir frontend run build
 cd backend
 go mod download
 go mod verify
-CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.8 -X main.BuildType=source' -o sub6 ./cmd/server
+CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.9 -X main.BuildType=source' -o sub6 ./cmd/server
 ./sub6
 ```
 
@@ -34,7 +36,7 @@ Google OAuth 客户端未内置。Antigravity/Gemini CLI 登录和令牌刷新�
 
 ## 更新与发布
 
-只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。0.1.8 提供完整源码、嵌入前端的 Linux amd64 二进制、运行资源包和干净构建的 Docker 镜像归档（未向镜像仓库发布）。精确来源、镜像 ID、基础镜像与资产摘要见发行 build-info.json 和 checksums.txt；参阅 [构建说明](maintenance/BUILD-v0.1.8.md) 与 [升级说明](maintenance/UPGRADE-v0.1.8.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
+只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。0.1.9 提供完整源码、嵌入前端的 Linux amd64 二进制、运行资源包和干净构建的 Docker 镜像归档（未向镜像仓库发布）。精确来源、镜像 ID、基础镜像与资产摘要见发行 build-info.json 和 checksums.txt；参阅 [构建说明](maintenance/BUILD-v0.1.9.md) 与 [升级说明](maintenance/UPGRADE-v0.1.9.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
 
 本维护分支修正了发行构建误标为 `source` 而隐藏“立即更新”的问题。后续发行使用
 `make build-release`（需先安装已审查的依赖），输出 `backend/bin/sub6-linux-amd64`，

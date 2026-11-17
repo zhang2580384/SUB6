@@ -191,8 +191,8 @@ func (r *openAIWSAgentRecovery) storedContinuation(source []byte) bool {
 }
 
 // req captures the actual URL, final authorization headers and outbound model.
-// A fragment namespaces the fingerprint by adapter; this copy is never sent.
-// Thus a WS grant cannot authorize an HTTP or different-adapter continuation.
+// A fragment namespaces native WS fingerprints by adapter; this copy is never
+// sent. API-key HTTP bridges share the actual native HTTP upstream identity.
 func (r *openAIWSAgentRecovery) begin(account *Account, source, payload []byte, req *http.Request, mode string) error {
 	if r == nil {
 		return nil
@@ -210,12 +210,12 @@ func (r *openAIWSAgentRecovery) begin(account *Account, source, payload []byte, 
 		// bridge payload and accidentally granting a transformed opaque item.
 		reader, err := req.GetBody()
 		if err != nil {
-			return openAIAgentRecoveryError("wire_changed")
+			return openAIAgentRecoveryWireError("bridge_body_unavailable")
 		}
 		actual, err := io.ReadAll(reader)
 		_ = reader.Close()
 		if err != nil {
-			return openAIAgentRecoveryError("wire_changed")
+			return openAIAgentRecoveryWireError("bridge_body_read")
 		}
 		payload = actual
 	}
@@ -230,7 +230,7 @@ func (r *openAIWSAgentRecovery) begin(account *Account, source, payload []byte, 
 	ctx := r.service.WithOpenAIAgentMessageRecovery(r.ctx, r.c, source, r.session, model)
 	if r.readable != nil {
 		if openAIAgentRecoveryInputDigest(source) != r.readableSource || openAI409ControlsDigest(source) != r.readableControls {
-			return openAIAgentRecoveryError("wire_changed")
+			return openAIAgentRecoveryWireError("bridge_source_integrity")
 		}
 		ctx = context.WithValue(ctx, openAIAgentRecoveryContextKey{}, r.readable)
 		if mode == "http_bridge" && account.IsOpenAIApiKey() {

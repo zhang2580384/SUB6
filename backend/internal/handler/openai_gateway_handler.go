@@ -4253,6 +4253,18 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 				return
 			}
 
+			var recoveryErr *service.OpenAIAgentRecoveryError
+			if errors.As(err, &recoveryErr) {
+				releaseTurnSlots()
+				reqLog.Warn("openai.websocket_agent_recovery_rejected",
+					zap.Int64("account_id", account.ID),
+					zap.String("error_code", recoveryErr.ClientCode()),
+					zap.String("stage", recoveryErr.Stage),
+				)
+				h.handleOpenAIWSAgentRecoveryError(ctx, wsConn, err)
+				return
+			}
+
 			var closeErr *service.OpenAIWSClientCloseError
 			hasClientCloseErr := errors.As(err, &closeErr)
 			if openAIWSIngressEndedByClient(err) {

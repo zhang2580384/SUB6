@@ -384,7 +384,7 @@ func (s *OpenAIGatewayService) prepareOpenAIAgentRecoveryAttempt(ctx context.Con
 	if !account.IsOpenAI() || account.HasManagedOpenAIConnections() || account.AuthConnectionID != "" ||
 		account.IsOpenAIPassthroughEnabled() || account.IsCopilotSDKEnabled() || account.IsSIWCEnabled() {
 		if request.owner != nil || request.preservesHistory() {
-			return noop, openAIAgentRecoveryError("wire_changed")
+			return noop, openAIAgentRecoveryWireError("managed_adapter")
 		}
 		return noop, nil
 	}
@@ -392,14 +392,14 @@ func (s *OpenAIGatewayService) prepareOpenAIAgentRecoveryAttempt(ctx context.Con
 		if !request.preservesHistory() && len(request.items) == 0 && request.owner == nil && request.previousResponseID == "" {
 			return noop, nil
 		}
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("request_body_unavailable")
 	}
 	reader, err := req.GetBody()
 	if err != nil {
 		if !request.preservesHistory() && len(request.items) == 0 && request.owner == nil && request.previousResponseID == "" {
 			return noop, nil
 		}
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("request_body_unavailable")
 	}
 	body, err := io.ReadAll(reader)
 	_ = reader.Close()
@@ -407,13 +407,13 @@ func (s *OpenAIGatewayService) prepareOpenAIAgentRecoveryAttempt(ctx context.Con
 		if !request.preservesHistory() && len(request.items) == 0 && request.owner == nil && request.previousResponseID == "" {
 			return noop, nil
 		}
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("request_body_read")
 	}
 	if !utf8.Valid(body) || !openAIEncryptedJSONUnambiguous(body) {
 		if !request.preservesHistory() && len(request.items) == 0 && request.owner == nil && request.previousResponseID == "" {
 			return noop, nil
 		}
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("request_json")
 	}
 	expectedInput, expectedControls := request.inputDigest, request.replayControlsDigest
 	if request.omittedHistory && account.IsOpenAIApiKey() && request.apiReplayPrepared {
@@ -421,7 +421,7 @@ func (s *OpenAIGatewayService) prepareOpenAIAgentRecoveryAttempt(ctx context.Con
 	}
 	if request.omittedHistory && account.UsesOpenAICodexProtocol() {
 		if !request.oauthReplayPrepared {
-			return noop, openAIAgentRecoveryError("wire_changed")
+			return noop, openAIAgentRecoveryWireError("oauth_replay_unprepared")
 		}
 		expectedInput, expectedControls = request.oauthInputDigest, request.oauthControlsDigest
 	}
@@ -429,11 +429,11 @@ func (s *OpenAIGatewayService) prepareOpenAIAgentRecoveryAttempt(ctx context.Con
 		if request.omittedHistory {
 			logger.FromContext(ctx).Warn("openai.encrypted_history_409_refused", zap.String("stage", "input_integrity"))
 		}
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("input_integrity")
 	}
 	if request.omittedHistory && (gjson.GetBytes(body, "previous_response_id").Exists() || gjson.GetBytes(body, "conversation").Exists() ||
 		openAI409ControlsDigest(body) != expectedControls) {
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("replay_controls")
 	}
 	if request.previousResponseID != "" && gjson.GetBytes(body, "previous_response_id").String() != request.previousResponseID {
 		return noop, openAIAgentRecoveryError("owner_unavailable")
@@ -441,25 +441,25 @@ func (s *OpenAIGatewayService) prepareOpenAIAgentRecoveryAttempt(ctx context.Con
 	items := openAIAgentRecoveryItemDigests(body)
 	if len(items) != len(request.items) {
 		if request.owner != nil {
-			return noop, openAIAgentRecoveryError("wire_changed")
+			return noop, openAIAgentRecoveryWireError("agent_items")
 		}
 		return noop, nil
 	}
 	for i := range items {
 		if items[i] != request.items[i] {
 			if request.owner != nil {
-				return noop, openAIAgentRecoveryError("wire_changed")
+				return noop, openAIAgentRecoveryWireError("agent_items")
 			}
 			return noop, nil
 		}
 	}
-	wire := openAIAgentRecoveryWireDigest(req.URL.String(), req.Header, gjson.GetBytes(body, "model").String())
+	wire := openAIAgentRecoveryRequestWire(account, request, req, gjson.GetBytes(body, "model").String())
 	binding := openAIAgentRecoveryBinding{accountID: account.ID, config: openAIAgentRecoveryConfig(account, request.model), wire: wire, expiresAt: time.Now().Add(s.openAIWSSessionStickyTTL())}
 	if request.omitted400History && (request.retry400Route == nil || !sameOpenAIAgentRecoveryRoute(*request.retry400Route, binding)) {
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("retry_route")
 	}
 	if request.ownerBindingRequired() && !sameOpenAIAgentRecoveryRoute(*request.owner, binding) {
-		return noop, openAIAgentRecoveryError("wire_changed")
+		return noop, openAIAgentRecoveryWireError("upstream_identity")
 	}
 	if err := s.checkOpenAIAgentRecoveryRecords(ctx, request, binding); err != nil {
 		return noop, err
@@ -671,12 +671,38 @@ func (s *OpenAIGatewayService) checkOpenAIAgentRecoveryCompaction(ctx context.Co
 		return s.checkOpenAIAgentRecoveryRecords(ctx, request, openAIAgentRecoveryBinding{})
 	}
 	model := gjson.GetBytes(body, "model").String()
-	url := req.URL.String()
-	if openAIAgentRecoveryWireDigest(url, req.Header, model) == request.owner.wire ||
-		openAIAgentRecoveryWireDigest(url, withoutOpenAIRemoteCompactionV2Feature(req.Header), model) == request.owner.wire {
+	withoutNegotiation := req.Clone(ctx)
+	withoutNegotiation.Header = withoutOpenAIRemoteCompactionV2Feature(req.Header)
+	if openAIAgentRecoveryRequestWire(account, request, req, model) == request.owner.wire ||
+		openAIAgentRecoveryRequestWire(account, request, withoutNegotiation, model) == request.owner.wire {
 		return nil
 	}
-	return openAIAgentRecoveryError("wire_changed")
+	return openAIAgentRecoveryWireError("compaction_upstream_identity")
+}
+
+// API-key HTTP ingress and the WS HTTP bridge use the same native upstream
+// protocol. The bridge's synthetic URL fragment never reaches that upstream.
+// Compare their actual endpoint/headers/model, keeping native WS adapters and
+// OAuth separate. Keep each task's original wire namespace verbatim so Redis
+// publication, older nodes and delivery fences need no record migration.
+func openAIAgentRecoveryRequestWire(account *Account, request *openAIAgentRecoveryRequest, req *http.Request, model string) [32]byte {
+	wire := openAIAgentRecoveryWireDigest(req.URL.String(), req.Header, model)
+	if request.owner == nil || request.owner.wire == wire ||
+		!account.IsOpenAIApiKey() || req.Method != http.MethodPost ||
+		(req.URL.Scheme != "https" && req.URL.Scheme != "http") ||
+		(req.URL.Fragment != "" && req.URL.Fragment != "agent-recovery-http_bridge") {
+		return wire
+	}
+	nativeURL := *req.URL
+	nativeURL.Fragment, nativeURL.RawFragment = "", ""
+	nativeWire := openAIAgentRecoveryWireDigest(nativeURL.String(), req.Header, model)
+	legacyURL := nativeURL
+	legacyURL.Fragment = "agent-recovery-http_bridge"
+	if request.owner.wire == nativeWire ||
+		request.owner.wire == openAIAgentRecoveryWireDigest(legacyURL.String(), req.Header, model) {
+		return request.owner.wire
+	}
+	return wire
 }
 
 func openAIAgentRecoveryWireDigest(url string, header http.Header, model string) [32]byte {
