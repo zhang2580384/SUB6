@@ -1450,10 +1450,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			if bridgeHistoryTurn != nil {
 				// Bounded per-connection history owns retention on this path.
-				// Do not also build unbounded legacy/failover copies.
-				bridgeCurrentItems, bridgeCurrentItemsExist = nil, false
+				// A fresh seed still needs its own current input for existing
+				// pre-generation failover; never append earlier legacy history.
 				bridgeReplayInput, bridgeReplayInputExists = nil, false
 				bridgeAccountFailoverInput, bridgeAccountFailoverInputExists = nil, false
+				if bridgeHistoryTurn.rebuilt {
+					bridgeCurrentItems, bridgeCurrentItemsExist = nil, false
+				}
 			}
 			turnReplayInput, turnReplayInputExists := buildOpenAIWSReplayInputSequenceFromItems(
 				bridgeReplayInput,
@@ -1521,10 +1524,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				turn,
 				writeClientMessage,
 			)
-			historySent := bridgeHistoryTurn != nil && bridgeHistoryTurn.sent
+			historySent := bridgeHistoryTurn != nil && bridgeHistoryTurn.rebuilt && bridgeHistoryTurn.sent
 			bridgeHistoryTurn.commit(ctx, bridgeErr == nil)
 			bridgeHistoryTurn = nil
 			if bridgeErr != nil && historySent {
+				// Keep the failure fence for this sent reconstruction. A completed
+				// reconstruction must not poison a later independent fresh seed.
+				if agentRecovery != nil {
+					agentRecovery.preventReplay()
+				}
 				var failoverErr *UpstreamFailoverError
 				if errors.As(bridgeErr, &failoverErr) {
 					// A physical send without completed delivery cannot authorize

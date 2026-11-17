@@ -641,9 +641,6 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			if err := recovery.begin(latest, source, body, upstreamReq, "http_bridge"); err != nil {
 				return nil, openAIWSAgentRecoveryClose(err)
 			}
-			if historyTurn != nil {
-				recovery.preventReplay()
-			}
 		}
 		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		if err != nil {
@@ -694,7 +691,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if retryErr != nil {
 			return nil, fmt.Errorf("normalize websocket http bridge rejected field retry: %w", retryErr)
 		}
-		if historyTurn == nil && !strictSession && OpenAIWSAgentRecoveryCanRetry(ctx) && changed && rejectedFieldRetryState.Allow(retryBody) {
+		if (historyTurn == nil || !historyTurn.rebuilt) && !strictSession && OpenAIWSAgentRecoveryCanRetry(ctx) && changed && rejectedFieldRetryState.Allow(retryBody) {
 			logOpenAIWSModeInfo(
 				"ingress_ws_http_bridge_rejected_field_retry account_id=%d turn=%d reason=%s",
 				account.ID,

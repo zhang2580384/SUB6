@@ -81,9 +81,22 @@ input, output ordering and identity conflicts, missing/mismatched stream parts,
 incomplete delivery, per-session/global limits and concurrent reservations.
 Original failed evidence and the Issue805 ownership/tool assertions are retained.
 
+The complete Linux suite also exposed an early candidate applying its replay
+fence to ordinary fresh seeds. This broke existing rejected-field compatibility
+retries and pre-generation account switching. The fence now applies to rebuilt
+history turns; a fresh seed retains its current input for the existing failover
+contract without accumulating legacy history. Original PR610 timing, Issue600
+identity and moderation failover assertions remain intact and are included in
+the race selection. A fictional WS regression checks both API-key and OAuth:
+one rejected seed can retry and then continue its delivered answer, while a
+rejected rebuilt history turn is never automatically sent again. The original
+failed CI logs are preserved privately. A second red-to-green regression keeps
+a completed reconstruction from disabling a later independent seed's retry;
+the failure fence remains in place when a sent reconstruction fails.
+
 ```sh
 go test -tags unit -p 2 ./internal/service ./internal/handler ./internal/repository \
-  -run '^Test(Issue715|Issue758|Issue805|OpenAIAgent|OpenAIHTTPAndWSBridge|OpenAI409|OpenAI400|OpenAIWS.*(HTTPBridge|Recovery)|WithoutOpenAI|OpenAIWSStream|OpenAIWSLogical)' \
+  -run '^Test(Issue600|PR610|ModerationUpstream|Issue715|Issue758|Issue805|OpenAIAgent|OpenAIHTTPAndWSBridge|OpenAI409|OpenAI400|OpenAIWS.*(HTTPBridge|Recovery)|ProxyOpenAIWSHTTPBridge|WithoutOpenAI|OpenAIWSStream|OpenAIWSLogical)' \
   -count=1 -timeout=10m
 ```
 

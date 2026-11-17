@@ -34,6 +34,7 @@ type bridgeHistoryUpstream struct {
 	streamed  bool
 	toolName  string
 	namespace bool
+	rejectAt  int
 }
 
 func (u *bridgeHistoryUpstream) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
@@ -46,6 +47,13 @@ func (u *bridgeHistoryUpstream) Do(req *http.Request, _ string, _ int64, _ int) 
 	defer u.mu.Unlock()
 	u.bodies = append(u.bodies, body)
 	turn := len(u.bodies)
+	if turn == u.rejectAt {
+		return &http.Response{StatusCode: http.StatusBadRequest, Header: make(http.Header),
+			Body: io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","code":"invalid_parameter","param":"prompt_cache_breakpoint","message":"prompt_cache_breakpoint is not supported on this model"}}`))}, nil
+	}
+	if u.rejectAt > 0 && turn > u.rejectAt {
+		turn--
+	}
 	if turn == 1 && u.namespace {
 		u.toolName = gjson.GetBytes(body, "tools.0.name").String()
 		if u.toolName == "" {
@@ -111,6 +119,7 @@ type bridgeHistoryFixtureOptions struct {
 	streamed                               bool
 	reservedTool                           bool
 	namespace                              bool
+	rejectAt                               int
 }
 
 func bridgeHistoryFixture(t *testing.T, withRecovery bool, tool bool, options ...bridgeHistoryFixtureOptions) (*websocket.Conn, *bridgeHistoryUpstream, context.Context, <-chan error) {
@@ -140,6 +149,7 @@ func bridgeHistoryFixture(t *testing.T, withRecovery bool, tool bool, options ..
 		option := options[0]
 		upstream.streamed = option.streamed
 		upstream.namespace = option.namespace
+		upstream.rejectAt = option.rejectAt
 		if option.reservedTool {
 			upstream.toolName = codexPythonToolAlias
 		}
@@ -216,6 +226,69 @@ func TestOpenAIWSHTTPBridgeHistoryExplicitModeAndOwnership(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestOpenAIWSHTTPBridgeHistorySeedCompatibilityRetryAndRebuiltRefusal(t *testing.T) {
+	for _, rebuilt := range []bool{false, true} {
+		for _, oauth := range []bool{false, true} {
+			t.Run(fmt.Sprintf("rebuilt=%v/oauth=%v", rebuilt, oauth), func(t *testing.T) {
+				rejectAt := 1
+				if rebuilt {
+					rejectAt = 2
+				}
+				conn, upstream, ctx, done := bridgeHistoryFixture(t, true, false,
+					bridgeHistoryFixtureOptions{explicitBridge: true, oauth: oauth, rejectAt: rejectAt})
+				seed, err := sjson.SetBytes(bridgeHistoryCreate("Generate a fresh code.", "", false), "prompt_cache_breakpoint", "fixture-break")
+				require.NoError(t, err)
+				require.NoError(t, conn.Write(ctx, websocket.MessageText, seed))
+				first := bridgeHistoryReadCompleted(t, ctx, conn)
+				require.Equal(t, upstream.code, gjson.GetBytes(first, "response.output.0.content.0.text").String())
+				followup, err := sjson.SetBytes(bridgeHistoryCreate("Repeat the code.", gjson.GetBytes(first, "response.id").String(), false), "prompt_cache_breakpoint", "fixture-break")
+				require.NoError(t, err)
+				require.NoError(t, conn.Write(ctx, websocket.MessageText, followup))
+				if rebuilt {
+					_, refusal, readErr := conn.Read(ctx)
+					require.NoError(t, readErr)
+					require.Equal(t, "error", gjson.GetBytes(refusal, "type").String())
+					require.Error(t, <-done)
+					require.Len(t, upstream.bodies, 2, "a rejected reconstructed history turn must never be automatically sent again")
+					return
+				}
+				second := bridgeHistoryReadCompleted(t, ctx, conn)
+				require.Equal(t, upstream.code, gjson.GetBytes(second, "response.output.0.content.0.text").String(), "the successful seed retry must still retain delivered history")
+				require.NoError(t, conn.Close(websocket.StatusNormalClosure, "done"))
+				require.NoError(t, <-done)
+				require.Len(t, upstream.bodies, 3, "one rejected fresh request, its compatibility retry, and exactly one continuation")
+				require.True(t, gjson.GetBytes(upstream.bodies[0], "prompt_cache_breakpoint").Exists())
+				require.False(t, gjson.GetBytes(upstream.bodies[1], "prompt_cache_breakpoint").Exists())
+				require.False(t, gjson.GetBytes(upstream.bodies[2], "previous_response_id").Exists())
+			})
+		}
+	}
+}
+
+func TestOpenAIWSHTTPBridgeHistoryFreshSeedAfterCompletedReconstruction(t *testing.T) {
+	for _, oauth := range []bool{false, true} {
+		t.Run(fmt.Sprintf("oauth=%v", oauth), func(t *testing.T) {
+			conn, upstream, ctx, done := bridgeHistoryFixture(t, true, false,
+				bridgeHistoryFixtureOptions{explicitBridge: true, oauth: oauth, rejectAt: 3})
+			require.NoError(t, conn.Write(ctx, websocket.MessageText, bridgeHistoryCreate("Generate a fresh code.", "", false)))
+			first := bridgeHistoryReadCompleted(t, ctx, conn)
+			require.NoError(t, conn.Write(ctx, websocket.MessageText, bridgeHistoryCreate("Repeat the code.", gjson.GetBytes(first, "response.id").String(), false)))
+			second := bridgeHistoryReadCompleted(t, ctx, conn)
+			require.Equal(t, upstream.code, gjson.GetBytes(second, "response.output.0.content.0.text").String())
+			freshInput := []any{map[string]string{"role": "user", "content": "Start another independent request."}}
+			fresh, err := sjson.SetBytes(bridgeHistoryCreate(freshInput, "", false), "prompt_cache_breakpoint", "fixture-break")
+			require.NoError(t, err)
+			require.NoError(t, conn.Write(ctx, websocket.MessageText, fresh))
+			bridgeHistoryReadCompleted(t, ctx, conn)
+			require.NoError(t, conn.Close(websocket.StatusNormalClosure, "done"))
+			require.NoError(t, <-done)
+			require.Len(t, upstream.bodies, 4, "a completed reconstruction must not disable a later fresh request's compatibility retry")
+			require.NotContains(t, string(upstream.bodies[3]), upstream.code, "a fresh seed must not inherit the prior assistant answer")
+			require.False(t, gjson.GetBytes(upstream.bodies[3], "previous_response_id").Exists())
+		})
 	}
 }
 

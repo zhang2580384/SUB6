@@ -21,6 +21,12 @@ Apply all [0.1.9 validation requirements](BUILD-v0.1.9.md) to the final exact
 Require all four CI jobs, including real Redis scenarios and race tests;
 skipped Windows Redis fixtures are insufficient. Record earlier failures.
 
+The same race gate retains the PR610 rejected-field/followup timing, Issue600
+account-switch identity and moderation failover regressions. Fresh requests keep
+their existing pre-generation retry contracts; only rebuilt history turns gain
+the additional no-replay fence. Preserve the initial full-CI failures and the
+existing assertions when qualifying the corrected final head.
+
 Review the [ordinary bridge history repair](2026-11-17-ws-http-bridge-history.md),
 especially local scope, current admission, immutable final-send identity/body,
 actual downstream delivery, output/delta completeness, tool-result preservation,
