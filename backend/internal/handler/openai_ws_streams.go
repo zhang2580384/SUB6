@@ -205,6 +205,9 @@ func (r *openAIWSStreamRouter) route(kind coderws.MessageType, body []byte, arri
 	if err != nil {
 		return r.writeError("", "invalid_stream_id", "stream_id must contain 1-256 letters, numbers, underscores, hyphens or periods")
 	}
+	if _, err := service.OpenAIWSGenerateMode(body); err != nil {
+		return r.writeError(streamID, "invalid_generate", err.Error())
+	}
 	frameType := strings.TrimSpace(gjson.GetBytes(body, "type").String())
 	if frameType == "" {
 		frameType = "response.create" // preserve the existing legacy parser default
@@ -495,6 +498,9 @@ func (s *openAIWSLogicalSession) LastFrameArrival() time.Time {
 
 func (s *openAIWSLogicalSession) Write(ctx context.Context, kind coderws.MessageType, body []byte) error {
 	id, valid := service.OpenAIWSFrameResponseID(body)
+	if service.IsOpenAIWSLocalPrewarmAck(ctx, body) {
+		id, valid = "", true
+	}
 	// Only the router may attach its downstream lane identifier.
 	var err error
 	if s.streamID != "" {

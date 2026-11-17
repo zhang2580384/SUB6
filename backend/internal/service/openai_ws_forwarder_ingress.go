@@ -879,7 +879,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 
 	parseClientPayload := func(turn int, raw []byte) (openAIWSClientPayload, error) {
 		clientPayloadRaw := append([]byte(nil), raw...)
-		prepared, prepareErr := agentRecovery.prepareReadable(account, raw)
+		warm, controlErr := OpenAIWSGenerateMode(raw)
+		if controlErr != nil {
+			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, controlErr.Error(), nil)
+		}
+		prepared := raw
+		var prepareErr error
+		if !warm {
+			prepared, prepareErr = agentRecovery.prepareReadable(account, raw)
+		}
 		if prepareErr != nil {
 			return openAIWSClientPayload{}, openAIWSAgentRecoveryClose(prepareErr)
 		}
@@ -1202,7 +1210,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			hooks.TurnStarted(1, turnArrivedAt)
 		}
 	}
-	readClientMessage := func(nextTurn int) ([]byte, error) {
+	readClientMessage := func() ([]byte, error) {
 		idleTimeout := s.openAIWSIngressInterTurnIdleTimeout()
 		readCtx := ctx
 		if idleTimeout > 0 {
@@ -1237,9 +1245,6 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		turnArrivedAt = time.Time{}
 		if received := clientReader.lastReadAt.Load(); received != nil {
 			turnArrivedAt = *received
-		}
-		if hooks != nil && hooks.TurnStarted != nil {
-			hooks.TurnStarted(nextTurn, turnArrivedAt)
 		}
 		return payload, nil
 	}
@@ -1361,7 +1366,50 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		bridgeAccountFailoverInputExists := false
 		bridgeHistory := newOpenAIWSHTTPBridgeHistory(s, c, account, smartStateful)
 		defer bridgeHistory.close()
+		generation := 0
 		for turn := 1; ; turn++ {
+			if turn > 1 {
+				nextClientMessage, readErr := readClientMessage()
+				if readErr != nil {
+					if isOpenAIWSSessionPreempted(ctx) {
+						return errOpenAIWSSessionPreempted
+					}
+					if ctx.Err() == nil && isOpenAIWSClientReadDisconnect(readErr) {
+						closeStatus, closeReason := summarizeOpenAIWSReadCloseError(readErr)
+						logOpenAIWSModeInfo(
+							"ingress_ws_http_bridge_client_closed account_id=%d close_status=%s close_reason=%s",
+							account.ID,
+							closeStatus,
+							truncateOpenAIWSLogValue(closeReason, openAIWSHeaderValueMaxLen),
+						)
+						return nil
+					}
+					return fmt.Errorf("read client websocket request: %w", readErr)
+				}
+				// Only a fresh connection can be prewarmed. Reject late controls before
+				// touching the active session's model, tool mappings or retained history.
+				if warm, controlErr := OpenAIWSGenerateMode(nextClientMessage); controlErr != nil || warm {
+					writeCtx, cancel := newOpenAIWSDownstreamWriteContext(ctx, hooks, s.openAIWSWriteTimeout())
+					writeErr := WriteCapturedWSClient(writeCtx, clientConn, coderws.MessageText, []byte(`{"type":"error","error":{"type":"invalid_request_error","code":"invalid_prewarm","message":"Prewarm is only supported on a fresh logical connection"}}`))
+					cancel()
+					if writeErr != nil {
+						return writeErr
+					}
+					CompleteOpenAIWSDownstreamTurn(clientConn, nil, nil)
+					continue
+				}
+				if hooks != nil && hooks.TurnStarted != nil {
+					hooks.TurnStarted(turn, turnArrivedAt)
+				}
+				if err := preflightFollowupPayload(turn, nextClientMessage); err != nil {
+					return err
+				}
+				nextPayload, parseErr := parseClientPayload(turn, nextClientMessage)
+				if parseErr != nil {
+					return parseErr
+				}
+				currentBridgePayload = nextPayload
+			}
 			if turn > 1 && hooks != nil {
 				if err := hooks.beforeRequest(turn, currentBridgePayload.payloadRaw, currentBridgePayload.clientPayloadRaw, currentBridgePayload.originalModel); err != nil {
 					s.invalidateOpenAIWSTurnStateAfterAdmissionFailureForRequest(
@@ -1385,6 +1433,25 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					)
 					return openAIWSUnsentTurn(err, currentBridgePayload.clientPayloadRaw, currentBridgePayload.originalModel, turn)
 				}
+			}
+			if warm, _ := OpenAIWSGenerateMode(currentBridgePayload.clientPayloadRaw); warm {
+				if !openAIWSHTTPPrewarmSafe(currentBridgePayload.clientPayloadRaw) {
+					return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "unsupported HTTP bridge prewarm context", nil)
+				}
+				warmErr := s.completeOpenAIWSHTTPPrewarm(ctx, c, account, currentBridgePayload.payloadRaw, clientConn, hooks)
+				if hooks != nil && hooks.AfterTurn != nil {
+					hooks.AfterTurn(turn, nil, warmErr)
+				}
+				if warmErr != nil {
+					return warmErr
+				}
+				ingressSessionOriginalModel = ""
+				continue
+			}
+			generation++
+			if generation == 1 && turn > 1 {
+				grokCacheSeedPayload = currentBridgePayload.payloadRaw
+				refreshIngressRouteState(currentBridgePayload)
 			}
 			if turnState != "" && c != nil && c.Request != nil {
 				c.Request.Header.Set(openAIWSTurnStateHeader, turnState)
@@ -1509,6 +1576,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if bridgeHistoryTurn != nil {
 				bridgeCtx = context.WithValue(bridgeCtx, openAIWSBridgeHistoryTurnKey{}, bridgeHistoryTurn)
 			}
+			if generation == 1 && turn > 1 {
+				bridgeCtx = context.WithValue(bridgeCtx, openAIWSFirstBridgeGenerationKey{}, true)
+			}
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				context.WithValue(bridgeCtx, openAIWSQueueArrivalKey{}, turnArrivedAt),
 				c,
@@ -1622,31 +1692,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				ttl := s.openAIWSResponseStickyTTL()
 				logOpenAIWSBindResponseAccountWarn(groupID, account.ID, responseID, stateStore.BindResponseAccount(ctx, groupID, responseID, account.ID, ttl))
 			}
-			nextClientMessage, readErr := readClientMessage(turn + 1)
-			if readErr != nil {
-				if isOpenAIWSSessionPreempted(ctx) {
-					return errOpenAIWSSessionPreempted
-				}
-				if ctx.Err() == nil && isOpenAIWSClientReadDisconnect(readErr) {
-					closeStatus, closeReason := summarizeOpenAIWSReadCloseError(readErr)
-					logOpenAIWSModeInfo(
-						"ingress_ws_http_bridge_client_closed account_id=%d close_status=%s close_reason=%s",
-						account.ID,
-						closeStatus,
-						truncateOpenAIWSLogValue(closeReason, openAIWSHeaderValueMaxLen),
-					)
-					return nil
-				}
-				return fmt.Errorf("read client websocket request: %w", readErr)
-			}
-			if err := preflightFollowupPayload(turn+1, nextClientMessage); err != nil {
-				return err
-			}
-			nextPayload, parseErr := parseClientPayload(turn+1, nextClientMessage)
-			if parseErr != nil {
-				return parseErr
-			}
-			currentBridgePayload = nextPayload
+
 		}
 	}
 
@@ -3125,7 +3171,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			preferredConnID = connID
 		}
 
-		nextClientMessage, readErr := readClientMessage(turn + 1)
+		nextClientMessage, readErr := readClientMessage()
 		if readErr != nil {
 			if isOpenAIWSSessionPreempted(ctx) {
 				return errOpenAIWSSessionPreempted
@@ -3144,6 +3190,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			return fmt.Errorf("read client websocket request: %w", readErr)
 		}
 
+		if hooks != nil && hooks.TurnStarted != nil {
+			hooks.TurnStarted(turn+1, turnArrivedAt)
+		}
 		if err := preflightFollowupPayload(turn+1, nextClientMessage); err != nil {
 			return err
 		}

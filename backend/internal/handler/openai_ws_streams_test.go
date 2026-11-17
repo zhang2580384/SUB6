@@ -751,3 +751,111 @@ func TestOpenAIWSStreamProviderDenialDoesNotDiscloseContent(t *testing.T) {
 		})
 	}
 }
+
+// Exercise an actual client socket, handler, billing hook and HTTP provider. A
+// non-empty prewarm is intentional: input length cannot distinguish generation.
+func TestOpenAIWSStreamHTTPBridgePrewarmDoesNotGenerate(t *testing.T) {
+	for _, lane := range []string{"", "named"} {
+		t.Run("lane_"+lane, func(t *testing.T) {
+			var mu sync.Mutex
+			var calls []string
+			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				mu.Lock()
+				calls = append(calls, string(body))
+				n := len(calls)
+				mu.Unlock()
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprintf(w, `data: {"type":"response.completed","response":{"id":"resp_fixture_%d","status":"completed","model":"gpt-5.1","output":[{"type":"message","id":"msg_fixture_%d","role":"assistant","status":"completed","content":[{"type":"output_text","text":"fixture answer"}]}],"usage":{"input_tokens":4,"output_tokens":1,"total_tokens":5}}}`+"\n\n", n, n)
+			}))
+			defer up.Close()
+			h := streamIsolationHarness(t, up.URL, service.OpenAIWSIngressModeHTTPBridge, nil)
+			warm := streamIsolationPayload(lane, "warmup-thread", "", "")
+			warm, _ = sjson.SetBytes(warm, "generate", false)
+			warm, _ = sjson.SetRawBytes(warm, "include", []byte(`["reasoning.encrypted_content"]`))
+			warm, _ = sjson.SetRawBytes(warm, "input", []byte(`[{"type":"message","role":"user","content":[{"type":"input_text","text":"prewarm only marker"}]}]`))
+			warm, _ = sjson.SetRawBytes(warm, "tools", []byte(`[{"type":"function","name":"fixture_warm_only","parameters":{"type":"object","properties":{}}}]`))
+			streamIsolationSend(t, h.clientConn, warm)
+			ack := streamIsolationRead(t, h.clientConn)
+			mu.Lock()
+			count := len(calls)
+			mu.Unlock()
+			require.Zero(t, count, "prewarm reached provider")
+			require.Equal(t, "response.completed", gjson.GetBytes(ack, "type").String())
+			require.Equal(t, lane, gjson.GetBytes(ack, "stream_id").String())
+			require.Equal(t, `""`, gjson.GetBytes(ack, "response.id").Raw)
+			require.Equal(t, "[]", gjson.GetBytes(ack, "response.output").Raw)
+			for _, f := range []string{"input_tokens", "output_tokens", "total_tokens"} {
+				require.Equal(t, "0", gjson.GetBytes(ack, "response.usage."+f).Raw)
+			}
+			streamIsolationSend(t, h.clientConn, streamIsolationPayload(lane, "warmup-thread", "first real prompt", ""))
+			first := streamIsolationTerminal(t, h.clientConn)
+			require.Equal(t, "resp_fixture_1", gjson.GetBytes(first, "response.id").String())
+			// An out-of-place prewarm has no authority to reset the completed conversation.
+			streamIsolationSend(t, h.clientConn, warm)
+			reject := streamIsolationRead(t, h.clientConn)
+			require.Equal(t, "error", gjson.GetBytes(reject, "type").String())
+			require.Equal(t, "invalid_prewarm", gjson.GetBytes(reject, "error.code").String())
+			require.Equal(t, lane, gjson.GetBytes(reject, "stream_id").String())
+			streamIsolationSend(t, h.clientConn, streamIsolationPayload(lane, "warmup-thread", "second real prompt", "resp_fixture_1"))
+			second := streamIsolationTerminal(t, h.clientConn)
+			require.Equal(t, "resp_fixture_2", gjson.GetBytes(second, "response.id").String())
+			mu.Lock()
+			sent := append([]string(nil), calls...)
+			mu.Unlock()
+			require.Len(t, sent, 2)
+			require.Contains(t, sent[0], "first real prompt")
+			require.Contains(t, sent[1], "second real prompt")
+			for _, body := range sent {
+				require.NotContains(t, body, "prewarm only marker")
+				require.NotContains(t, body, "fixture_warm_only")
+				require.False(t, gjson.Get(body, "generate").Exists())
+			}
+			var ids []string
+			for range 2 {
+				select {
+				case row := <-h.usageLogs:
+					ids = append(ids, row.RequestID)
+					require.EqualValues(t, 1, row.OutputTokens)
+				case <-time.After(3 * time.Second):
+					t.Fatal("missing real generation usage")
+				}
+			}
+			require.ElementsMatch(t, []string{"resp_fixture_1", "resp_fixture_2"}, ids)
+			select {
+			case row := <-h.usageLogs:
+				t.Fatalf("unexpected usage %s", row.RequestID)
+			case <-time.After(100 * time.Millisecond):
+			}
+		})
+	}
+}
+
+func TestOpenAIWSStreamHTTPBridgePrewarmInvalid(t *testing.T) {
+	for name, extra := range map[string]string{"pointer": `"previous_response_id":"resp_fixture"`, "conversation": `"conversation":"conv_fixture"`, "tool_result": `"input":[{"type":"function_call_output","call_id":"call_fixture","output":"fixture"}]`, "opaque": `"input":[{"type":"reasoning","encrypted_content":"fixture"}]`, "unknown_include": `"include":["unknown"]`, "image": `"input":[{"role":"user","content":[{"type":"input_image","image_url":"fixture"}]}]`, "duplicate": `"generate":true`, "nonboolean": `"generate":"false"`} {
+		t.Run(name, func(t *testing.T) {
+			var calls atomic.Int32
+			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				http.Error(w, "unexpected generation", 400)
+			}))
+			defer up.Close()
+			h := streamIsolationHarness(t, up.URL, service.OpenAIWSIngressModeHTTPBridge, nil)
+			frame := []byte(`{"type":"response.create","model":"gpt-5.1","stream_id":"warm","generate":false,` + extra + `}`)
+			streamIsolationSend(t, h.clientConn, frame)
+			reject := streamIsolationRead(t, h.clientConn)
+			require.Equal(t, "error", gjson.GetBytes(reject, "type").Str)
+			require.Equal(t, "warm", gjson.GetBytes(reject, "stream_id").Str)
+			require.Zero(t, calls.Load())
+			select {
+			case <-h.usageLogs:
+				t.Fatal("unexpected prewarm billing")
+			case <-time.After(25 * time.Millisecond):
+			}
+		})
+	}
+}

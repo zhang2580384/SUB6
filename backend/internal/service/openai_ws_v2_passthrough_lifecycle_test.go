@@ -1279,6 +1279,12 @@ func TestPassthroughLifecycle_SecondTurnTimeoutIsNotFailoverSafe(t *testing.T) {
 	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_first"}`))
 	cancelWrite()
 	require.NoError(t, err)
+	// A provider cannot respond to the second generation until it receives it.
+	// Keep queued admission and the actual semantic-output timeout independent.
+	seed := requirePassthroughUpstreamWrite(t, upstream, 3*time.Second)
+	require.Empty(t, gjson.GetBytes(seed, "previous_response_id").String())
+	next := requirePassthroughUpstreamWrite(t, upstream, 3*time.Second)
+	require.Equal(t, "resp_first", gjson.GetBytes(next, "previous_response_id").String())
 	upstream.Send(`{"type":"response.created","response":{"id":"resp_second","model":"gpt-5.1"}}`)
 
 	created, err := readPassthroughLifecycleFrame(t, clientConn, 3*time.Second)

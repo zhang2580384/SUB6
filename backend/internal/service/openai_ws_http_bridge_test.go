@@ -2551,3 +2551,22 @@ func TestOpenAIWSHTTPBridge_IdleTimeoutClosesClientSession(t *testing.T) {
 	}
 	require.Len(t, upstream.bodies, 1, "an idle client must not leave a continuation request running")
 }
+
+func TestOpenAIWSHTTPBridgeHistoryPrewarmTransportFence(t *testing.T) {
+	for _, fields := range []string{`"generate":false`, `"generate":null`, `"generate":"false"`, `"generate":0`, `"generate":true,"generate":false`, `"generate":false,"generate":true`, `"Generate":false`, `"gen\u0065rate":false`} {
+		for _, preserve := range []bool{false, true} {
+			body, err := prepareOpenAIWSHTTPBridgeSessionBody(nil, []byte(`{"type":"response.create",`+fields+`}`), preserve)
+			require.Error(t, err)
+			require.Nil(t, body)
+		}
+	}
+	for _, frame := range []string{`{"type":"response.create"}`, `{"type":"response.create","generate":true}`} {
+		body, err := prepareOpenAIWSHTTPBridgeBody(nil, []byte(frame))
+		require.NoError(t, err)
+		require.False(t, gjson.GetBytes(body, "generate").Exists())
+		require.True(t, gjson.GetBytes(body, "stream").Bool())
+	}
+	_, valid := OpenAIWSFrameResponseID([]byte(openAIWSHTTPPrewarmAck))
+	require.False(t, valid, "a provider cannot impersonate the local ack")
+	require.False(t, IsOpenAIWSLocalPrewarmAck(context.Background(), []byte(openAIWSHTTPPrewarmAck)))
+}

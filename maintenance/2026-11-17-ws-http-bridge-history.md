@@ -129,3 +129,13 @@ For comparison of validated plaintext parts only, omitted `annotations` or
 original optional fields, are retained. Text, item IDs, part order and nonempty
 metadata are not normalized. An output with encrypted reasoning is still
 ineligible for this reconstruction; do not assume all clients or turns qualify.
+
+On an HTTP-only bridge, a fresh explicit `response.create` with `generate:false`
+now completes locally after admission. It returns an empty response ID, no output
+and zero usage. It sends no generation to the provider and creates no usage row
+or resumable history. The client sends its first real request with full input.
+The normal Codex request for `reasoning.encrypted_content` as an output field is
+allowed; an input containing actual opaque history, a continuation pointer or a
+tool result is not a fresh prewarm. A late warmup returns a lane-local error and
+leaves the prior real response available for continuation. A native WS provider
+continues to handle its own protocol prewarm.

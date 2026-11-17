@@ -259,6 +259,9 @@ func prepareOpenAIWSHTTPBridgeSessionBody(account *Account, payload []byte, pres
 		return nil, errors.New("response.create payload must be a JSON object")
 	}
 	delete(body, "type")
+	if prewarm, err := OpenAIWSGenerateMode(payload); err != nil || prewarm {
+		return nil, errors.New("non-generation control cannot be converted to a provider POST")
+	}
 	delete(body, "generate")
 	if !preservePrevious {
 		delete(body, "previous_response_id")
@@ -437,6 +440,8 @@ func buildOpenAIWSHTTPBridgeFailedEvent(responseID, model string, createdAt int6
 	return body
 }
 
+type openAIWSFirstBridgeGenerationKey struct{}
+
 func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	ctx context.Context,
 	c *gin.Context,
@@ -471,6 +476,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	}
 	responseModelObserver := &upstreamResponseModelObserver{}
 
+	firstGeneration := turn == 1 || ctx.Value(openAIWSFirstBridgeGenerationKey{}) == true
 	strictSession := smartProtocolStrict(ctx)
 	statefulSession := smartProtocolStateful(ctx)
 	preserveAgentHistory := s.preserveOpenAIAgentHistory(payload)
@@ -667,7 +673,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			if resetErr, handled := handleOpenAIHTTP2PeerReset(c, account, "", err, writeClientMessage); handled {
 				return nil, resetErr
 			}
-			if turn == 1 && !strictSession {
+			if firstGeneration && !strictSession {
 				return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 			}
 			safeErr := sanitizeUpstreamErrorMessage(err.Error())
@@ -714,10 +720,10 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if account.Platform == PlatformGrok {
 			shouldFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
 			s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, resolveGrokWSUpstreamModel(account, body, originalModel)), account, resp.StatusCode, resp.Header, respBody)
-			if shouldFailover && (turn == 1 || resp.StatusCode == http.StatusTooManyRequests) {
+			if shouldFailover && (firstGeneration || resp.StatusCode == http.StatusTooManyRequests) {
 				return nil, newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, false).WithGrokForbiddenPolicy(account)
 			}
-		} else if !strictSession && !preserveAgentHistory && shouldFailover && (turn == 1 || resp.StatusCode == http.StatusTooManyRequests) {
+		} else if !strictSession && !preserveAgentHistory && shouldFailover && (firstGeneration || resp.StatusCode == http.StatusTooManyRequests) {
 			return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body, respBody)
 		}
 		if account.Platform != PlatformGrok && (shouldFailover || shouldCooldownOpenAITransientUpstreamError(resp.StatusCode, respBody)) {
@@ -1004,7 +1010,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			}
 			// A disconnected client needs this attempt drained for usage, not replayed,
 			// even when only non-semantic heartbeats were delivered.
-			if !strictSession && !preserveAgentHistory && !clientDisconnected && !wroteDownstream && shouldFailover && (turn == 1 || statusCode == http.StatusTooManyRequests) {
+			if !strictSession && !preserveAgentHistory && !clientDisconnected && !wroteDownstream && shouldFailover && (firstGeneration || statusCode == http.StatusTooManyRequests) {
 				if account.Platform == PlatformGrok {
 					return nil, newOpenAIUpstreamFailoverError(statusCode, resp.Header, upstreamMessage, errMessage, false).WithGrokForbiddenPolicy(account)
 				}
@@ -1049,7 +1055,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		clientMessage = publicOpenAIWSUpstreamEvent(clientMessage, originalModel)
 		if !clientDisconnected && !suppressClientMessage {
 			isKeepalive := eventType == "keepalive"
-			stageBeforeSemanticOutput := turn == 1 && account.Platform == PlatformOpenAI && !wroteDownstream
+			stageBeforeSemanticOutput := firstGeneration && account.Platform == PlatformOpenAI && !wroteDownstream
 			commitStagedMessages := !stageBeforeSemanticOutput ||
 				openAIStreamDataStartsClientOutput(string(clientMessage), eventType) ||
 				isOpenAIWSTerminalEvent(eventType)
@@ -1166,7 +1172,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				return resultWithUsage(), resetErr
 			}
 		}
-		if !strictSession && turn == 1 && !clientDisconnected && !wroteDownstream {
+		if !strictSession && firstGeneration && !clientDisconnected && !wroteDownstream {
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, streamErr, true)
 		}
 		return resultWithUsage(), streamErr
@@ -1175,7 +1181,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if sawDone {
 		terminalErr = errors.New("upstream http bridge stream sent [DONE] before terminal event")
 	}
-	if !strictSession && turn == 1 && !clientDisconnected && !wroteDownstream {
+	if !strictSession && firstGeneration && !clientDisconnected && !wroteDownstream {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, terminalErr, true)
 	}
 	return resultWithUsage(), terminalErr
