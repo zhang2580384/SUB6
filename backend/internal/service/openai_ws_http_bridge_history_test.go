@@ -27,12 +27,13 @@ import (
 // This fictional provider creates its own unpredictable answer. A continuation
 // can repeat it only if the bridge actually sends the delivered assistant item.
 type bridgeHistoryUpstream struct {
-	mu       sync.Mutex
-	bodies   [][]byte
-	code     string
-	tool     bool
-	streamed bool
-	toolName string
+	mu        sync.Mutex
+	bodies    [][]byte
+	code      string
+	tool      bool
+	streamed  bool
+	toolName  string
+	namespace bool
 }
 
 func (u *bridgeHistoryUpstream) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
@@ -45,6 +46,12 @@ func (u *bridgeHistoryUpstream) Do(req *http.Request, _ string, _ int64, _ int) 
 	defer u.mu.Unlock()
 	u.bodies = append(u.bodies, body)
 	turn := len(u.bodies)
+	if turn == 1 && u.namespace {
+		u.toolName = gjson.GetBytes(body, "tools.0.name").String()
+		if u.toolName == "" {
+			return nil, fmt.Errorf("fixture namespace tool was not projected")
+		}
+	}
 	text := u.code
 	if turn > 1 {
 		text = "history_missing"
@@ -103,6 +110,7 @@ type bridgeHistoryFixtureOptions struct {
 	explicitBridge, strictOwnership, oauth bool
 	streamed                               bool
 	reservedTool                           bool
+	namespace                              bool
 }
 
 func bridgeHistoryFixture(t *testing.T, withRecovery bool, tool bool, options ...bridgeHistoryFixtureOptions) (*websocket.Conn, *bridgeHistoryUpstream, context.Context, <-chan error) {
@@ -131,6 +139,7 @@ func bridgeHistoryFixture(t *testing.T, withRecovery bool, tool bool, options ..
 	if len(options) > 0 {
 		option := options[0]
 		upstream.streamed = option.streamed
+		upstream.namespace = option.namespace
 		if option.reservedTool {
 			upstream.toolName = codexPythonToolAlias
 		}
@@ -252,6 +261,44 @@ func TestOpenAIWSHTTPBridgeHistoryExplicitToolResultIsNotReexecuted(t *testing.T
 	require.Equal(t, "function_call", items[2].Get("type").String())
 	require.Equal(t, "function_call_output", items[3].Get("type").String())
 	require.Equal(t, "fixture result applied once", items[3].Get("output").String())
+}
+
+func TestOpenAIWSHTTPBridgeHistoryExistingLiteSeedPath(t *testing.T) {
+	conn, u, ctx, done := bridgeHistoryFixture(t, true, false, bridgeHistoryFixtureOptions{explicitBridge: true, oauth: true})
+	seed := bridgeHistoryCreate("Generate a fresh code.", "", false)
+	seed, err := sjson.SetBytes(seed, "client_metadata."+responsesLiteWSMetadataKey, "true")
+	require.NoError(t, err)
+	seed, err = sjson.SetRawBytes(seed, "tools", []byte(`[{"type":"namespace","name":"fixture_tools","tools":[{"type":"function","name":"fixture_lookup","parameters":{"type":"object","properties":{}}}]}]`))
+	require.NoError(t, err)
+	require.NoError(t, conn.Write(ctx, websocket.MessageText, seed))
+	first := bridgeHistoryReadCompleted(t, ctx, conn)
+	require.Equal(t, u.code, gjson.GetBytes(first, "response.output.0.content.0.text").String())
+	require.NoError(t, conn.Close(websocket.StatusNormalClosure, "done"))
+	require.NoError(t, <-done)
+	require.Len(t, u.bodies, 1)
+	require.Equal(t, "additional_tools", gjson.GetBytes(u.bodies[0], "input.1.type").String(), "existing Lite namespace projection must remain effective")
+}
+
+func TestOpenAIWSHTTPBridgeHistoryNamespacedToolResult(t *testing.T) {
+	conn, u, ctx, done := bridgeHistoryFixture(t, true, true, bridgeHistoryFixtureOptions{explicitBridge: true, namespace: true})
+	seed := bridgeHistoryCreate("Explain and call the namespace fixture tool.", "", false)
+	seed, err := sjson.SetRawBytes(seed, "tools", []byte(`[{"type":"namespace","name":"fixture_tools","tools":[{"type":"function","name":"fixture_lookup","parameters":{"type":"object","properties":{}}}]}]`))
+	require.NoError(t, err)
+	require.NoError(t, conn.Write(ctx, websocket.MessageText, seed))
+	first := bridgeHistoryReadCompleted(t, ctx, conn)
+	require.Equal(t, "fixture_tools", gjson.GetBytes(first, "response.output.1.namespace").String())
+	require.Equal(t, "fixture_lookup", gjson.GetBytes(first, "response.output.1.name").String())
+	follow := bridgeHistoryCreate([]any{map[string]string{"type": "function_call_output", "call_id": "call_fixture", "output": "fixture result applied once"}}, gjson.GetBytes(first, "response.id").String(), false)
+	require.NoError(t, conn.Write(ctx, websocket.MessageText, follow))
+	second := bridgeHistoryReadCompleted(t, ctx, conn)
+	require.Equal(t, u.code, gjson.GetBytes(second, "response.output.0.content.0.text").String())
+	require.NoError(t, conn.Close(websocket.StatusNormalClosure, "done"))
+	require.NoError(t, <-done)
+	require.Len(t, u.bodies, 2)
+	input := gjson.GetBytes(u.bodies[1], "input").Array()
+	require.Len(t, input, 4)
+	require.Equal(t, u.toolName, input[2].Get("name").String(), "retained client namespace must use the existing provider projection")
+	require.Equal(t, "function_call_output", input[3].Get("type").String())
 }
 
 func TestOpenAIWSHTTPBridgeHistoryStreamedToolResultAndOAuthNames(t *testing.T) {
@@ -407,7 +454,7 @@ func TestOpenAIWSHTTPBridgeHistoryScopeAndExpiry(t *testing.T) {
 }
 
 func TestOpenAIWSHTTPBridgeHistoryFinalSendIntegrity(t *testing.T) {
-	for _, field := range []string{"account", "credential", "base_url", "mapped_model", "proxy", "authorization", "organization", "project", "request_url", "input", "source", "payload", "missing_body", "unreadable_body", "binding_changed"} {
+	for _, field := range []string{"account", "credential", "base_url", "mapped_model", "proxy", "authorization", "organization", "project", "responses_lite", "request_url", "input", "source", "payload", "missing_body", "unreadable_body", "binding_changed"} {
 		t.Run(field, func(t *testing.T) {
 			h, c, a := bridgeHistoryUnit(t)
 			bridgeHistorySeedUnit(t, h, c, a)
@@ -438,6 +485,8 @@ func TestOpenAIWSHTTPBridgeHistoryFinalSendIntegrity(t *testing.T) {
 				req.Header.Set("OpenAI-Organization", "fixture-changed")
 			case "project":
 				req.Header.Set("OpenAI-Project", "fixture-changed")
+			case "responses_lite":
+				req.Header.Set(responsesLiteHeader, "true")
 			case "request_url":
 				req.URL.RawQuery = "revision=changed"
 			case "input":

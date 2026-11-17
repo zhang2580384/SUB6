@@ -283,7 +283,7 @@ func (h *openAIWSHTTPBridgeHistory) prepare(c *gin.Context, account *Account, so
 	if !utf8.Valid(source) || !openAIEncryptedJSONUnambiguous(source) || !gjson.ParseBytes(source).IsObject() || !utf8.Valid(payload) || !openAIEncryptedJSONUnambiguous(payload) || !gjson.ParseBytes(payload).IsObject() {
 		return nil, openAIAgentRecoveryError("bridge_history_unsupported")
 	}
-	if account.IsExcelBPSEnabledForModel(model) || account.IsPrismBrowserEnabledForModel(model) {
+	if isOpenAIResponsesLiteWebSocketPayload(payload) || account.IsExcelBPSEnabledForModel(model) || account.IsPrismBrowserEnabledForModel(model) {
 		if h.response != "" && gjson.GetBytes(source, "previous_response_id").String() != "" {
 			return nil, openAIAgentRecoveryError("route_changed")
 		}

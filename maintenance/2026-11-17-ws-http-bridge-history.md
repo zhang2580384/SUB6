@@ -25,7 +25,7 @@ The bridge retains the latest fully completed readable response within one
 authenticated logical WS session. Both explicit account HTTP bridge mode and
 the existing threshold-selected bridge use this path. Native API-key and Codex
 OAuth accounts are supported; managed credentials, native CN adapters,
-passthrough, Copilot/SIWC, plugins, BPS/Prism and smart stateful sessions are
+passthrough, Copilot/SIWC, plugins, BPS/Prism, Responses Lite and smart stateful sessions are
 excluded. Native upstream WS collection is unchanged.
 
 A pointer can be removed only after a local proof restores the complete original
@@ -37,7 +37,8 @@ input and actual immutable HTTP body are checked before forwarding. A rebuilt
 turn cannot use account-switch admission fallback, rejected-field retries or
 automatic generation failover after the send boundary.
 
-Only plain native messages, native function/custom calls and string tool results
+Only plain native messages, native function/custom calls (including existing
+namespace projection) and string tool results
 are eligible. All earlier calls must have one matching completed result before
 reconstruction. Full client history is recognized without adding it a second
 time; partial overlapping assistant/tool history is refused. OAuth reserved tool
@@ -67,7 +68,8 @@ written to diagnostic logs.
 The focused suite exercises explicit mode with its payload threshold disabled,
 owner binding enabled/disabled, `store=false/true`, API-key/OAuth, omitted inherited
 model, string input, complete client history, assistant-plus-tool continuation,
-stream-only output and the OAuth reserved `python` name. The real-handler fixture
+stream-only output, native namespace tools, the existing Lite seed path and the
+OAuth reserved `python` name. The real-handler fixture
 interleaves two independent logical conversations on one physical socket, in
 both named-lane and legacy-thread forms. Each repeats its own random answer,
 preserves the completed tool result and produces exactly one billing event per

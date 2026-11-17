@@ -45,6 +45,8 @@ func openAIWSBridgeHistoryOutputKeysSafe(item gjson.Result) bool {
 			safe = kind == "message" || kind == ""
 		case "call_id", "name":
 			safe = kind == "function_call" || kind == "custom_tool_call"
+		case "namespace":
+			safe = (kind == "function_call" || kind == "custom_tool_call") && value.Type == gjson.String
 		case "arguments":
 			safe = kind == "function_call"
 		case "input":
