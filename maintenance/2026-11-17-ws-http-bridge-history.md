@@ -139,3 +139,5 @@ allowed; an input containing actual opaque history, a continuation pointer or a
 tool result is not a fresh prewarm. A late warmup returns a lane-local error and
 leaves the prior real response available for continuation. A native WS provider
 continues to handle its own protocol prewarm.
+An inline plaintext prewarm message can carry a client item `id`. It is discarded
+with that message and is never a provider response ID or a continuation anchor.

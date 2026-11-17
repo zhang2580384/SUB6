@@ -68,8 +68,16 @@ func openAIWSHTTPPrewarmSafe(body []byte) bool {
 		if !safe {
 			return false
 		}
-		item.ForEach(func(k, _ gjson.Result) bool {
-			safe = k.Str == "role" || k.Str == "type" || k.Str == "content"
+		item.ForEach(func(k, v gjson.Result) bool {
+			switch k.Str {
+			case "role", "type", "content":
+			case "id":
+				// A client item label on an inline message is not a response
+				// pointer. Validate it, then discard it with the prewarm body.
+				safe = v.Type == gjson.String && len(v.Str) > 0 && len(v.Str) <= 512 && strings.IndexFunc(v.Str, func(r rune) bool { return r <= ' ' || r > '~' }) < 0
+			default:
+				safe = false
+			}
 			return safe
 		})
 		if !safe {

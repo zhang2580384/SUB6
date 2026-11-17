@@ -777,7 +777,10 @@ func TestOpenAIWSStreamHTTPBridgePrewarmDoesNotGenerate(t *testing.T) {
 			warm := streamIsolationPayload(lane, "warmup-thread", "", "")
 			warm, _ = sjson.SetBytes(warm, "generate", false)
 			warm, _ = sjson.SetRawBytes(warm, "include", []byte(`["reasoning.encrypted_content"]`))
-			warm, _ = sjson.SetRawBytes(warm, "input", []byte(`[{"type":"message","role":"user","content":[{"type":"input_text","text":"prewarm only marker"}]}]`))
+			// The real client includes an item id even on its first plaintext
+			// developer message. It is not a previous response or a history reference.
+			const warmItemID = "msg_00000000-0000-4000-8000-000000000001"
+			warm, _ = sjson.SetRawBytes(warm, "input", []byte(`[{"type":"message","id":"`+warmItemID+`","role":"developer","content":[{"type":"input_text","text":"prewarm only marker"}]}]`))
 			warm, _ = sjson.SetRawBytes(warm, "tools", []byte(`[{"type":"function","name":"fixture_warm_only","parameters":{"type":"object","properties":{}}}]`))
 			streamIsolationSend(t, h.clientConn, warm)
 			ack := streamIsolationRead(t, h.clientConn)
@@ -788,6 +791,7 @@ func TestOpenAIWSStreamHTTPBridgePrewarmDoesNotGenerate(t *testing.T) {
 			require.Equal(t, "response.completed", gjson.GetBytes(ack, "type").String())
 			require.Equal(t, lane, gjson.GetBytes(ack, "stream_id").String())
 			require.Equal(t, `""`, gjson.GetBytes(ack, "response.id").Raw)
+			require.NotContains(t, string(ack), warmItemID)
 			require.Equal(t, "[]", gjson.GetBytes(ack, "response.output").Raw)
 			for _, f := range []string{"input_tokens", "output_tokens", "total_tokens"} {
 				require.Equal(t, "0", gjson.GetBytes(ack, "response.usage."+f).Raw)
@@ -812,6 +816,7 @@ func TestOpenAIWSStreamHTTPBridgePrewarmDoesNotGenerate(t *testing.T) {
 			require.Contains(t, sent[1], "second real prompt")
 			for _, body := range sent {
 				require.NotContains(t, body, "prewarm only marker")
+				require.NotContains(t, body, warmItemID)
 				require.NotContains(t, body, "fixture_warm_only")
 				require.False(t, gjson.Get(body, "generate").Exists())
 			}
@@ -836,7 +841,7 @@ func TestOpenAIWSStreamHTTPBridgePrewarmDoesNotGenerate(t *testing.T) {
 }
 
 func TestOpenAIWSStreamHTTPBridgePrewarmInvalid(t *testing.T) {
-	for name, extra := range map[string]string{"pointer": `"previous_response_id":"resp_fixture"`, "conversation": `"conversation":"conv_fixture"`, "tool_result": `"input":[{"type":"function_call_output","call_id":"call_fixture","output":"fixture"}]`, "opaque": `"input":[{"type":"reasoning","encrypted_content":"fixture"}]`, "unknown_include": `"include":["unknown"]`, "image": `"input":[{"role":"user","content":[{"type":"input_image","image_url":"fixture"}]}]`, "duplicate": `"generate":true`, "nonboolean": `"generate":"false"`} {
+	for name, extra := range map[string]string{"pointer": `"previous_response_id":"resp_fixture"`, "conversation": `"conversation":"conv_fixture"`, "empty_id": `"input":[{"type":"message","role":"developer","content":"fixture","id":""}]`, "long_id": `"input":[{"type":"message","role":"developer","content":"fixture","id":"` + strings.Repeat("x", 513) + `"}]`, "control_id": `"input":[{"type":"message","role":"developer","content":"fixture","id":"msg_\nfixture"}]`, "id_reference": `"input":[{"type":"item_reference","id":"msg_fixture"}]`, "non_string_id": `"input":[{"type":"message","role":"developer","content":"fixture","id":{"id":"resp_fixture"}}]`, "tool_result": `"input":[{"type":"function_call_output","call_id":"call_fixture","output":"fixture"}]`, "opaque": `"input":[{"type":"reasoning","encrypted_content":"fixture"}]`, "unknown_include": `"include":["unknown"]`, "image": `"input":[{"role":"user","content":[{"type":"input_image","image_url":"fixture"}]}]`, "duplicate": `"generate":true`, "nonboolean": `"generate":"false"`} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
 			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
