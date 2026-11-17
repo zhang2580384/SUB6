@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
@@ -30,9 +30,9 @@
     "history": "sanitized root; inherited integration history remains private",
     "binary_assets": true,
     "container_images": true,
-    "stable_binary_version": "0.1.9",
+    "stable_binary_version": "0.1.10",
     "source_candidate": false,
-    "release_tag": "v0.1.9",
+    "release_tag": "v0.1.10",
     "managed_upgrade_mode": "protocol-2 reviewed plan; exact final build-info and successful preflight required",
     "production_deployed": false,
     "container_distribution": "release docker-save archive; no registry push"
@@ -50,7 +50,7 @@
   "maintenance": {
     "date": "2026-11-17",
     "upstream_delta_commits": 118,
-    "report": "UPGRADE-v0.1.9.md",
+    "report": "UPGRADE-v0.1.10.md",
     "upstream_review": "2026-11-15-upstream-review.md",
     "stable_fix_source": "b0c470b6aa75dc52b7891b2de70271a46760824e",
     "pricing_reports": [
@@ -59,6 +59,24 @@
     ]
   },
   "release_update": {
+    "version": "0.1.10",
+    "base": "60f23641079c0e7a6d672cc3faaa64b3ca9c9c5e",
+    "report": "2026-11-17-ws-http-bridge-history.md",
+    "new_upstream_commits": 0,
+    "new_migrations": 0,
+    "new_dependencies": 0,
+    "production_deployed": false,
+    "excluded_observation": {
+      "date": "2026-11-17",
+      "production": "8750ec1956be7c8de327e384c884bb737f943017",
+      "latest_release": "v2.21.6",
+      "release_commit": "321f11c1a4d23302961c223ac030fd09e3f9e6e8",
+      "release_tag_object": "ac02d5278ced687d920b01ea6eec4227b5b1cf02",
+      "disposition": "observed only; no additional upstream source qualified, executed or integrated",
+      "observed_at_utc": "2026-11-17T13:51:31.061476+00:00"
+    }
+  },
+  "previous_release_update": {
     "version": "0.1.9",
     "base": "5c2c95943f48267e40880d24de9c5d54042b3ef5",
     "pull_request": "https://github.com/zhang2580384/SUB6/pull/2",

@@ -23,7 +23,7 @@ func (e *OpenAIAgentRecoveryError) ClientCode() string {
 }
 func (e *OpenAIAgentRecoveryError) HTTPStatus() int {
 	switch e.Reason {
-	case "readable_intent_missing", "readable_history_unsupported":
+	case "readable_intent_missing", "readable_history_unsupported", "bridge_history_unsupported", "bridge_history_limit":
 		return http.StatusUnprocessableEntity
 	case "owner_rate_limited":
 		return http.StatusTooManyRequests
@@ -46,6 +46,16 @@ func (e *OpenAIAgentRecoveryError) ClientType() string {
 func (e *OpenAIAgentRecoveryError) ClientMessage() string {
 	var reason, action string
 	switch e.Reason {
+	case "ws_previous_response_unavailable", "bridge_previous_response_unavailable":
+		return "The response pointer is not the latest fully delivered response on this WebSocket connection. Preserve the task and verify the prior outcome; no generation or tool was replayed."
+	case "bridge_previous_response_expired":
+		return "The completed response context on this WebSocket connection has expired. Preserve the task and verify the prior outcome; no generation or tool was replayed."
+	case "bridge_delivery_unconfirmed":
+		return "The prior response was not confirmed as completely delivered. Check its outcome before continuing; do not automatically resend a generation or tool result."
+	case "bridge_history_unsupported":
+		return "The HTTP bridge cannot preserve this history losslessly. Its response pointer was not rebuilt; no generation or tool was replayed."
+	case "bridge_history_limit":
+		return "The connection history exceeds the HTTP bridge retention limit. Its response pointer was not rebuilt; no generation or tool was replayed."
 	case "readable_intent_missing":
 		return "The current request has no readable task or summary from which a new provider conversation can be built. The opaque contents are unavailable; no generation or tool was replayed."
 	case "readable_history_unsupported":

@@ -1176,13 +1176,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return hooks.BeforePayloadParse(turn, raw, effectiveModel)
 	}
 
+	var bridgeHistoryTurn *openAIWSBridgeHistoryTurn
 	writeClientMessage := func(message []byte) error {
 		writeCtx, cancel := newOpenAIWSDownstreamWriteContext(ctx, hooks, s.openAIWSWriteTimeout())
 		defer cancel()
 		message = restoreCodexToolNamesFromContext(c, message)
-		return agentRecovery.write(message, func() error {
+		err := agentRecovery.write(message, func() error {
 			return WriteCapturedWSClient(writeCtx, clientConn, coderws.MessageText, message)
 		})
+		if err == nil {
+			bridgeHistoryTurn.delivered(message)
+		}
+		return err
 	}
 
 	clientReader := openAIWSGetIngressReader(c, clientConn)
@@ -1354,6 +1359,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		bridgeReplayInputExists := false
 		var bridgeAccountFailoverInput []json.RawMessage
 		bridgeAccountFailoverInputExists := false
+		bridgeHistory := newOpenAIWSHTTPBridgeHistory(s, c, account, smartStateful)
+		defer bridgeHistory.close()
 		for turn := 1; ; turn++ {
 			if turn > 1 && hooks != nil {
 				if err := hooks.beforeRequest(turn, currentBridgePayload.payloadRaw, currentBridgePayload.clientPayloadRaw, currentBridgePayload.originalModel); err != nil {
@@ -1407,8 +1414,32 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			bridgePayloadRaw := currentBridgePayload.payloadRaw
 			bridgePayloadBytes := currentBridgePayload.payloadBytes
+			var historyErr error
+			bridgeHistoryTurn, historyErr = bridgeHistory.prepare(c, account,
+				currentBridgePayload.clientPayloadRaw, bridgePayloadRaw,
+				currentBridgePayload.originalModel, agentRecovery.readablePrepared())
+			if historyErr != nil {
+				if agentRecovery != nil {
+					agentRecovery.preventReplay()
+				}
+				return openAIWSAgentRecoveryClose(historyErr)
+			}
+			if bridgeHistoryTurn != nil {
+				bridgePayloadRaw = bridgeHistoryTurn.payload
+				bridgePayloadBytes = len(bridgePayloadRaw)
+				if turn > 1 && currentBridgePayload.previousResponseID == "" {
+					// A new seed cannot inherit another conversation's provider state.
+					turnState = ""
+					if c != nil && c.Request != nil {
+						c.Request.Header.Del(openAIWSTurnStateHeader)
+					}
+					if bridgeHistory.scope != bridgeHistoryTurn.scope {
+						setOpenAIWSHTTPBridgeToolState(c, openAIWSHTTPBridgeToolState{})
+					}
+				}
+			}
 			toolOutputCoverage := AnalyzeToolCallOutputContextCoverageBytes(currentBridgePayload.payloadRaw)
-			needsBridgeReplay := !smartStateful && !agentRecovery.storedContinuation(currentBridgePayload.clientPayloadRaw) && (currentBridgePayload.previousResponseID != "" ||
+			needsBridgeReplay := bridgeHistoryTurn == nil && !smartStateful && !agentRecovery.storedContinuation(currentBridgePayload.clientPayloadRaw) && (currentBridgePayload.previousResponseID != "" ||
 				(toolOutputCoverage.HasFunctionCallOutput && !toolOutputCoverage.ContextCoversAllCallIDs))
 			// 一次解析当前 input，正常 replay 与 account-failover 两份序列共享同一批正文。
 			bridgeCurrentItems, bridgeCurrentItemsExist, extractErr := openAIWSExtractNormalizedInputSequence(
@@ -1416,6 +1447,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 			if extractErr != nil {
 				return fmt.Errorf("build websocket http bridge replay input: %w", extractErr)
+			}
+			if bridgeHistoryTurn != nil {
+				// Bounded per-connection history owns retention on this path.
+				// Do not also build unbounded legacy/failover copies.
+				bridgeCurrentItems, bridgeCurrentItemsExist = nil, false
+				bridgeReplayInput, bridgeReplayInputExists = nil, false
+				bridgeAccountFailoverInput, bridgeAccountFailoverInputExists = nil, false
 			}
 			turnReplayInput, turnReplayInputExists := buildOpenAIWSReplayInputSequenceFromItems(
 				bridgeReplayInput,
@@ -1465,6 +1503,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 			}
 			bridgeCtx := context.WithValue(ctx, openAIWSAgentSourceKey{}, currentBridgePayload.clientPayloadRaw)
+			if bridgeHistoryTurn != nil {
+				bridgeCtx = context.WithValue(bridgeCtx, openAIWSBridgeHistoryTurnKey{}, bridgeHistoryTurn)
+			}
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				context.WithValue(bridgeCtx, openAIWSQueueArrivalKey{}, turnArrivedAt),
 				c,
@@ -1480,6 +1521,17 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				turn,
 				writeClientMessage,
 			)
+			historySent := bridgeHistoryTurn != nil && bridgeHistoryTurn.sent
+			bridgeHistoryTurn.commit(ctx, bridgeErr == nil)
+			bridgeHistoryTurn = nil
+			if bridgeErr != nil && historySent {
+				var failoverErr *UpstreamFailoverError
+				if errors.As(bridgeErr, &failoverErr) {
+					// A physical send without completed delivery cannot authorize
+					// a new generation or tool execution on another account.
+					bridgeErr = openAIWSAgentRecoveryClose(openAIAgentRecoveryError("bridge_delivery_unconfirmed"))
+				}
+			}
 			if bridgeErr != nil && isOpenAIWSSessionPreempted(ctx) {
 				return errOpenAIWSSessionPreempted
 			}

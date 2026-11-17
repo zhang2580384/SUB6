@@ -3463,6 +3463,7 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 			requestPlatform,
 		)
 		if err != nil {
+			err = h.gatewayService.RefineOpenAIWSPointerError(ctx, wsAttemptMessage, err)
 			if h.handleOpenAIWSAgentRecoveryError(ctx, wsConn, err) {
 				return
 			}

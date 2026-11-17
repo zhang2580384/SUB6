@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -33,6 +35,34 @@ func OpenAIWSAgentRecoveryCanRetry(ctx context.Context) bool {
 }
 
 func OpenAIWSAgentRecoveryBound(ctx context.Context) bool { return openAIAgentRecoveryBound(ctx) }
+
+// RefineOpenAIWSPointerError only classifies an already-refused ordinary WS
+// pointer. It never admits a request, selects an account or authorizes replay.
+// Opaque owners and known-but-unavailable producers keep their original error.
+func (s *OpenAIGatewayService) RefineOpenAIWSPointerError(ctx context.Context, body []byte, err error) error {
+	var refusal *OpenAIAgentRecoveryError
+	if s == nil || ctx.Err() != nil || !errors.As(err, &refusal) || refusal.Reason != "owner_unavailable" || refusal.Stage != "" {
+		return err
+	}
+	r := openAIAgentRecoveryFromContext(ctx)
+	if r == nil || r.userID <= 0 || r.keyID <= 0 || r.owner != nil || len(r.items) > 0 || r.omittedHistory || r.conflict || r.mixedOwners || r.lookupErr != nil ||
+		r.previousResponseID == "" || ctx.Value(openAIWSAgentRecoveryRetryKey{}) == nil || !utf8.Valid(body) || !openAIEncryptedJSONUnambiguous(body) ||
+		gjson.GetBytes(body, "previous_response_id").String() != r.previousResponseID || gjson.GetBytes(body, "conversation").Exists() {
+		return err
+	}
+	items, _, parseErr := openAIWSExtractNormalizedInputSequence(body)
+	if parseErr != nil || !openAIWSBridgeHistoryItemsSafe(items, false) {
+		return err
+	}
+	owner, lookupErr := s.getOpenAIWSStateStore().GetResponseAccount(ctx, r.groupID, r.previousResponseID)
+	if lookupErr != nil {
+		return openAIAgentRecoveryError("store_unavailable")
+	}
+	if owner <= 0 {
+		return openAIAgentRecoveryError("ws_previous_response_unavailable")
+	}
+	return err
+}
 
 // One manager per forwarding attempt serializes an immediate next create with
 // the previous terminal write/commit. Passthrough's AfterTurn runs BEFORE that

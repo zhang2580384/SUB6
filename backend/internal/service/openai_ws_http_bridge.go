@@ -462,6 +462,10 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		return nil, errors.New("client websocket writer is nil")
 	}
 	ctx = withOpenAITransportMode(ctx, "http_bridge")
+	historyTurn, _ := ctx.Value(openAIWSBridgeHistoryTurnKey{}).(*openAIWSBridgeHistoryTurn)
+	if err := historyTurn.checkPayload(payload); err != nil {
+		return nil, openAIWSAgentRecoveryClose(err)
+	}
 	responseModelObserver := &upstreamResponseModelObserver{}
 
 	strictSession := smartProtocolStrict(ctx)
@@ -524,6 +528,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			LoweredTools:  loweredTools,
 		})
 	}
+	historyTurn.freezeInput(body)
 	if account.Platform != PlatformGrok && isOpenAIResponsesLiteWebSocketPayload(payload) {
 		liteBody, liteChanged, liteErr := normalizeOpenAIResponsesLitePayloadForAccount(body, account)
 		if liteErr != nil {
@@ -614,7 +619,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				account.ID,
 				admissionErr,
 			)
-			if forwardStart.IsZero() {
+			if forwardStart.IsZero() && (historyTurn == nil || !historyTurn.rebuilt) {
 				source, _ := ctx.Value(openAIWSAgentSourceKey{}).([]byte)
 				admissionErr = openAIWSUnsentTurn(admissionErr, source, originalModel, turn)
 			}
@@ -625,10 +630,19 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if forwardStart.IsZero() {
 			forwardStart = requesttiming.Now(ctx)
 		}
+		source, _ := ctx.Value(openAIWSAgentSourceKey{}).([]byte)
+		if historyTurn != nil {
+			source, err = historyTurn.authorize(ctx, c, latest, source, body, upstreamReq, proxyURL)
+			if err != nil {
+				return nil, openAIWSAgentRecoveryClose(err)
+			}
+		}
 		if recovery := openAIWSAgentRecoveryFromContext(ctx); recovery != nil {
-			source, _ := ctx.Value(openAIWSAgentSourceKey{}).([]byte)
 			if err := recovery.begin(latest, source, body, upstreamReq, "http_bridge"); err != nil {
 				return nil, openAIWSAgentRecoveryClose(err)
+			}
+			if historyTurn != nil {
+				recovery.preventReplay()
 			}
 		}
 		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
@@ -680,7 +694,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if retryErr != nil {
 			return nil, fmt.Errorf("normalize websocket http bridge rejected field retry: %w", retryErr)
 		}
-		if !strictSession && OpenAIWSAgentRecoveryCanRetry(ctx) && changed && rejectedFieldRetryState.Allow(retryBody) {
+		if historyTurn == nil && !strictSession && OpenAIWSAgentRecoveryCanRetry(ctx) && changed && rejectedFieldRetryState.Allow(retryBody) {
 			logOpenAIWSModeInfo(
 				"ingress_ws_http_bridge_rejected_field_retry account_id=%d turn=%d reason=%s",
 				account.ID,
@@ -795,11 +809,13 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			UpstreamProtocol:              "http",
 		}
 		applyOpenAIQueueTiming(result, openAIWSQueueArrival(ctx), forwardStart, turnStart, "ws_frame_http_bridge", "first_forward_including_internal_retries")
-		if replayInput := replayCollector.Items(); len(replayInput) > 0 {
+		if replayInput := replayCollector.Items(); historyTurn == nil && len(replayInput) > 0 {
 			result.wsReplayInput = replayInput
 			result.wsReplayInputExists = true
 		}
-		result.wsAccountFailoverReplayInput = replayCollector.AllItems()
+		if historyTurn == nil {
+			result.wsAccountFailoverReplayInput = replayCollector.AllItems()
+		}
 		if imageCount > 0 {
 			result.ImageCount = imageCount
 			result.ImageSize = imageSizeTier
@@ -935,7 +951,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if stamped, changed := createdAtStamper.Stamp(upstreamMessage, eventType); changed {
 			upstreamMessage = stamped
 		}
-		replayCollector.AddEvent(eventType, upstreamMessage)
+		if historyTurn == nil {
+			replayCollector.AddEvent(eventType, upstreamMessage)
+		}
 
 		var upstreamEventErr error
 		if officialOpenAIResponses && bareErrorPending && (eventType == "response.completed" || eventType == "response.done") {
