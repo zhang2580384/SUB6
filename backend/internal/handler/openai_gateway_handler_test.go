@@ -3167,7 +3167,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		}()
 
 		maxFrames := frameCount
-		if tc.timing != nil && (tc.timing.poolHolder || tc.timing.ctxRetry) {
+		if tc.timing != nil && tc.timing.ctxRetry {
 			maxFrames++
 		}
 		for frame := 1; frame <= maxFrames; frame++ {
@@ -3183,7 +3183,8 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				return
 			}
 			if tc.timing != nil && tc.timing.handleHolder(conn, payload) {
-				continue
+				// A different downstream session must acquire a different physical socket.
+				break
 			}
 			if tc.timing != nil && tc.timing.handleCtxRetry(conn) {
 				continue

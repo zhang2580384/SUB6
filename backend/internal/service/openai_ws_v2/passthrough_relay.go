@@ -20,6 +20,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
+// ErrIgnoreInactiveFrame skips stale provider traffic before accounting or delivery.
+var ErrIgnoreInactiveFrame = errors.New("inactive response turn")
+
 type FrameConn interface {
 	ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error)
 	WriteFrame(ctx context.Context, msgType coderws.MessageType, payload []byte) error
@@ -636,6 +639,12 @@ func runUpstreamToClient(
 				wroteDownstreamInTurn = turnWroteDownstream != nil && turnWroteDownstream.Load()
 			}
 			if err := beforeWriteClient(msgType, payload, wroteDownstreamInTurn); err != nil {
+				if errors.Is(err, ErrIgnoreInactiveFrame) {
+					if droppedFrames != nil {
+						droppedFrames.Add(1)
+					}
+					continue
+				}
 				emitRelayTrace(onTrace, RelayTraceEvent{
 					Stage:           "upstream_message_rejected",
 					Direction:       "upstream_to_client",

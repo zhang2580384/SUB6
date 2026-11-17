@@ -26,6 +26,20 @@ import (
 // network HTTP and client WS are exercised with fictional data. The provider's
 // fresh random answers cannot be inferred by the bridge from either question.
 func TestOpenAIWSHTTPBridgeHistoryLogicalSessionsAndToolResult(t *testing.T) {
+	testBridgeLogicalSessionsAndToolResult(t, "fixture side effect completed once")
+}
+
+func TestOpenAIWSHTTPBridgeHistoryLogicalSessionsTextPartResult(t *testing.T) {
+	testBridgeLogicalSessionsAndToolResult(t, []map[string]string{
+		{"type": "input_text", "text": "alpha first \n"}, {"type": "input_text", "text": "  second ∆"},
+	})
+}
+
+func TestOpenAIWSHTTPBridgeHistoryLogicalSessionsOptionalEmptyPartFields(t *testing.T) {
+	testBridgeLogicalSessionsAndToolResult(t, []map[string]string{{"type": "input_text", "text": "  fixture result\n"}}, true)
+}
+func testBridgeLogicalSessionsAndToolResult(t *testing.T, result any, optionalEmpty ...bool) {
+	t.Helper()
 	for _, backend := range []string{"miniredis", "redis"} {
 		for _, disabled := range []bool{false, true} {
 			for _, named := range []bool{false, true} {
@@ -84,6 +98,14 @@ func TestOpenAIWSHTTPBridgeHistoryLogicalSessionsAndToolResult(t *testing.T) {
 							output += `,{"type":"function_call","id":"fc_alpha_history","call_id":"call_alpha_history","name":"fixture_lookup","arguments":"{}","status":"completed"}`
 						}
 						w.Header().Set("Content-Type", "text/event-stream")
+						if len(optionalEmpty) > 0 && initial {
+							id := fmt.Sprintf("msg_history_%d", len(requests))
+							rawPart := fmt.Sprintf(`{"type":"output_text","text":%q,"logprobs":[],"annotations":[]}`, text)
+							rawItem := fmt.Sprintf(`{"type":"message","id":%q,"role":"assistant","status":"completed","content":[%s]}`, id, rawPart)
+							fmt.Fprintf(w, "data: {\"type\":\"response.output_text.delta\",\"item_id\":%q,\"output_index\":0,\"content_index\":0,\"delta\":%q}\n\n", id, text)
+							fmt.Fprintf(w, "data: {\"type\":\"response.content_part.done\",\"item_id\":%q,\"output_index\":0,\"content_index\":0,\"part\":%s}\n\n", id, rawPart)
+							fmt.Fprintf(w, "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":%s}\n\n", rawItem)
+						}
 						fmt.Fprintf(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_history_%d\",\"model\":\"gpt-5.1\",\"status\":\"completed\",\"output\":[%s],\"usage\":{\"input_tokens\":4,\"output_tokens\":3}}}\n\n", len(requests), output)
 					}))
 					defer up.Close()
@@ -111,7 +133,9 @@ func TestOpenAIWSHTTPBridgeHistoryLogicalSessionsAndToolResult(t *testing.T) {
 					require.Len(t, alphaCode, 32)
 					require.Len(t, betaCode, 32)
 					require.NotEqual(t, alphaCode, betaCode)
-					follow := map[string]any{"type": "response.create", "model": "gpt-5.1", "store": false, "previous_response_id": gjson.GetBytes(firstAlpha, "response.id").String(), "input": []any{map[string]string{"type": "function_call_output", "call_id": "call_alpha_history", "output": "fixture side effect completed once"}}}
+					callID := gjson.GetBytes(firstAlpha, "response.output.1.call_id").String()
+					require.NotEmpty(t, callID)
+					follow := map[string]any{"type": "response.create", "model": "gpt-5.1", "store": false, "previous_response_id": gjson.GetBytes(firstAlpha, "response.id").String(), "input": []any{map[string]any{"type": "function_call_output", "call_id": callID, "output": result}}}
 					if named {
 						follow["stream_id"] = alpha
 					}
@@ -131,6 +155,10 @@ func TestOpenAIWSHTTPBridgeHistoryLogicalSessionsAndToolResult(t *testing.T) {
 					require.Len(t, gjson.GetBytes(observed[2], "input").Array(), 4)
 					require.Equal(t, "function_call", gjson.GetBytes(observed[2], "input.2.type").String())
 					require.Equal(t, "function_call_output", gjson.GetBytes(observed[2], "input.3.type").String())
+					require.Equal(t, callID, gjson.GetBytes(observed[2], "input.3.call_id").String())
+					want, err := json.Marshal(result)
+					require.NoError(t, err)
+					require.JSONEq(t, string(want), gjson.GetBytes(observed[2], "input.3.output").Raw)
 					for range 4 {
 						select {
 						case <-h.usageLogs:

@@ -30,11 +30,15 @@ func openAIWSDownstreamFrameArrival(conn OpenAIWSDownstreamConn, fallback time.T
 
 // CompleteOpenAIWSDownstreamTurn runs after admission slots, policy state and
 // usage have been handed off. Upstream failover is still the same logical turn.
-func CompleteOpenAIWSDownstreamTurn(conn OpenAIWSDownstreamConn, turnErr error) {
+func CompleteOpenAIWSDownstreamTurn(conn OpenAIWSDownstreamConn, result *OpenAIForwardResult, turnErr error) {
 	if turnErr != nil {
 		return
 	}
-	if notifier, ok := conn.(interface{ TurnComplete() }); ok {
-		notifier.TurnComplete()
+	if notifier, ok := conn.(interface{ TurnComplete(string) }); ok {
+		terminal := ""
+		if result != nil {
+			terminal = result.UpstreamTerminalEvent
+		}
+		notifier.TurnComplete(terminal)
 	}
 }

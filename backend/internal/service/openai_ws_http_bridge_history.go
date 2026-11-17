@@ -207,7 +207,7 @@ func openAIWSBridgeHistoryItemsSafe(items []json.RawMessage, output bool) bool {
 				return false
 			}
 		case "function_call_output", "custom_tool_call_output":
-			if output || item.Get("call_id").Type != gjson.String || item.Get("call_id").String() == "" || item.Get("output").Type != gjson.String {
+			if output || item.Get("call_id").Type != gjson.String || item.Get("call_id").String() == "" || !openAIWSBridgeHistoryToolResultSafe(item) {
 				return false
 			}
 		default:
@@ -215,6 +215,30 @@ func openAIWSBridgeHistoryItemsSafe(items []json.RawMessage, output bool) bool {
 		}
 	}
 	return true
+}
+
+// Validate in place: preserve part order, whitespace and the original JSON value.
+func openAIWSBridgeHistoryToolResultSafe(item gjson.Result) bool {
+	value := item.Get("output")
+	if value.Type == gjson.String {
+		return true
+	}
+	if item.Get("type").String() != "function_call_output" || !value.IsArray() {
+		return false
+	}
+	count, safe := 0, true
+	value.ForEach(func(_, part gjson.Result) bool {
+		count++
+		safe = count <= openAIWSBridgeHistoryMaxItems && part.IsObject() && part.Get("type").String() == "input_text" && part.Get("text").Type == gjson.String
+		if safe {
+			part.ForEach(func(key, _ gjson.Result) bool {
+				safe = key.String() == "type" || key.String() == "text"
+				return safe
+			})
+		}
+		return safe
+	})
+	return safe && count > 0
 }
 
 func openAIWSBridgeHistorySize(items []json.RawMessage) int64 {
@@ -244,16 +268,10 @@ func openAIWSBridgeHistoryComparable(raw json.RawMessage) []byte {
 				textKind = "output_text"
 			}
 			item["content"], _ = json.Marshal([]map[string]string{{"type": textKind, "text": content.String()}})
-		} else if content.IsArray() {
-			var parts []map[string]json.RawMessage
-			if json.Unmarshal([]byte(content.Raw), &parts) == nil {
-				for _, part := range parts {
-					if bytes.Equal(bytes.TrimSpace(part["annotations"]), []byte("[]")) {
-						delete(part, "annotations")
-					}
-				}
-				item["content"], _ = json.Marshal(parts)
-			}
+		} else if content.IsArray() && gjson.GetBytes(raw, "role").String() == "assistant" {
+			parts := make([]json.RawMessage, 0)
+			content.ForEach(func(_, part gjson.Result) bool { parts = append(parts, bridgePartComparison(part)); return true })
+			item["content"], _ = json.Marshal(parts)
 		}
 	} else if kind == "function_call" || kind == "custom_tool_call" {
 		delete(item, "id")
@@ -494,7 +512,7 @@ func (t *openAIWSBridgeHistoryTurn) addOutput(index int, item gjson.Result) {
 		return
 	}
 	if old, found := t.output[index]; found {
-		if !bytes.Equal(normalizeOpenAIWSJSONForCompareOrRaw(old), normalizeOpenAIWSJSONForCompareOrRaw(raw)) {
+		if !bytes.Equal(bridgeItemComparison(old), bridgeItemComparison(raw)) {
 			t.invalidate("bridge_history_unsupported")
 		}
 		return

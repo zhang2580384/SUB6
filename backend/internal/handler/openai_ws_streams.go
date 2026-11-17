@@ -44,24 +44,25 @@ type openAIWSStreamFrame struct {
 }
 
 type openAIWSLogicalSession struct {
-	router          *openAIWSStreamRouter
-	streamID        string
-	key             string
-	identity        string
-	ctx             context.Context
-	cancel          context.CancelFunc
-	frames          chan openAIWSStreamFrame
-	controls        chan openAIWSStreamFrame
-	closed          chan struct{}
-	once            sync.Once
-	busy            bool // protected by router.mu
-	wroteError      atomic.Bool
-	started         bool
-	responseID      string // protected by router.mu
-	turnAccounted   bool   // protected by router.mu
-	terminalWritten bool   // protected by router.mu
-	cancelled       bool   // protected by router.mu
-	lastArrival     atomic.Pointer[time.Time]
+	router             *openAIWSStreamRouter
+	streamID           string
+	key                string
+	identity           string
+	ctx                context.Context
+	cancel             context.CancelFunc
+	frames             chan openAIWSStreamFrame
+	controls           chan openAIWSStreamFrame
+	closed             chan struct{}
+	once               sync.Once
+	busy               bool // protected by router.mu
+	wroteError         atomic.Bool
+	started            bool
+	responseID         string // protected by router.mu
+	turnAccounted      bool   // protected by router.mu
+	bareErrorAccounted bool
+	terminalWritten    bool // protected by router.mu
+	cancelled          bool // protected by router.mu
+	lastArrival        atomic.Pointer[time.Time]
 }
 
 type openAIWSStreamRouter struct {
@@ -84,7 +85,6 @@ type openAIWSStreamRouter struct {
 	wg              sync.WaitGroup
 	connectionID    string
 	responseOwners  map[string]string
-	responseOrder   []string
 }
 
 // The physical socket has one reader. Named lanes and legacy threads have
@@ -318,6 +318,7 @@ func (r *openAIWSStreamRouter) route(kind coderws.MessageType, body []byte, arri
 		}
 		session = &openAIWSLogicalSession{router: r, streamID: streamID, key: key, identity: identity.BlockKey,
 			ctx: ctx, cancel: cancel, frames: make(chan openAIWSStreamFrame, 1), controls: make(chan openAIWSStreamFrame, 8), closed: make(chan struct{})}
+		session.ctx = service.WithOpenAIWSFrameOwner(ctx, uuid.NewString(), session.checkFrameOwner)
 		r.sessions[key] = session
 		if streamID != "" {
 			r.named[streamID] = true
@@ -355,7 +356,7 @@ func (r *openAIWSStreamRouter) dispatchLocked() {
 		}
 		s.busy = true
 		s.wroteError.Store(false)
-		s.turnAccounted, s.terminalWritten = false, false
+		s.turnAccounted, s.terminalWritten, s.bareErrorAccounted = false, false, false
 		s.responseID = ""
 		r.active++
 		busyLanes[s.streamID] = true
@@ -493,47 +494,63 @@ func (s *openAIWSLogicalSession) LastFrameArrival() time.Time {
 }
 
 func (s *openAIWSLogicalSession) Write(ctx context.Context, kind coderws.MessageType, body []byte) error {
+	id, valid := service.OpenAIWSFrameResponseID(body)
+	// Only the router may attach its downstream lane identifier.
+	var err error
 	if s.streamID != "" {
-		var err error
 		body, err = sjson.SetBytes(body, "stream_id", s.streamID)
-		if err != nil {
-			return err
-		}
+	} else if gjson.GetBytes(body, "stream_id").Exists() {
+		body, err = sjson.DeleteBytes(body, "stream_id")
+	}
+	if err != nil {
+		return err
 	}
 	eventType := gjson.GetBytes(body, "type").String()
 	r := s.router
-	// Cancellation arbitrates with an actual terminal write, not with usage
-	// observation (passthrough observes usage before delivering the terminal).
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
-	r.mu.Lock()
-	if s.cancelled {
-		r.mu.Unlock()
-		return context.Canceled
+	if err := s.checkFrameOwner(id, valid); err != nil {
+		return err
 	}
-	if id := gjson.GetBytes(body, "response.id").String(); id != "" {
-		s.responseID = id
-		if _, known := r.responseOwners[id]; !known {
-			r.responseOwners[id] = s.key
-			r.responseOrder = append(r.responseOrder, id)
-			if len(r.responseOrder) > 1024 {
-				delete(r.responseOwners, r.responseOrder[0])
-				r.responseOrder = r.responseOrder[1:]
-			}
-		}
-	}
-	r.mu.Unlock()
-	err := r.conn.Write(ctx, kind, body)
+	err = r.conn.Write(ctx, kind, body)
 	if err == nil && eventType == "error" {
 		s.wroteError.Store(true)
 	}
 	if err == nil && openAIWSStreamTerminal(eventType) {
 		r.mu.Lock()
-		s.terminalWritten = true
+		if eventType != "error" || s.bareErrorAccounted {
+			s.terminalWritten = true
+		}
 		s.finishTurnLocked()
 		r.mu.Unlock()
 	}
 	return err
+}
+
+// Reserve a response on its live logical turn before observing its usage or content.
+func (s *openAIWSLogicalSession) checkFrameOwner(id string, valid bool) error {
+	r := s.router
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if s.cancelled || s.isStopped() || s.ctx.Err() != nil || r.sessions[s.key] != s {
+		return context.Canceled
+	}
+	if !s.busy || s.terminalWritten {
+		return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "response turn already ended", nil)
+	}
+	owner, known := r.responseOwners[id]
+	if !valid || (id != "" && ((s.responseID != "" && id != s.responseID) || (known && (owner != s.key || s.responseID != id)))) {
+		return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "upstream response identity conflict", nil)
+	}
+	if id != "" && !known {
+		// Do not forget an old response and later mistake it for a new identity.
+		if len(r.responseOwners) >= 1024 {
+			return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "response tracking limit reached; reconnect", nil)
+		}
+		s.responseID = id
+		r.responseOwners[id] = s.key
+	}
+	return nil
 }
 
 func openAIWSStreamTerminal(eventType string) bool {
@@ -544,10 +561,14 @@ func openAIWSStreamTerminal(eventType string) bool {
 	return false
 }
 
-func (s *openAIWSLogicalSession) TurnComplete() {
+func (s *openAIWSLogicalSession) TurnComplete(terminal string) {
 	r := s.router
 	r.mu.Lock()
 	s.turnAccounted = true
+	s.bareErrorAccounted = terminal == "" || terminal == "error"
+	if s.bareErrorAccounted && s.wroteError.Load() {
+		s.terminalWritten = true
+	}
 	s.finishTurnLocked()
 	r.mu.Unlock()
 }

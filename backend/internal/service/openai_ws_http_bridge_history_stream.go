@@ -82,6 +82,36 @@ func openAIWSBridgeHistoryOutputPartSafe(part gjson.Result) bool {
 	return safe
 }
 
+// For comparisons only. Missing optional decoration and an explicitly empty
+// array carry the same information on an already validated plaintext part.
+// Keep the original delivered JSON for storage and replay.
+func bridgePartComparison(part gjson.Result) json.RawMessage {
+	raw := []byte(part.Raw)
+	if !openAIWSBridgeHistoryOutputPartSafe(part) {
+		return raw
+	}
+	for _, field := range []string{"annotations", "logprobs"} {
+		if v := part.Get(field); v.IsArray() && len(v.Array()) == 0 {
+			raw, _ = sjson.DeleteBytes(raw, field)
+		}
+	}
+	return raw
+}
+func bridgePartDigest(part gjson.Result) [32]byte {
+	return sha256.Sum256(normalizeOpenAIWSJSONForCompareOrRaw(bridgePartComparison(part)))
+}
+func bridgeItemComparison(raw []byte) []byte {
+	item := gjson.ParseBytes(raw)
+	if (item.Get("type").String() == "message" || item.Get("type").String() == "") && item.Get("role").String() == "assistant" && item.Get("content").IsArray() {
+		parts := make([]json.RawMessage, 0)
+		item.Get("content").ForEach(func(_, v gjson.Result) bool { parts = append(parts, bridgePartComparison(v)); return true })
+		if content, err := json.Marshal(parts); err == nil {
+			raw, _ = sjson.SetRawBytes(raw, "content", content)
+		}
+	}
+	return normalizeOpenAIWSJSONForCompareOrRaw(raw)
+}
+
 func openAIWSBridgeHistoryStreamIndex(event gjson.Result, field string) (int, bool) {
 	value := event.Get(field)
 	index, err := strconv.Atoi(value.Raw)
@@ -207,7 +237,7 @@ func (t *openAIWSBridgeHistoryTurn) streamPart(event gjson.Result, part gjson.Re
 		if f == nil {
 			return
 		}
-		sum := sha256.Sum256(normalizeOpenAIWSJSONForCompareOrRaw([]byte(part.Raw)))
+		sum := bridgePartDigest(part)
 		if f.hasPart && f.completePart != sum {
 			t.invalidate("bridge_history_unsupported")
 			return
@@ -348,7 +378,7 @@ func (t *openAIWSBridgeHistoryTurn) streamMatchesOutput() bool {
 				field = "refusal"
 			}
 			value = part.Get(field)
-			if f.hasPart && sha256.Sum256(normalizeOpenAIWSJSONForCompareOrRaw([]byte(part.Raw))) != f.completePart {
+			if f.hasPart && bridgePartDigest(part) != f.completePart {
 				return false
 			}
 		} else {

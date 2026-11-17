@@ -1668,9 +1668,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return fmt.Errorf("build ws headers: %w", buildHdrErr)
 	}
 	baseAcquireReq := openAIWSAcquireRequest{
-		Account: account,
-		WSURL:   wsURL,
-		Headers: wsHeaders,
+		leaseScope: wsFrameOwner(ctx).lease,
+		Account:    account,
+		WSURL:      wsURL,
+		Headers:    wsHeaders,
 		HeadersFactory: func(factoryCtx context.Context, headers http.Header) (http.Header, error) {
 			latest, err := s.admitOpenAITurnForGroup(factoryCtx, groupID, enforceGroup, account, firstRoutingFields[0].String(), firstPayload.payloadRaw)
 			if err != nil {
@@ -2031,7 +2032,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				upstreamMessage = normalized
 			}
 
-			eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(upstreamMessage)
+			eventType := gjson.GetBytes(upstreamMessage, "type").String()
+			eventResponseID, validID := OpenAIWSFrameResponseID(upstreamMessage)
+			if identityErr := checkUpstreamWSIdentity(ctx, responseID, eventResponseID, validID); identityErr != nil {
+				lease.MarkBroken()
+				return nil, identityErr
+			}
 			responseModelObserver.ObserveOpenAI(upstreamMessage, eventType)
 			if responseID == "" && eventResponseID != "" {
 				responseID = eventResponseID
@@ -2216,6 +2222,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 						clientMessage = rewritten
 					}
 				}
+				clientMessage = publicOpenAIWSUpstreamEvent(clientMessage, originalModel)
 				if err := writeClientMessage(clientMessage); err != nil {
 					if isOpenAIWSClientDisconnectError(err) {
 						clientDisconnected = true
@@ -2365,7 +2372,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		if sessionLease == nil {
 			return
 		}
-		if !lastTurnClean {
+		if !lastTurnClean || baseAcquireReq.leaseScope != "" {
 			sessionLease.MarkBroken()
 		}
 		unpinSessionConn(sessionConnID)

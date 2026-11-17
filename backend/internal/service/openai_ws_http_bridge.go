@@ -419,8 +419,11 @@ func buildOpenAIWSHTTPBridgeFailedEvent(responseID, model string, createdAt int6
 	}
 	sequenceNumber := openAIResponsesFailedSequenceNumber(source)
 	response := map[string]any{
-		"id": responseID, "object": "response", "created_at": createdAt, "status": "failed",
+		"object": "response", "created_at": createdAt, "status": "failed",
 		"output": []any{}, "error": errorBody,
+	}
+	if responseID != "" {
+		response["id"] = responseID
 	}
 	if model = strings.TrimSpace(model); model != "" {
 		response["model"] = model
@@ -649,7 +652,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID,
 					UpstreamStatusCode: http.StatusGatewayTimeout, Kind: phaseTimeout.phase, Message: phaseTimeout.Error()})
 				setOpsUpstreamError(c, http.StatusGatewayTimeout, phaseTimeout.Error(), "")
-				clientError := buildOpenAIWSHTTPBridgeErrorEvent(http.StatusGatewayTimeout, phaseTimeout.Error())
+				clientError := buildOpenAIWSHTTPBridgeErrorEvent(http.StatusGatewayTimeout, "Upstream request timed out")
 				if writeErr := writeClientMessage(clientError); writeErr == nil {
 					markOpenAIWSClientVisibleFailure(c, "error", clientError)
 				}
@@ -720,10 +723,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if account.Platform != PlatformGrok && (shouldFailover || shouldCooldownOpenAITransientUpstreamError(resp.StatusCode, respBody)) {
 			s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, actualModel)
 		}
-		clientError := buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, upstreamMsg)
-		if preserveAgentHistory {
-			clientError = buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, upstreamMsg, respBody)
-		}
+		clientError := publicOpenAIWSUpstreamEvent(buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, "Upstream request failed", respBody), originalModel)
 		if writeErr := writeClientMessage(clientError); writeErr == nil {
 			markOpenAIWSClientVisibleFailure(c, "error", clientError)
 		}
@@ -851,6 +851,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(clientMessage); changed {
 			clientMessage = rewritten
 		}
+		clientMessage = publicOpenAIWSUpstreamEvent(clientMessage, originalModel)
 		messages := append(pendingClientMessages, clientMessage)
 		pendingClientMessages = nil
 		pendingClientMessageBytes = 0
@@ -894,7 +895,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if normalized, changed := normalizeCompletedImageGenerationStatus(upstreamMessage); changed {
 			upstreamMessage = normalized
 		}
-		eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(upstreamMessage)
+		eventType := gjson.GetBytes(upstreamMessage, "type").String()
+		eventResponseID, validID := OpenAIWSFrameResponseID(upstreamMessage)
+		if identityErr := checkUpstreamWSIdentity(ctx, responseID, eventResponseID, validID); identityErr != nil {
+			return nil, identityErr
+		}
 		responseModelObserver.ObserveOpenAI(upstreamMessage, eventType)
 		if responseID == "" && eventResponseID != "" {
 			responseID = eventResponseID
@@ -1041,6 +1046,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				clientMessage = rewritten
 			}
 		}
+		clientMessage = publicOpenAIWSUpstreamEvent(clientMessage, originalModel)
 		if !clientDisconnected && !suppressClientMessage {
 			isKeepalive := eventType == "keepalive"
 			stageBeforeSemanticOutput := turn == 1 && account.Platform == PlatformOpenAI && !wroteDownstream

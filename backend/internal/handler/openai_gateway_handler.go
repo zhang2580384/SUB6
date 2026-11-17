@@ -3899,7 +3899,7 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 				return checkSimpleModeTurnBilling()
 			},
 			AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
-				defer service.CompleteOpenAIWSDownstreamTurn(wsConn, turnErr)
+				defer service.CompleteOpenAIWSDownstreamTurn(wsConn, result, turnErr)
 				turnStart := getTurnStart(turn)
 				// Each ingress samples its own forward boundary. Callback cleanup is
 				// never queue time. Preserve the current frame across account failover.

@@ -597,6 +597,10 @@ func TestOpenAIWSHTTPBridgeHistoryDeliveryEvidence(t *testing.T) {
 		events        [][]byte
 		success, want bool
 	}{
+		{"nonempty_logprobs", [][]byte{bridgeHistoryTerminal("[" + strings.Replace(bridgeHistoryUnitOutput, `"annotations":[]`, `"logprobs":[{}]`, 1) + "]")}, true, false},
+		{"null_annotations", [][]byte{bridgeHistoryTerminal("[" + strings.Replace(bridgeHistoryUnitOutput, `"annotations":[]`, `"annotations":null`, 1) + "]")}, true, false},
+		{"refusal_optional_empty", [][]byte{done("0", strings.Replace(refusal, `"refusal":"fictional refusal"`, `"refusal":"fictional refusal","logprobs":[],"annotations":[]`, 1)), bridgeHistoryTerminal("[" + refusal + "]")}, true, true},
+		{"refusal_different_text", [][]byte{done("0", refusal), bridgeHistoryTerminal("[" + strings.ReplaceAll(refusal, "fictional refusal", "different") + "]")}, true, false},
 		{"completed", [][]byte{completed}, true, true},
 		{"done_then_completed", [][]byte{done("0", bridgeHistoryUnitOutput), completed}, true, true},
 		{"done_empty_terminal", [][]byte{done("0", bridgeHistoryUnitOutput), bridgeHistoryTerminal("[]")}, true, true},

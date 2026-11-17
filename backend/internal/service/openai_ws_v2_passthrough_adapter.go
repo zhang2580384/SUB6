@@ -32,6 +32,7 @@ type openAIWSClientFrameConn struct {
 	waitingForNextTurn   atomic.Bool
 	// The relay observes upstream payloads, while clients must keep seeing the
 	// model identifier they supplied for the current turn.
+	clientModel          func() string
 	restoreResponseModel func([]byte) []byte
 	restoreToolNames     func([]byte) []byte
 	agentRecovery        *openAIWSAgentRecovery
@@ -698,6 +699,11 @@ func (c *openAIWSClientFrameConn) WriteFrame(ctx context.Context, msgType coderw
 			payload = c.restoreToolNames(payload)
 		}
 	}
+	model := ""
+	if c.clientModel != nil {
+		model = c.clientModel()
+	}
+	payload = publicOpenAIWSUpstreamEvent(payload, model)
 	return c.agentRecovery.write(payload, func() error {
 		return WriteCapturedWSClient(ctx, c.conn, msgType, payload)
 	})
@@ -1045,6 +1051,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	completedTurns := atomic.Int32{}
 	activeTurn := atomic.Int32{}
 	activeTurn.Store(1)
+	var identityTurn int32
+	var identityID string
 	// A response.create accepted from the client is not upstream-active until
 	// its admission (including any key-queue wait) completes and the frame is
 	// about to be written. Until then a late terminal from the previous turn
@@ -1063,6 +1071,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	var acceptedTurnForwardAt atomic.Pointer[time.Time]
 	var acceptedQueueArrival atomic.Pointer[time.Time]
 	clientFrameConn := &openAIWSClientFrameConn{
+		clientModel:          func() string { m, _ := usageMeta.turnModels(""); return m },
 		agentRecovery:        agentRecovery,
 		conn:                 clientConn,
 		reader:               openAIWSGetIngressReader(c, clientConn),
@@ -1131,8 +1140,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				// A serialized request owns finalization even when admission rejects
 				// it: AfterTurn also clears per-request audit state. The previous
 				// turn has already settled, so this cannot release its slots.
-				activeTurn.Store(completedTurns.Load() + 1)
 				pendingUpstreamTurn.Store(true)
+				activeTurn.Store(completedTurns.Load() + 1)
 				defer func() {
 					if !acceptedTurn {
 						turnLifecycle.cancelResponseCreate()
@@ -1601,6 +1610,22 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				_ = clientConn.CloseNow()
 			},
 			BeforeWriteClient: func(msgType coderws.MessageType, payload []byte, wroteDownstream bool) error {
+				id, valid := OpenAIWSFrameResponseID(payload)
+				// The reader alone mutates these counters. The router also rejects previously settled IDs on the same downstream connection.
+				turn := activeTurn.Load()
+				if pendingUpstreamTurn.Load() || turn == 0 {
+					return openaiwsv2.ErrIgnoreInactiveFrame
+				}
+				if turn != identityTurn {
+					identityTurn = turn
+					identityID = ""
+				}
+				if err := checkUpstreamWSIdentity(ctx, identityID, id, valid); err != nil {
+					return err
+				}
+				if id != "" {
+					identityID = id
+				}
 				if msgType != coderws.MessageText {
 					return nil
 				}

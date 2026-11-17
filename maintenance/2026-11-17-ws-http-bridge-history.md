@@ -38,8 +38,9 @@ turn cannot use account-switch admission fallback, rejected-field retries or
 automatic generation failover after the send boundary.
 
 Only plain native messages, native function/custom calls (including existing
-namespace projection) and string tool results
-are eligible. All earlier calls must have one matching completed result before
+namespace projection), string tool results, and function results made solely of
+ordered `input_text` parts are eligible. Image, file, mixed, unfamiliar and
+duplicate-field parts are refused. Text is preserved without normalization. All earlier calls must have one matching completed result before
 reconstruction. Full client history is recognized without adding it a second
 time; partial overlapping assistant/tool history is refused. OAuth reserved tool
 names are compared in client form and re-aliased for the provider.
@@ -112,3 +113,19 @@ historical response ID, probe another protocol, change compression or downgrade
 to a non-streaming provider request. An unrecognized provider extension can still
 make continuation ineligible. Real client/provider and environment acceptance
 remain separate from fictional local regression evidence and source publication.
+
+The live downstream lane binds provider response identity before usage observation.
+An event ID or item ID alone is not a response ID. Pooled WS leases for a logical
+connection are private to that instance and closed when released, including on
+reconnect. This can increase connection churn; a connection-local upstream
+continuation may require a fresh conversation. A downstream socket must reconnect
+after 1,024 distinct response IDs. No response IDs are forgotten to make room.
+Client error frames preserve recognized diagnostic codes, including `cyber_policy`,
+without exposing upstream free text, partial output or metadata. Frames without a
+response ID rely on a scoped transport, not independent proof of content origin.
+
+For comparison of validated plaintext parts only, omitted `annotations` or
+`logprobs` are equivalent to empty arrays. Delivered bytes, including their
+original optional fields, are retained. Text, item IDs, part order and nonempty
+metadata are not normalized. An output with encrypted reasoning is still
+ineligible for this reconstruction; do not assume all clients or turns qualify.

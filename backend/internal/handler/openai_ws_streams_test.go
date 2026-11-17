@@ -9,12 +9,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -247,9 +250,10 @@ func TestOpenAIWSStreamConflictIsLaneScopedAndNeverReachesUpstream(t *testing.T)
 		io.Copy(io.Discard, r.Body)
 		mu.Lock()
 		calls++
+		n := calls
 		mu.Unlock()
 		w.Header().Set("Content-Type", "text/event-stream")
-		io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_valid\",\"model\":\"gpt-5.1\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n")
+		fmt.Fprintf(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_valid_%d\",\"model\":\"gpt-5.1\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n", n)
 	}))
 	defer up.Close()
 	h := streamIsolationHarness(t, up.URL, service.OpenAIWSIngressModeHTTPBridge, http.Header{"Thread-Id": []string{"header-thread"}})
@@ -346,7 +350,11 @@ func TestOpenAIWSStreamCancelIsLaneScopedAndQueuedWorkIsNotReplayed(t *testing.T
 							return
 						}
 					}
-					if write(fmt.Sprintf(`{"type":"response.completed","response":{"id":%q,"model":"gpt-5.1","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}`, "resp_"+text)) != nil {
+					id := "resp_" + text
+					if text == "alpha-active" || text == "beta-active" {
+						id = strings.ReplaceAll(id, "-", "_")
+					}
+					if write(fmt.Sprintf(`{"type":"response.completed","response":{"id":%q,"model":"gpt-5.1","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}`, id)) != nil {
 						return
 					}
 					if conn == nil {
@@ -502,5 +510,244 @@ func TestOpenAIWSStreamSameLaneThreadSwitchesKeepHistoryAndFIFO(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatal("missing isolated billing")
 		}
+	}
+}
+
+// A fabricated stale terminal is never forwarded or counted on a sibling lane.
+func TestOpenAIWSStreamRejectsForeignProviderTerminalBeforeUsage(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModeHTTPBridge, service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeCtxPool} {
+		for _, named := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/named=%v", mode, named), func(t *testing.T) {
+				var calls atomic.Int32
+				up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var conn *coderws.Conn
+					if r.Header.Get("Upgrade") == "websocket" {
+						var err error
+						conn, err = coderws.Accept(w, r, nil)
+						if err != nil {
+							return
+						}
+						defer conn.CloseNow()
+						if _, _, err = conn.Read(r.Context()); err != nil {
+							return
+						}
+					} else {
+						_, _ = io.Copy(io.Discard, r.Body)
+						w.Header().Set("Content-Type", "text/event-stream")
+					}
+					n := calls.Add(1)
+					text := "ordinary-seed"
+					if n > 1 {
+						text = "late-fixture-marker"
+					}
+					raw := fmt.Sprintf(`{"type":"response.completed","stream_id":"untrusted-tag","response":{"id":"resp_first","model":"gpt-5.1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":%q}]}],"usage":{"input_tokens":%d,"output_tokens":1}}}`, text, n)
+					if conn != nil {
+						_ = conn.Write(r.Context(), coderws.MessageText, []byte(raw))
+						_, _, _ = conn.Read(r.Context())
+					} else {
+						fmt.Fprintf(w, "data: %s\n\n", raw)
+					}
+				}))
+				defer up.Close()
+				h := streamIsolationHarness(t, up.URL, mode, nil)
+				defer h.clientConn.CloseNow()
+				a, b := "", ""
+				if named {
+					a, b = "alpha", "beta"
+				}
+				streamIsolationSend(t, h.clientConn, streamIsolationPayload(a, "thread-one", "seed", ""))
+				first := streamIsolationTerminal(t, h.clientConn)
+				require.Equal(t, a, gjson.GetBytes(first, "stream_id").String())
+				require.Contains(t, string(first), "ordinary-seed")
+				select {
+				case row := <-h.usageLogs:
+					require.Equal(t, 1, row.InputTokens)
+				case <-time.After(3 * time.Second):
+					t.Fatal("seed usage missing")
+				}
+				streamIsolationSend(t, h.clientConn, streamIsolationPayload(b, "thread-two", "follow", ""))
+				frame := streamIsolationRead(t, h.clientConn)
+				require.Equal(t, "error", gjson.GetBytes(frame, "type").String())
+				require.NotContains(t, string(frame), "late-fixture-marker")
+				require.Equal(t, b, gjson.GetBytes(frame, "stream_id").String())
+				require.Contains(t, gjson.GetBytes(frame, "error.message").String(), "identity")
+				require.EqualValues(t, 2, calls.Load())
+				select {
+				case row := <-h.usageLogs:
+					t.Fatalf("unexpected usage: %v", row.InputTokens)
+				case <-time.After(50 * time.Millisecond):
+				}
+			})
+		}
+	}
+}
+
+// Two independently authenticated sockets use the same gateway, upstream and cache.
+func TestOpenAIWSStreamTwoPrincipalsSameThreadAndLane(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModeHTTPBridge, service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeCtxPool} {
+		t.Run(mode, func(t *testing.T) {
+			entered := make(chan struct{}, 2)
+			release := make(chan struct{})
+			var once sync.Once
+			finish := func() { once.Do(func() { close(release) }) }
+			var calls atomic.Int32
+			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body []byte
+				var conn *coderws.Conn
+				var err error
+				if r.Header.Get("Upgrade") == "websocket" {
+					conn, err = coderws.Accept(w, r, nil)
+					if err != nil {
+						return
+					}
+					defer conn.CloseNow()
+					_, body, err = conn.Read(r.Context())
+				} else {
+					w.Header().Set("Content-Type", "text/event-stream")
+					body, err = io.ReadAll(r.Body)
+				}
+				if err != nil {
+					return
+				}
+				marker := gjson.GetBytes(body, "input").String()
+				if marker != "one" && marker != "two" {
+					t.Error("unknown fixture input")
+					return
+				}
+				calls.Add(1)
+				entered <- struct{}{}
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
+				raw := fmt.Sprintf(`{"type":"response.completed","response":{"id":"resp_%s","model":"gpt-5.1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":%q}]}],"usage":{"input_tokens":2,"output_tokens":1}}}`, marker, marker)
+				if conn != nil {
+					_ = conn.Write(r.Context(), coderws.MessageText, []byte(raw))
+				} else {
+					fmt.Fprintf(w, "data: %s\n\n", raw)
+				}
+			}))
+			defer up.Close()
+			defer finish()
+			h := streamIsolationHarness(t, up.URL, mode, nil)
+			gateway := gin.New()
+			keys := map[string]*service.APIKey{}
+			for i, tag := range []string{"one", "two"} {
+				key := *h.apiKey
+				user := *h.apiKey.User
+				user.ID += int64(i + 1)
+				key.UserID = user.ID
+				key.ID += int64(i + 1)
+				key.User = &user
+				key.Key = "fixture-key-" + tag
+				keys[key.Key] = &key
+			}
+			gateway.GET("/v1/responses", func(c *gin.Context) {
+				key := keys[strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")]
+				if key == nil {
+					c.AbortWithStatus(401)
+					return
+				}
+				c.Set(string(middleware.ContextKeyAPIKey), key)
+				c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: key.UserID, Concurrency: 2})
+				h.handler.ResponsesWebSocket(c)
+			})
+			server := httptest.NewServer(gateway)
+			defer server.Close()
+			var clients []*coderws.Conn
+			for _, tag := range []string{"one", "two"} {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				c, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/responses", &coderws.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer fixture-key-" + tag}, "Session-Id": {"same-session"}}})
+				cancel()
+				require.NoError(t, err)
+				defer c.CloseNow()
+				clients = append(clients, c)
+				streamIsolationSend(t, c, streamIsolationPayload("same-lane", "same-thread", tag, ""))
+			}
+			for range 2 {
+				select {
+				case <-entered:
+				case <-time.After(4 * time.Second):
+					t.Fatal("both principals must have concurrent upstream turns")
+				}
+			}
+			finish()
+			for i, tag := range []string{"one", "two"} {
+				frame := streamIsolationTerminal(t, clients[i])
+				require.Equal(t, "same-lane", gjson.GetBytes(frame, "stream_id").String())
+				require.Equal(t, tag, gjson.GetBytes(frame, "response.output.0.content.0.text").String())
+			}
+			seen := map[string]bool{}
+			for range 2 {
+				select {
+				case row := <-h.usageLogs:
+					tag := strings.TrimPrefix(row.RequestID, "resp_")
+					key := keys["fixture-key-"+tag]
+					require.NotNil(t, key, row.RequestID)
+					require.Equal(t, key.UserID, row.UserID)
+					require.Equal(t, key.ID, row.APIKeyID)
+					require.False(t, seen[tag])
+					seen[tag] = true
+				case <-time.After(3 * time.Second):
+					t.Fatal("missing usage")
+				}
+			}
+			require.EqualValues(t, 2, calls.Load())
+		})
+	}
+}
+
+func TestOpenAIWSStreamProviderDenialDoesNotDiscloseContent(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModeHTTPBridge, service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeCtxPool, "http_status"} {
+		t.Run(mode, func(t *testing.T) {
+			const private = "fixture-private-detail"
+			var calls atomic.Int32
+			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				errDetail := `{"code":"invalid_request_error","type":"invalid_request_error","message":"fixture-private-detail","param":"fixture-private-detail"}`
+				raw := `{"type":"response.failed","sequence_number":2,"response":{"id":"resp_refused","status":"failed","created_at":123,"model":"fixture-private-detail","output":[{"text":"fixture-private-detail"}],"metadata":{"x":"fixture-private-detail"},"error":` + errDetail + `}}`
+				if r.Header.Get("Upgrade") == "websocket" {
+					c, err := coderws.Accept(w, r, nil)
+					if err != nil {
+						return
+					}
+					defer c.CloseNow()
+					if _, _, err = c.Read(r.Context()); err == nil {
+						_ = c.Write(r.Context(), coderws.MessageText, []byte(raw))
+					}
+					return
+				}
+				_, _ = io.Copy(io.Discard, r.Body)
+				if mode == "http_status" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					fmt.Fprintf(w, `{"error":%s}`, errDetail)
+					return
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprintf(w, "data: %s\n\n", raw)
+			}))
+			defer up.Close()
+			actual := mode
+			if mode == "http_status" {
+				actual = service.OpenAIWSIngressModeHTTPBridge
+			}
+			h := streamIsolationHarness(t, up.URL, actual, nil)
+			defer h.clientConn.CloseNow()
+			streamIsolationSend(t, h.clientConn, streamIsolationPayload("lane", "fixture-thread", "unremarkable request", ""))
+			frame := streamIsolationRead(t, h.clientConn)
+			require.NotContains(t, string(frame), private)
+			require.Equal(t, "lane", gjson.GetBytes(frame, "stream_id").String())
+			if mode == "http_status" {
+				require.Equal(t, int64(422), gjson.GetBytes(frame, "status").Int())
+				require.Equal(t, "invalid_request_error", gjson.GetBytes(frame, "error.code").String())
+			} else {
+				require.Equal(t, "response.failed", gjson.GetBytes(frame, "type").String())
+				require.Equal(t, "invalid_request_error", gjson.GetBytes(frame, "response.error.code").String())
+				require.JSONEq(t, `[]`, gjson.GetBytes(frame, "response.output").Raw)
+			}
+			require.EqualValues(t, 1, calls.Load())
+		})
 	}
 }

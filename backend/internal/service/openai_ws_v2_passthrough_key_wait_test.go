@@ -81,20 +81,11 @@ func TestPassthroughSecondTurnKeyWaitCancelsPromptlyAndIgnoresLateTerminal(t *te
 
 	begin := time.Now()
 	require.NoError(t, client.Write(context.Background(), coderws.MessageText, []byte(`{"type":"response.cancel"}`)))
-	// The late terminal may still be forwarded as a client frame; keep reading
-	// until the pending-cancel close frame arrives.
-	readDeadline := time.Now().Add(3 * time.Second)
+	// Admission never owned the late terminal: the next read must be the close.
+	_, readErr := readPassthroughLifecycleFrame(t, client, 3*time.Second)
 	var closeErr coderws.CloseError
-	for {
-		_, readErr := readPassthroughLifecycleFrame(t, client, time.Until(readDeadline))
-		if readErr != nil {
-			require.ErrorAs(t, readErr, &closeErr)
-			break
-		}
-		if time.Now().After(readDeadline) {
-			t.Fatal("pending cancel did not close the client session")
-		}
-	}
+	require.ErrorAs(t, readErr, &closeErr)
+
 	require.Equal(t, coderws.StatusNormalClosure, closeErr.Code)
 	require.Contains(t, closeErr.Reason, "canceled")
 	require.Less(t, time.Since(begin), 3*time.Second)

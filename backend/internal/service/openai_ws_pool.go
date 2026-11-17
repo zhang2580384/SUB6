@@ -74,6 +74,7 @@ type openAIWSAcquireRequest struct {
 	timezoneMode    string
 	// Private experiment connections must never serve a different client scope.
 	AnchorScope string
+	leaseScope  string
 	Account     *Account
 	WSURL       string
 	Headers     http.Header
@@ -95,6 +96,7 @@ type openAIWSHandshakeCompatibilityKey struct {
 	timezoneMode        string
 	timezoneHeaders     [3]string
 	anchorScope         string
+	leaseScope          string
 	betaFeatures        string
 	codexInstallationID string
 	sessionIDHyphen     string
@@ -1438,12 +1440,19 @@ retryAcquire:
 				return nil, errOpenAIWSConnClosed
 			}
 			changedCh := ap.changeChannelLocked()
+			if !queueWait.queued {
+				queueWait.queued = true
+				p.metrics.acquireQueueWaitTotal.Add(1)
+			}
+			waitStart := time.Now()
 			ap.mu.Unlock()
 			closeOpenAIWSConns(evicted)
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			case <-changedCh:
+				queueWait.total += time.Since(waitStart)
+				queueWait.rewoken = true
 				goto retryAcquire
 			}
 		}
@@ -1603,7 +1612,7 @@ func (p *openAIWSConnPool) recordLastSuccessfulAcquire(accountID int64, generati
 		return
 	}
 	ap.mu.Lock()
-	if ap.generation != generation {
+	if ap.generation != generation || req.leaseScope != "" {
 		ap.mu.Unlock()
 		return
 	}
@@ -2429,6 +2438,7 @@ func openAIWSAcquireCompatibility(req openAIWSAcquireRequest) openAIWSHandshakeC
 	key := normalizeOpenAIWSHandshakeCompatibility(req.Account, req.Headers)
 	key.proxyURL = stringsTrim(req.ProxyURL)
 	key.anchorScope = req.AnchorScope
+	key.leaseScope = req.leaseScope
 	key.timezoneMode = req.timezoneMode
 	return key
 }
