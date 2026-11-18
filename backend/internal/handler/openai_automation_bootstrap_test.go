@@ -39,7 +39,7 @@ func TestNormalizeCodexAutomationBootstrapSupportedLastRunValues(t *testing.T) {
 			if tt.crlf {
 				output = strings.ReplaceAll(output, "\n", "\r\n")
 			}
-			got, changed := normalizeCodexAutomationBootstrap(codexAutomationBootstrapBody(t, output, ""))
+			got, changed := normalizeCodexCurrentHostTurn(codexAutomationBootstrapBody(t, output, ""))
 			require.True(t, changed)
 			require.Equal(t, "message", gjson.GetBytes(got, "input.0.type").String())
 			require.Equal(t, "user", gjson.GetBytes(got, "input.0.role").String())
@@ -51,14 +51,14 @@ func TestNormalizeCodexAutomationBootstrapSupportedLastRunValues(t *testing.T) {
 
 func TestNormalizeCodexAutomationBootstrapHeartbeat(t *testing.T) {
 	output := `<heartbeat><automation_id>wiki</automation_id></heartbeat>`
-	got, changed := normalizeCodexAutomationBootstrap(codexAutomationBootstrapBody(t, output, ""))
+	got, changed := normalizeCodexCurrentHostTurn(codexAutomationBootstrapBody(t, output, ""))
 	require.True(t, changed)
 	require.Equal(t, "message", gjson.GetBytes(got, "input.0.type").String())
 	require.Equal(t, "user", gjson.GetBytes(got, "input.0.role").String())
 	require.Equal(t, output, gjson.GetBytes(got, "input.0.content.0.text").String())
 	require.False(t, gjson.GetBytes(got, "input.0.call_id").Exists())
 
-	again, changedAgain := normalizeCodexAutomationBootstrap(got)
+	again, changedAgain := normalizeCodexCurrentHostTurn(got)
 	require.False(t, changedAgain)
 	require.Equal(t, got, again)
 }
@@ -80,10 +80,6 @@ func TestNormalizeCodexAutomationBootstrapRejectsUnsafeShapes(t *testing.T) {
 		{
 			name: "valid call id",
 			body: codexAutomationBootstrapBody(t, validOutput, `,"call_id":"call-1"`),
-		},
-		{
-			name: "previous response",
-			body: []byte(`{"model":"gpt-5","previous_response_id":"resp-1","input":[{"type":"function_call_output","namespace":"codex_app","name":"automation_update","output":` + mustJSON(t, validOutput) + `}]}`),
 		},
 		{
 			name: "real call context",
@@ -120,7 +116,7 @@ func TestNormalizeCodexAutomationBootstrapRejectsUnsafeShapes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, changed := normalizeCodexAutomationBootstrap(tt.body)
+			got, changed := normalizeCodexCurrentHostTurn(tt.body)
 			require.False(t, changed)
 			require.Equal(t, tt.body, got)
 		})
@@ -145,7 +141,7 @@ func TestNormalizeCodexAutomationBootstrapRejectsUnsafeHeartbeatShapes(t *testin
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := codexAutomationBootstrapBody(t, tt.output, "")
-			got, changed := normalizeCodexAutomationBootstrap(body)
+			got, changed := normalizeCodexCurrentHostTurn(body)
 			require.False(t, changed)
 			require.Equal(t, body, got)
 		})
@@ -156,13 +152,14 @@ func TestNormalizeCodexAutomationBootstrapPreservesOrderAndIsIdempotent(t *testi
 	output := codexAutomationBootstrap("wiki", "never", automationBootstrapPrompt)
 	body := []byte(`{"model":"gpt-5","input":[{"type":"message","role":"user","content":"before"},{"type":"function_call_output","namespace":"codex_app","name":"automation_update","output":` + mustJSON(t, output) + `},{"type":"message","role":"user","content":"after"}]}`)
 
-	got, changed := normalizeCodexAutomationBootstrap(body)
-	require.True(t, changed)
+	got, changed := normalizeCodexCurrentHostTurn(body)
+	require.False(t, changed)
+	require.Equal(t, body, got)
 	require.Equal(t, "before", gjson.GetBytes(got, "input.0.content").String())
-	require.Equal(t, output, gjson.GetBytes(got, "input.1.content.0.text").String())
+	require.Equal(t, output, gjson.GetBytes(got, "input.1.output").String())
 	require.Equal(t, "after", gjson.GetBytes(got, "input.2.content").String())
 
-	again, changedAgain := normalizeCodexAutomationBootstrap(got)
+	again, changedAgain := normalizeCodexCurrentHostTurn(got)
 	require.False(t, changedAgain)
 	require.Equal(t, got, again)
 }
@@ -176,11 +173,11 @@ Read the reference index and report changes. Preserve A &amp; B and &lt;tags&gt;
   </instructions>
 </heartbeat>`
 	body := codexAutomationBootstrapBody(t, output, "")
-	got, changed := normalizeCodexAutomationBootstrap(body)
+	got, changed := normalizeCodexCurrentHostTurn(body)
 	require.True(t, changed)
 	require.Equal(t, "user", gjson.GetBytes(got, "input.0.role").String())
 	require.Equal(t, output, gjson.GetBytes(got, "input.0.content.0.text").String())
-	again, changedAgain := normalizeCodexAutomationBootstrap(got)
+	again, changedAgain := normalizeCodexCurrentHostTurn(got)
 	require.False(t, changedAgain)
 	require.Equal(t, got, again)
 
@@ -199,10 +196,9 @@ Read the reference index and report changes. Preserve A &amp; B and &lt;tags&gt;
 	}
 	for _, guarded := range [][]byte{
 		codexAutomationBootstrapBody(t, output, `,"call_id":"call-1"`),
-		[]byte(strings.Replace(string(body), `"model":"gpt-5"`, `"model":"gpt-5","previous_response_id":"resp-1"`, 1)),
 		[]byte(strings.Replace(string(body), `"namespace":"codex_app"`, `"namespace":"other"`, 1)),
 	} {
-		unchanged, normalized := normalizeCodexAutomationBootstrap(guarded)
+		unchanged, normalized := normalizeCodexCurrentHostTurn(guarded)
 		require.False(t, normalized)
 		require.Equal(t, guarded, unchanged)
 	}
