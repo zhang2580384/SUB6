@@ -57,8 +57,8 @@ func RegisterGatewayRoutes(
 	var trafficRecorder middleware.TrafficRecorder
 	if h.Admin != nil && h.Admin.Usage != nil {
 		trafficRecorder = h.Admin.Usage
+		settingService.UserTrafficCaptureEnabled() // Prime only gateways that can record traffic.
 	}
-	settingService.UserTrafficCaptureEnabled() // Prime once; never block a gateway request.
 	traffic := middleware.UserTraffic(trafficRecorder, settingService.UserTrafficCaptureEnabled)
 	bodyBudget := pkghttputil.NewBodyMemoryBudget(cfg.Gateway.RequestBodyMemoryBudgetBytes)
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize, bodyBudget)
