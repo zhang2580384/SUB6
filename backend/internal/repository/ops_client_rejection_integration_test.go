@@ -39,7 +39,7 @@ func TestOpsNormalizedContextLimitRetainsRawStatusInSQL(t *testing.T) {
 func TestChannelMonitorExcludesClientRejections(t *testing.T) {
 	ctx := context.Background()
 	ops := NewOpsRepository(integrationDB).(*opsRepository)
-	repo := NewChannelMonitorV2Repository(integrationDB).(*channelMonitorV2Repository)
+	repo := NewChannelMonitorV2Repository(integrationDB, nil).(*channelMonitorV2Repository)
 	start := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
 	end := start.Add(time.Hour)
 	model := "client-isolation-test"

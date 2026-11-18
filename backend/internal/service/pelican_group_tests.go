@@ -81,14 +81,15 @@ type PelicanGroupTestResult struct {
 	Attempts       []PelicanGroupTestAttempt `json:"attempts"`
 	Status         string                    `json:"status"`
 	ResponseText   string                    `json:"response_text,omitempty"`
-	ErrorMessage   string                    `json:"error_message"`
-	LatencyMs      int64                     `json:"latency_ms"`
-	CostUSD        *float64                  `json:"cost_usd"`
-	CostIncomplete bool                      `json:"cost_incomplete"`
-	PelicanConfig  *PelicanTestConfig        `json:"pelican_config,omitempty"`
-	StartedAt      time.Time                 `json:"started_at"`
-	FinishedAt     time.Time                 `json:"finished_at"`
-	CreatedAt      time.Time                 `json:"created_at"`
+	probeCacheRate *float64
+	ErrorMessage   string             `json:"error_message"`
+	LatencyMs      int64              `json:"latency_ms"`
+	CostUSD        *float64           `json:"cost_usd"`
+	CostIncomplete bool               `json:"cost_incomplete"`
+	PelicanConfig  *PelicanTestConfig `json:"pelican_config,omitempty"`
+	StartedAt      time.Time          `json:"started_at"`
+	FinishedAt     time.Time          `json:"finished_at"`
+	CreatedAt      time.Time          `json:"created_at"`
 }
 
 // PelicanGroupTestPlanInput is what an admin edits; the question is always the HTML drawing kind.
@@ -484,6 +485,8 @@ func (s *PelicanGroupTestService) runSample(ctx context.Context, plan *PelicanGr
 			result = s.newResult(plan, started, s.now(), sample.ErrorMessage)
 			result.Status = sample.Status
 			result.ResponseText = sample.ResponseText
+			// Only the attempt that supplied the final answer owns this rate.
+			result.probeCacheRate = usage.singleResponseCacheRate()
 			if len(attempts) == 0 {
 				result.LatencyMs = sample.LatencyMs
 			}

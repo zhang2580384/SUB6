@@ -1170,17 +1170,31 @@ func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers,
 			config.GET("/config", h.ChannelMonitorV2.GetConfig)
 			config.PUT("/config", h.ChannelMonitorV2.UpdateConfig)
 		}
-		reads := monitor.Group("")
-		reads.Use(modeV2Guard)
-		{
-			reads.GET("/dimensions", h.ChannelMonitorV2.Dimensions)
-			reads.GET("/snapshot", h.ChannelMonitorV2.AdminSnapshot)
-			reads.GET("/models", h.ChannelMonitorV2.AdminModels)
-			reads.GET("/matrix", h.ChannelMonitorV2.AdminMatrix)
-			reads.GET("/errors", h.ChannelMonitorV2.Errors)
-			reads.GET("/users", h.ChannelMonitorV2.AdminUsers)
+		reads := monitor.Group("", modeV2Guard)
+		registerGroupStatisticsReads(reads, h.ChannelMonitorV2, true, false)
+	}
+	// An administrator can preview V4 with existing passive data without changing users' mode.
+	v4 := admin.Group("/channel-monitor-v4", channelMonitorModeGuard(settingService, service.ChannelMonitorRuntime.PassiveAggregationAllowed))
+	registerGroupStatisticsReads(v4, h.ChannelMonitorV2, true, true)
+}
+
+func registerGroupStatisticsReads(group *gin.RouterGroup, h *handler.ChannelMonitorV2Handler, admin, v4 bool) {
+	snapshot, models, matrix, users := h.Snapshot, h.Models, h.Matrix, h.Users
+	if admin {
+		snapshot, models, matrix, users = h.AdminSnapshot, h.AdminModels, h.AdminMatrix, h.AdminUsers
+	}
+	if v4 {
+		matrix = h.V4Matrix
+		if admin {
+			matrix = h.AdminV4Matrix
 		}
 	}
+	group.GET("/dimensions", h.Dimensions)
+	group.GET("/snapshot", snapshot)
+	group.GET("/models", models)
+	group.GET("/matrix", matrix)
+	group.GET("/errors", h.Errors)
+	group.GET("/users", users)
 }
 
 // registerChannelMonitorV3Routes keeps editing and previewing available in any

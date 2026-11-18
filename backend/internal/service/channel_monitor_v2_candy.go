@@ -39,6 +39,7 @@ type ChannelMonitorV2CandyResult struct {
 	CheckedAt     time.Time `json:"checked_at"`
 	Verdict       string    `json:"verdict"`
 	LatencyMs     int64     `json:"latency_ms"`
+	CacheRate     *float64  `json:"cache_rate,omitempty"`
 	AnswerPreview string    `json:"answer_preview,omitempty"`
 	Reason        string    `json:"reason,omitempty"`
 }
@@ -60,7 +61,7 @@ type ChannelMonitorV2CandyScope struct {
 type ChannelMonitorV2CandyRepository interface {
 	ClaimCandyProbe(context.Context, ChannelMonitorV2CandyProbe, string, time.Time, int) (int64, error)
 	FinishCandyProbe(context.Context, ChannelMonitorV2CandyResult) error
-	CandyHistory(context.Context, []ChannelMonitorV2CandyScope, time.Time, int) ([]ChannelMonitorV2CandyResult, error)
+	CandyHistory(context.Context, []ChannelMonitorV2CandyScope, time.Time, int, bool) ([]ChannelMonitorV2CandyResult, error)
 	PruneCandyHistory(context.Context, time.Time) error
 }
 
@@ -164,7 +165,7 @@ func (s *ChannelMonitorV2CandyService) RunDue(ctx context.Context, now time.Time
 	if err := s.repo.PruneCandyHistory(ctx, now); err != nil {
 		logger.LegacyPrintf("service.channel_monitor_v2", "candy retention failed: %v", err)
 	}
-	if s.settings == nil || !s.settings.GetChannelMonitorRuntime(ctx).V2Active() {
+	if s.settings == nil || !s.settings.GetChannelMonitorRuntime(ctx).GroupStatisticsActive() {
 		return
 	}
 	cfg, err := s.config.GetConfig(ctx)
@@ -199,7 +200,7 @@ func (s *ChannelMonitorV2CandyService) RunDue(ctx context.Context, now time.Time
 }
 
 func (s *ChannelMonitorV2CandyService) runOne(ctx context.Context, probe ChannelMonitorV2CandyProbe, cfg *ChannelMonitorV2Config, tick time.Time) {
-	if ctx.Err() != nil || !s.settings.GetChannelMonitorRuntime(ctx).V2Active() {
+	if ctx.Err() != nil || !s.settings.GetChannelMonitorRuntime(ctx).GroupStatisticsActive() {
 		return
 	}
 	group, err := s.groups.groups.GetByID(ctx, probe.GroupID)
@@ -262,13 +263,14 @@ func (s *ChannelMonitorV2CandyService) runOne(ctx context.Context, probe Channel
 		return
 	}
 	result.Reason = ""
+	result.CacheRate = sample.probeCacheRate
 	result.Verdict = "incorrect"
 	if CandyAnswerCorrect(answer) {
 		result.Verdict = "correct"
 	}
 }
 
-func (s *ChannelMonitorV2CandyService) attachHistory(ctx context.Context, matrix *ChannelMonitorV2Matrix, cfg *ChannelMonitorV2Config, admin bool) error {
+func (s *ChannelMonitorV2CandyService) attachHistory(ctx context.Context, matrix *ChannelMonitorV2Matrix, cfg *ChannelMonitorV2Config, admin, includeRates bool) error {
 	enabled := make([]ChannelMonitorV2CandyProbe, 0, len(cfg.CandyProbes))
 	for _, p := range cfg.CandyProbes {
 		if p.Enabled {
@@ -295,7 +297,7 @@ func (s *ChannelMonitorV2CandyService) attachHistory(ctx context.Context, matrix
 	}
 	limit := EffectiveChannelMonitorV2CandyHistoryLimit(cfg.CandyHistoryLimit)
 	// Only groups already admitted by the matrix's server-side scope are read.
-	history, err := s.repo.CandyHistory(ctx, scopes, s.now().Add(-ChannelMonitorV2CandyRetention), limit)
+	history, err := s.repo.CandyHistory(ctx, scopes, s.now().Add(-ChannelMonitorV2CandyRetention), limit, includeRates)
 	if err != nil {
 		return err
 	}

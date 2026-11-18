@@ -6,7 +6,7 @@
       role="status"
       data-testid="monitor-v3-mode-banner"
     >
-      {{ t(siteMode === 'v2' ? 'channelMonitorV3.admin.modeBannerV2' : 'channelMonitorV3.admin.modeBanner', { mode: t(`channelMonitorV3.modes.${siteMode}`) }) }}
+      {{ t(siteMode === 'v2' || siteMode === 'v4' ? 'channelMonitorV3.admin.modeBannerV2' : 'channelMonitorV3.admin.modeBanner', { mode: t(`channelMonitorV3.modes.${siteMode}`) }) }}
     </div>
 
     <div v-if="loading && !settings" class="h-64 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-800" />

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -176,6 +177,36 @@ func TestChannelMonitorModeV2Guard(t *testing.T) {
 				require.Contains(t, rec.Body.String(), tt.wantCode)
 			}
 		})
+	}
+}
+
+func TestChannelMonitorV4PreviewAndViewerModeGates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		mode                    string
+		enabled                 bool
+		adminStatus, userStatus int
+	}{
+		{service.ChannelMonitorModeV2, true, http.StatusBadRequest, http.StatusForbidden},
+		{service.ChannelMonitorModeV3, true, http.StatusBadRequest, http.StatusForbidden},
+		{service.ChannelMonitorModeV4, true, http.StatusBadRequest, http.StatusBadRequest},
+		{service.ChannelMonitorModeV1, true, http.StatusForbidden, http.StatusForbidden},
+		{service.ChannelMonitorModeV4, false, http.StatusForbidden, http.StatusForbidden},
+	} {
+		settings := newChannelMonitorModeSettings(tc.enabled, tc.mode)
+		monitor := handler.NewChannelMonitorV2Handler(service.NewChannelMonitorV2Service(nil), nil)
+		router := gin.New()
+		registerChannelMonitorV2Routes(router.Group("/admin"), &handler.Handlers{ChannelMonitorV2: monitor}, settings)
+		registerGroupStatisticsReads(router.Group("/channel-monitor-v4", channelMonitorModeGuard(settings, service.ChannelMonitorRuntime.V4Active)), monitor, false, true)
+		for path, expected := range map[string]int{"/admin/channel-monitor-v4/matrix": tc.adminStatus, "/channel-monitor-v4/matrix": tc.userStatus} {
+			// An invalid grouping proves the read reached the handler without querying a database.
+			r := httptest.NewRecorder()
+			router.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path+"?range=90m&group_by=invalid", nil))
+			require.Equal(t, expected, r.Code, "%s %s enabled=%v", tc.mode, path, tc.enabled)
+			if expected == http.StatusBadRequest {
+				require.Contains(t, r.Body.String(), "group_by: invalid")
+			}
+		}
 	}
 }
 

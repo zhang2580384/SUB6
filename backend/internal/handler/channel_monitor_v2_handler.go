@@ -94,8 +94,10 @@ func (h *ChannelMonitorV2Handler) Snapshot(c *gin.Context)      { h.snapshot(c, 
 func (h *ChannelMonitorV2Handler) AdminSnapshot(c *gin.Context) { h.snapshot(c, true) }
 func (h *ChannelMonitorV2Handler) Models(c *gin.Context)        { h.models(c, false) }
 func (h *ChannelMonitorV2Handler) AdminModels(c *gin.Context)   { h.models(c, true) }
-func (h *ChannelMonitorV2Handler) Matrix(c *gin.Context)        { h.matrix(c, false) }
-func (h *ChannelMonitorV2Handler) AdminMatrix(c *gin.Context)   { h.matrix(c, true) }
+func (h *ChannelMonitorV2Handler) Matrix(c *gin.Context)        { h.matrix(c, false, false) }
+func (h *ChannelMonitorV2Handler) AdminMatrix(c *gin.Context)   { h.matrix(c, true, false) }
+func (h *ChannelMonitorV2Handler) V4Matrix(c *gin.Context)      { h.matrix(c, false, true) }
+func (h *ChannelMonitorV2Handler) AdminV4Matrix(c *gin.Context) { h.matrix(c, true, true) }
 func (h *ChannelMonitorV2Handler) Users(c *gin.Context)         { h.users(c, false) }
 func (h *ChannelMonitorV2Handler) AdminUsers(c *gin.Context)    { h.users(c, true) }
 
@@ -131,7 +133,7 @@ func (h *ChannelMonitorV2Handler) models(c *gin.Context, admin bool) {
 	response.Success(c, result)
 }
 
-func (h *ChannelMonitorV2Handler) matrix(c *gin.Context, admin bool) {
+func (h *ChannelMonitorV2Handler) matrix(c *gin.Context, admin, v4 bool) {
 	filter, ok := h.parseFilter(c)
 	if !ok {
 		return
@@ -146,6 +148,7 @@ func (h *ChannelMonitorV2Handler) matrix(c *gin.Context, admin bool) {
 	}
 	// Card view asks for the latest sampled buckets. Those ignore the range.
 	filter.IncludeRecentSamples = parseBoolQuery(c.Query("recent_samples"))
+	filter.IncludeCacheReference = v4 && parseBoolQuery(c.Query("cache_reference"))
 	result, err := h.service.Matrix(c.Request.Context(), filter, groupBy, admin)
 	if err != nil {
 		response.ErrorFrom(c, err)

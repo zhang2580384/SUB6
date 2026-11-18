@@ -409,7 +409,7 @@ const (
 	defaultChannelMonitorMode      = ChannelMonitorModeV1
 )
 
-// normalizeChannelMonitorMode accepts only v1/v2/v3; empty/invalid → v1 (safe default).
+// normalizeChannelMonitorMode accepts only v1/v2/v3/v4; empty/invalid → v1 (safe default).
 func normalizeChannelMonitorMode(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case ChannelMonitorModeV1, "":
@@ -418,6 +418,8 @@ func normalizeChannelMonitorMode(raw string) string {
 		return ChannelMonitorModeV2
 	case ChannelMonitorModeV3:
 		return ChannelMonitorModeV3
+	case ChannelMonitorModeV4:
+		return ChannelMonitorModeV4
 	default:
 		return defaultChannelMonitorMode
 	}
@@ -451,7 +453,7 @@ func clampChannelMonitorInterval(v int) int {
 // consumed by the runner, V2 aggregator, and user-facing handlers.
 type ChannelMonitorRuntime struct {
 	Enabled                bool
-	Mode                   string // ChannelMonitorModeV1, ChannelMonitorModeV2 or ChannelMonitorModeV3
+	Mode                   string // one of the ChannelMonitorMode constants
 	DefaultIntervalSeconds int
 	// HideThroughput: when true, user-facing V2 APIs omit RPM/TPM scale signals.
 	HideThroughput bool
@@ -470,12 +472,17 @@ func (r ChannelMonitorRuntime) ActiveProbesAllowed() bool {
 }
 
 // PassiveAggregationAllowed reports whether the passive aggregation of real
-// traffic may run: V2 shows it directly and V3 builds its status page on it.
+// traffic may run. All passive views share one aggregation job.
 func (r ChannelMonitorRuntime) PassiveAggregationAllowed() bool {
-	return r.Enabled && (r.Mode == ChannelMonitorModeV2 || r.Mode == ChannelMonitorModeV3)
+	return r.GroupStatisticsActive() || r.V3Active()
 }
 
-// V2Active reports whether the V2 views (and its candy probes) are the site's monitor.
+// GroupStatisticsActive enables the existing configured group probes in V2 and V4.
+func (r ChannelMonitorRuntime) GroupStatisticsActive() bool { return r.V2Active() || r.V4Active() }
+
+func (r ChannelMonitorRuntime) V4Active() bool { return r.Enabled && r.Mode == ChannelMonitorModeV4 }
+
+// V2Active reports whether the legacy statistics view is active.
 func (r ChannelMonitorRuntime) V2Active() bool {
 	return r.Enabled && r.Mode == ChannelMonitorModeV2
 }
@@ -527,7 +534,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 func (s *SettingService) SetChannelMonitorMode(ctx context.Context, mode string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(mode))
 	switch normalized {
-	case ChannelMonitorModeV1, ChannelMonitorModeV2, ChannelMonitorModeV3:
+	case ChannelMonitorModeV1, ChannelMonitorModeV2, ChannelMonitorModeV3, ChannelMonitorModeV4:
 	default:
 		return "", ErrChannelMonitorInvalidMode
 	}

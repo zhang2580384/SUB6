@@ -73,7 +73,7 @@ func TestHTTP2PeerResetPersistence(t *testing.T) {
 	var hourlySLA int64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT error_count_sla FROM ops_metrics_hourly WHERE bucket_start=$1 AND platform='openai' AND group_id IS NULL", start).Scan(&hourlySLA))
 	require.Equal(t, sla, hourlySLA)
-	monitor := NewChannelMonitorV2Repository(integrationDB).(*channelMonitorV2Repository)
+	monitor := NewChannelMonitorV2Repository(integrationDB, nil).(*channelMonitorV2Repository)
 	require.NoError(t, monitor.RecomputeRange(ctx, start, end))
 	var category string
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT error_category FROM channel_monitor_v2_error_metrics_1m WHERE model=$1", model).Scan(&category))

@@ -146,6 +146,40 @@ describe('monitor card data semantics', () => {
     expect(monitorCardTimelineMode(undefined)).toBe('windows')
     expect(monitorCardTimelineMode('')).toBe('windows')
   })
+  it('only fills idle windows with actual in-range, matching probes and keeps the worst result', () => {
+    const coverage = { requested_start: '2026-09-28T00:00:00Z', requested_end: '2026-09-28T01:30:00Z', bucket_seconds: 300 } as MonitorCoverage
+    const probe = (time: string, verdict: 'correct' | 'incorrect' | 'error') => ({ checked_at: `2026-09-28T${time}:00Z`, verdict, latency_ms: 110 })
+    const row = {
+      buckets: [{ bucket_start: coverage.requested_start, metrics: { request_count: 2 }, health: { overall: 'critical' } }],
+      candy_checks: [
+        { model: 'example-a', results: [probe('00:02', 'correct'), probe('00:05', 'error'), probe('00:07', 'error'), probe('00:08', 'correct'), probe('01:30', 'correct')] },
+        { model: 'example-b', results: [probe('00:10', 'incorrect')] },
+      ], sample_buckets: [],
+    } as unknown as MonitorMatrixRow
+    const bars = monitorCardTimeline(row, coverage, 'windows', [], true)
+    expect(bars).toHaveLength(18)
+    expect(bars[0]).toMatchObject({ observed: true, state: 'critical' })
+    expect(bars[0].probe).toBeUndefined()
+    expect(bars[1]).toMatchObject({ observed: false, state: 'unknown', buckets: [], probe: { model: 'example-a', result: probe('00:07', 'error') } })
+    expect(bars[2].probe?.result.verdict).toBe('incorrect')
+    expect(bars.slice(3).every(bar => !bar.observed && !bar.probe)).toBe(true)
+    expect(monitorCardTimeline(row, coverage, 'windows', ['example-a'], true)[2].probe).toBeUndefined()
+    expect(monitorCardTimeline(row, coverage, 'samples')).toEqual([])
+    const previousDay = { ...coverage, requested_start: '2026-09-27T00:00:00Z', requested_end: '2026-09-27T01:30:00Z' }
+    expect(monitorCardTimeline(row, previousDay, 'windows', [], true).every(bar => !bar.probe)).toBe(true)
+    expect(monitorCardTimeline({ ...row, candy_checks: [] }, coverage, 'windows', [], true).every(bar => !bar.probe)).toBe(true)
+  })
+  it('does not call part of a busy coarse rollup a probe-only interval', () => {
+    const coverage = { requested_start: '2026-09-28T00:00:00Z', requested_end: '2026-09-29T00:00:00Z', bucket_seconds: 3600 } as MonitorCoverage
+    const row = {
+      buckets: [{ bucket_start: '2026-09-28T01:00:00Z', metrics: { request_count: 1 }, health: { overall: 'healthy' } }],
+      candy: { model: 'example', results: [{ checked_at: '2026-09-28T01:40:00Z', verdict: 'correct' }, { checked_at: '2026-09-28T03:00:00Z', verdict: 'correct' }] },
+    } as unknown as MonitorMatrixRow
+    const bars = monitorCardTimeline(row, coverage, 'windows', [], true)
+    expect(bars[0].observed).toBe(true)
+    expect(bars[1].probe).toBeUndefined() // overlaps the 01:00–02:00 rollup
+    expect(bars[2].probe?.result.verdict).toBe('correct')
+  })
   it('distinguishes a wrong answer, failed probe, missing history and stale result', () => {
     const history: MonitorCandyHistory = { model: 'test', reasoning_effort: 'medium', interval_minutes: 1, results: [] }
     const now = Date.parse('2026-09-28T01:00:00Z')

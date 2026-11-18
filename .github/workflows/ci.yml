@@ -135,6 +135,9 @@ jobs:
           go test -p 2 -race -tags integration ./internal/repository
           -run '^(TestUsagePlatform|TestUsageReasoningEffort|TestSUB6V016Upgrade|TestHTTP2|TestOAuth429|TestUsageBillingRepositoryApply_SettlesSoftDeletedAPIKey)'
           -count=1 -v -timeout=10m
+      - name: Monitor probe history and optional cache rates
+        working-directory: backend
+        run: go test -p 2 -race -tags integration ./internal/repository -run '^TestChannelMonitorV2Candy(PersistenceAndClaims|Latest100PerActiveConfig)$' -count=1 -timeout=5m
       - name: Manual worker fencing, selected moderation and real Redis reset
         working-directory: backend
         run: >-

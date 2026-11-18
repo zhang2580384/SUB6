@@ -81,7 +81,7 @@
             </button>
           </div>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div v-if="statisticsVersion !== 'v4'" class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
             <strong class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.cardTimelineTitle') }}</strong>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('channelMonitorV2.settings.cardTimelineHint') }}</p>
@@ -352,7 +352,7 @@ import MonitorCandySettings from './MonitorCandySettings.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { getChannelMonitorMode, isChannelMonitorV2Mode } from '@/utils/featureFlags'
+import { getChannelMonitorMode, isChannelMonitorV2Mode, isChannelMonitorV4Mode } from '@/utils/featureFlags'
 import {
   getConfig,
   updateConfig,
@@ -390,13 +390,14 @@ const countedErrorCategoryCount = computed(
   () => errorCategories.length - (draft.value?.ignored_error_categories?.length || 0)
 )
 /** System settings mode must be v2 for aggregation to run; config remains editable for prep. */
-const systemModeV2 = computed(() => isChannelMonitorV2Mode())
+withDefaults(defineProps<{ statisticsVersion?: 'v2' | 'v4' }>(), { statisticsVersion: 'v2' })
+const systemModeV2 = computed(() => isChannelMonitorV2Mode() || isChannelMonitorV4Mode())
 const systemModeLabel = computed(() => {
   if (!appStore.cachedPublicSettings?.channel_monitor_enabled) {
     return t('channelMonitorV2.settings.modeClosed')
   }
   const mode = getChannelMonitorMode()
-  if (mode === 'v3') return t('channelMonitorV3.modes.v3')
+  if (mode === 'v3' || mode === 'v4') return t('channelMonitorV3.modes.' + mode)
   return mode === 'v1'
     ? t('channelMonitorV2.settings.modeV1')
     : t('channelMonitorV2.settings.modeV2')

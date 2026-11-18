@@ -72,6 +72,8 @@ export default {
           enabledHint: 'Disabling stops the V1 scheduler and the real-traffic statistics shared by V2 and V3; existing config and history are kept.',
           mode: 'Monitor mode',
           modeHint: 'Default is V1 (active probes). Only one implementation can be active at a time; you can also switch at the top of the Channel Monitor page.',
+          modeV4: 'V4 group statistics',
+          modeV4Hint: 'Shows 18 time windows. Traffic provides measured cache rates; idle windows can show recorded group checks. The cache reference weights windows above 30% by input tokens. Hover for the unfiltered rate. Existing group probe settings are shared.',
           modeV2: 'V2 passive monitoring',
           modeV1: 'V1 active probes',
           modeV3: 'V3 component status page',
