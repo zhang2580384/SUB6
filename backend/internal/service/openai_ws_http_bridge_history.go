@@ -56,14 +56,15 @@ func openAIWSBridgeHistoryScopeFor(c *gin.Context, source []byte, model string) 
 // Owned exclusively by one serial bridge loop. A response on another socket,
 // even one sharing a session ID, cannot supply this proof or these bytes.
 type openAIWSHTTPBridgeHistory struct {
-	service     *OpenAIGatewayService
-	scope       openAIWSBridgeHistoryScope
-	route       [32]byte
-	response    string
-	expires     time.Time
-	items       []json.RawMessage
-	charge      int64
-	unavailable string
+	service      *OpenAIGatewayService
+	scope        openAIWSBridgeHistoryScope
+	route        [32]byte
+	response     string
+	expires      time.Time
+	items        []json.RawMessage
+	charge       int64
+	unavailable  string
+	hasDecorated bool
 }
 
 type openAIWSBridgeHistoryTurnKey struct{}
@@ -86,6 +87,7 @@ type openAIWSBridgeHistoryTurn struct {
 	identities                        map[string]int
 	observed                          map[int]openAIWSBridgeHistoryObservedItem
 	fragments                         map[openAIWSBridgeHistoryFragmentKey]*openAIWSBridgeHistoryFragment
+	apiKeyMetadata, hasDecorated      bool
 }
 
 func (h *openAIWSHTTPBridgeHistory) close() {
@@ -96,6 +98,7 @@ func (h *openAIWSHTTPBridgeHistory) close() {
 	h.charge = 0
 	h.items = nil
 	h.response = ""
+	h.hasDecorated = false
 }
 
 func (t *openAIWSBridgeHistoryTurn) close() {
@@ -489,16 +492,19 @@ func (t *openAIWSBridgeHistoryTurn) authorize(ctx context.Context, c *gin.Contex
 		if owner != account.ID {
 			return nil, openAIAgentRecoveryError("owner_unavailable")
 		}
+		if !h.metadataSurvives(actual) {
+			return nil, openAIAgentRecoveryWireError("bridge_history_input")
+		}
 		// Only this per-socket, recent, fully delivered readable reconstruction
 		// replaces the original pointer at the otherwise unchanged recovery gate.
 		// Protected items cannot enter this proof through either source or output.
 		source = actual
 	}
-	t.route, t.sent = route, true
+	t.route, t.sent, t.apiKeyMetadata = route, true, account.IsOpenAIApiKey()
 	return source, nil
 }
 
-func (t *openAIWSBridgeHistoryTurn) addOutput(index int, item gjson.Result) {
+func (t *openAIWSBridgeHistoryTurn) addOutput(index int, item gjson.Result, terminal bool) {
 	if t.unsafe {
 		return
 	}
@@ -507,12 +513,25 @@ func (t *openAIWSBridgeHistoryTurn) addOutput(index int, item gjson.Result) {
 		return
 	}
 	raw := []byte(item.Raw)
+	decorated := bridgeHasItemMetadata(item)
+	if decorated {
+		added, seen := t.observed[index]
+		if !t.apiKeyMetadata || !seen || !added.decorated || (terminal && t.output[index] == nil) {
+			t.invalidate("bridge_history_unsupported")
+			return
+		}
+		t.hasDecorated = true
+	}
 	if index < 0 || index >= openAIWSBridgeHistoryMaxItems || !openAIWSBridgeHistoryItemsSafe([]json.RawMessage{raw}, true) {
 		t.invalidate("bridge_history_unsupported")
 		return
 	}
 	if old, found := t.output[index]; found {
-		if !bytes.Equal(bridgeItemComparison(old), bridgeItemComparison(raw)) {
+		compare := bridgeItemComparison
+		if decorated {
+			compare = normalizeOpenAIWSJSONForCompareOrRaw
+		}
+		if !bytes.Equal(compare(old), compare(raw)) {
 			t.invalidate("bridge_history_unsupported")
 		}
 		return
@@ -579,7 +598,7 @@ func (t *openAIWSBridgeHistoryTurn) delivered(message []byte) {
 			t.invalidate("bridge_history_unsupported")
 			return
 		}
-		t.addOutput(value, gjson.GetBytes(message, "item"))
+		t.addOutput(value, gjson.GetBytes(message, "item"), false)
 	case "response.completed", "response.done":
 		if !openAIAgentCompletedResponse(message, true) {
 			t.invalidate("bridge_delivery_unconfirmed")
@@ -591,13 +610,17 @@ func (t *openAIWSBridgeHistoryTurn) delivered(message []byte) {
 			return
 		}
 		items := output.Array()
+		if len(items) == 0 && t.hasDecorated {
+			t.invalidate("bridge_history_unsupported")
+			return
+		}
 		if len(items) > 0 {
 			if len(t.output) > len(items) {
 				t.invalidate("bridge_history_unsupported")
 				return
 			}
 			for index, item := range items {
-				t.addOutput(index, item)
+				t.addOutput(index, item, true)
 			}
 		}
 		if len(t.output) == 0 && t.semantic {
@@ -658,8 +681,10 @@ func (t *openAIWSBridgeHistoryTurn) commit(ctx context.Context, success bool) {
 	for index, item := range items {
 		items[index] = slices.Clone(item)
 	}
+	decorated := t.hasDecorated || t.rebuilt && h.hasDecorated
 	h.close()
 	h.items, h.charge, h.scope, h.route, h.response = items, charge, t.scope, t.route, t.response
+	h.hasDecorated = decorated
 	h.unavailable = ""
 	h.expires = time.Now().Add(min(openAIWSBridgeHistoryTTL, h.service.openAIWSSessionStickyTTL()))
 }

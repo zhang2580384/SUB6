@@ -11,6 +11,12 @@ No downstream software or client setting change is required for this supported
 path. Unknown, expired, changed-route, protected or unconfirmed history is still
 refused with a structured error; no generation or completed tool is replayed.
 
+On the API-key HTTP bridge, assistant messages with matching provider turn
+metadata can continue when the added, done and terminal events agree. Two
+numeric fields may be filled in during generation. The final HTTP request
+must preserve the completed message. A scoped moderation notice does not become
+model input. This extension does not apply to OAuth or to policy failures.
+
 The proof is local to the logical connection and its latest completed response.
 It does not survive reconnection or make older IDs, encrypted reasoning,
 nonempty annotations or unfamiliar provider extensions portable. Per-session and

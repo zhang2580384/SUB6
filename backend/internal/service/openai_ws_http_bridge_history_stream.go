@@ -19,6 +19,8 @@ type openAIWSBridgeHistoryFragmentKey struct {
 
 type openAIWSBridgeHistoryObservedItem struct {
 	shape, added [32]byte
+	decorated    bool
+	numbers      bridgeAddedNumbers
 }
 
 // Retain bounded digests rather than another copy of every streamed delta.
@@ -33,6 +35,9 @@ type openAIWSBridgeHistoryFragment struct {
 
 func openAIWSBridgeHistoryOutputKeysSafe(item gjson.Result) bool {
 	kind := item.Get("type").String()
+	if bridgeHasItemMetadata(item) && !bridgeKnownItemMetadata(item) {
+		return false
+	}
 	safe := true
 	item.ForEach(func(key, value gjson.Result) bool {
 		field := key.String()
@@ -43,6 +48,8 @@ func openAIWSBridgeHistoryOutputKeysSafe(item gjson.Result) bool {
 			safe = (kind == "message" || kind == "") && value.Type == gjson.String
 		case "content":
 			safe = kind == "message" || kind == ""
+		case "metadata", bridgeItemInternalMetadata:
+			// The complete pair was validated before iterating the fields.
 		case "call_id", "name":
 			safe = kind == "function_call" || kind == "custom_tool_call"
 		case "namespace":
@@ -118,10 +125,22 @@ func openAIWSBridgeHistoryStreamIndex(event gjson.Result, field string) (int, bo
 	return index, value.Type == gjson.Number && err == nil && index >= 0 && index < openAIWSBridgeHistoryMaxItems
 }
 
-func openAIWSBridgeHistoryItemShape(raw []byte) [32]byte {
+func openAIWSBridgeHistoryItemShape(raw []byte, added openAIWSBridgeHistoryObservedItem) [32]byte {
 	var item map[string]json.RawMessage
 	_ = json.Unmarshal(raw, &item)
 	delete(item, "status")
+	if added.decorated {
+		var m map[string]json.RawMessage
+		if json.Unmarshal(item[bridgeItemInternalMetadata], &m) == nil {
+			if added.numbers&bridgeCreateTime == 0 {
+				delete(m, "create_time")
+			}
+			if added.numbers&bridgeContentCount == 0 {
+				delete(m, "content_token_count")
+			}
+			item[bridgeItemInternalMetadata], _ = json.Marshal(m)
+		}
+	}
 	switch gjson.GetBytes(raw, "type").String() {
 	case "message", "":
 		delete(item, "content")
@@ -269,6 +288,12 @@ func (t *openAIWSBridgeHistoryTurn) observeStreamEvent(message []byte, kind stri
 		return true
 	case "rate_limits.updated":
 		return true
+	case "response.metadata":
+		if !t.acceptsModerationNotice(event) {
+			t.invalidate("bridge_history_unsupported")
+			return false
+		}
+		return true
 	case "response.output_item.done":
 		t.semantic = true
 		return true
@@ -287,7 +312,15 @@ func (t *openAIWSBridgeHistoryTurn) observeStreamEvent(message []byte, kind stri
 			t.invalidate("bridge_history_unsupported")
 			return false
 		}
-		shape := openAIWSBridgeHistoryObservedItem{openAIWSBridgeHistoryItemShape(completed), sha256.Sum256(normalizeOpenAIWSJSONForCompareOrRaw([]byte(item.Raw)))}
+		shape := openAIWSBridgeHistoryObservedItem{added: sha256.Sum256(normalizeOpenAIWSJSONForCompareOrRaw([]byte(item.Raw))), decorated: bridgeHasItemMetadata(item)}
+		if shape.decorated {
+			if !t.apiKeyMetadata || t.response == "" {
+				t.invalidate("bridge_history_unsupported")
+				return false
+			}
+			shape.numbers = bridgeItemNumbers(item)
+		}
+		shape.shape = openAIWSBridgeHistoryItemShape(completed, shape)
 		if old, ok := t.observed[index]; ok {
 			if old != shape {
 				t.invalidate("bridge_history_unsupported")
@@ -354,7 +387,7 @@ func (t *openAIWSBridgeHistoryTurn) observeStreamEvent(message []byte, kind stri
 
 func (t *openAIWSBridgeHistoryTurn) streamMatchesOutput() bool {
 	for index, observed := range t.observed {
-		if item, ok := t.output[index]; !ok || openAIWSBridgeHistoryItemShape(item) != observed.shape {
+		if item, ok := t.output[index]; !ok || openAIWSBridgeHistoryItemShape(item, observed) != observed.shape {
 			return false
 		}
 	}
