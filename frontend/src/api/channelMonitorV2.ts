@@ -167,6 +167,8 @@ export interface MonitorMatrixBucket {
 }
 
 export interface MonitorMatrixRow {
+  /** V4: selected range only; null share = no measured input, zero share = all excluded. */
+  cache_reference?: { rate: number | null; included_input_share: number | null; threshold_percent: number }
   group_rate_multiplier?: number
   /** First enabled probe, kept for older payloads. */
   candy?: MonitorCandyHistory
@@ -282,10 +284,11 @@ export async function getSnapshot(filter: MonitorFilter, admin = false, signal?:
   const { data } = await apiClient.get<MonitorSnapshot>(`${base(admin)}/snapshot`, requestConfig(filter, signal))
   return data
 }
-export async function getMatrix(filter: MonitorFilter, groupBy: MonitorMatrixGroupBy, admin = false, signal?: AbortSignal, options?: { recentSamples?: boolean }) {
+export async function getMatrix(filter: MonitorFilter, groupBy: MonitorMatrixGroupBy, admin = false, signal?: AbortSignal, options?: { recentSamples?: boolean; cacheReference?: boolean }) {
   const { data } = await apiClient.get<MonitorMatrixResponse>(`${base(admin)}/matrix`, requestConfig(filter, signal, {
     group_by: groupBy,
     recent_samples: options?.recentSamples ? 1 : undefined,
+    cache_reference: options?.cacheReference ? 1 : undefined,
   }))
   return data
 }

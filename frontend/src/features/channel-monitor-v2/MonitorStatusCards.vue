@@ -27,7 +27,7 @@
           <dl class="mt-5 grid grid-cols-3 gap-2">
             <div v-for="metric in metrics(row)" :key="metric.name" class="min-w-0 rounded-2xl border border-gray-100 bg-gray-50/70 px-2.5 py-3 dark:border-dark-700/60 dark:bg-dark-900/40">
               <dt class="truncate text-[10px] tracking-wide text-gray-500 dark:text-gray-400" :title="metric.title || metric.name">{{ metric.name }}</dt>
-              <dd class="mt-1.5 font-mono text-base font-semibold tabular-nums" :class="metric.color">{{ metric.value }}</dd>
+              <dd class="mt-1.5 font-mono text-base font-semibold tabular-nums" :class="metric.color" :title="metric.title">{{ metric.value }}</dd>
             </div>
           </dl>
           <div class="mt-4 border-t border-gray-100 pt-3 dark:border-dark-700/70">
@@ -39,12 +39,12 @@
               <div class="flex h-5 items-end gap-1" :aria-label="t('channelMonitorV2.cards.trafficHistory')">
                 <button v-for="(bar, index) in timelineBars(row)" :key="`${bar.start}-${index}`" type="button"
                   class="min-w-0 flex-1 cursor-help rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400"
-                  :class="healthBar[bar.state]" :aria-label="trafficLabel(row, bar)" :aria-describedby="isTrafficDetail(row, bar) ? tooltipId : undefined"
+                  :class="bar.probe ? probeBar[bar.probe.result.verdict] : healthBar[bar.state]" :aria-label="trafficLabel(row, bar)" :aria-describedby="isTrafficDetail(row, bar) ? tooltipId : undefined"
                   data-testid="traffic-history-bar" @mouseenter="openDetail($event, { kind: 'traffic', row, bar })"
                   @focus="openDetail($event, { kind: 'traffic', row, bar })" @click="openDetail($event, { kind: 'traffic', row, bar })"
                   @mouseleave="scheduleClose" @blur="scheduleClose" />
               </div>
-              <div class="mt-1 flex justify-between font-mono text-[9px] tracking-widest text-gray-400"><span>PAST</span><span>NOW</span></div>
+              <div class="mt-1 flex justify-between font-mono text-[9px] tracking-widest text-gray-400"><span>PAST</span><span v-if="timelineBars(row).some(bar => bar.probe)" class="tracking-normal">{{ t('channelMonitorV2.cards.probeLegend') }}</span><span>NOW</span></div>
             </template>
           </div>
 
@@ -92,8 +92,13 @@
         <div class="max-h-[min(18rem,calc(100vh-48px))] max-w-lg overflow-y-auto overscroll-contain break-words" data-testid="monitor-card-tooltip-content">
           <p class="font-semibold">{{ detail.row.group_name || '#' + detail.row.group_id }}</p>
           <template v-if="detail.kind === 'traffic'">
-            <p class="text-gray-500 dark:text-gray-400">{{ dateTime(detail.bar.start) }} - {{ dateTime(detail.bar.end) }} · {{ t('channelMonitorV2.cards.health.' + detail.bar.state) }}</p>
-            <p v-if="!detail.bar.buckets.length" class="mt-1">{{ t('channelMonitorV2.matrix.noTraffic') }}</p>
+            <p class="text-gray-500 dark:text-gray-400">{{ dateTime(detail.bar.start) }} - {{ dateTime(detail.bar.end) }} · {{ barStatus(detail.bar) }}</p>
+            <template v-if="detail.bar.probe">
+              <p class="mt-1">{{ t('channelMonitorV2.cards.probeDetails', { model: detail.bar.probe.model, time: dateTime(detail.bar.probe.result.checked_at), latency: formatMonitorMs(detail.bar.probe.result.latency_ms) }) }}</p>
+              <p>{{ t('channelMonitorV2.cards.probeNoTrafficCache') }}</p>
+              <p v-if="detail.row.cache_reference?.rate != null" class="text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.cards.probeCacheComparison', { threshold: detail.row.cache_reference.threshold_percent, rate: referencePercent(detail.row.cache_reference.rate), actual: formatMonitorPercent(detail.row.metrics.cache_rate) }) }}</p>
+            </template>
+            <p v-else-if="!detail.bar.buckets.length" class="mt-1">{{ t('channelMonitorV2.matrix.noTraffic') }}</p>
             <template v-else>
               <p class="mt-1 text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.cards.bucketDetails') }}</p>
               <p v-for="bucket in detail.bar.buckets" :key="bucket.bucket_start" class="mt-1" data-testid="monitor-card-tooltip-sample">{{ trafficSample(bucket) }}</p>
@@ -115,7 +120,7 @@ import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import { formatMonitorMs, formatMonitorPercent } from './monitorFormat'
 import { candyDisplayState, candyHistoryLimit, candyHistorySlots, hasMonitorSamples, MONITOR_CARD_SLOT_COUNT, monitorCandyHistories, monitorCardTimeline, monitorCardTimelineMode, type MonitorCardTimelineMode } from './monitorCards'
 
-const props = defineProps<{ items: MonitorMatrixRow[]; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode }>()
+const props = defineProps<{ items: MonitorMatrixRow[]; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode; selectedModels?: string[] }>()
 const { t, locale } = useI18n()
 type TrafficBar = ReturnType<typeof monitorCardTimeline>[number]
 type CardDetail = { kind: 'traffic'; row: MonitorMatrixRow; bar: TrafficBar } | { kind: 'candy'; row: MonitorMatrixRow; result: MonitorCandyResult; model: string; effort: string }
@@ -177,9 +182,9 @@ function isTrafficDetail(row: MonitorMatrixRow, bar: TrafficBar) {
 function isCandyDetail(row: MonitorMatrixRow, result: MonitorCandyResult, model: string, effort: string) {
   return detail.value?.kind === 'candy' && detail.value.row === row && detail.value.model === model && detail.value.effort === effort && detail.value.result.checked_at === result.checked_at
 }
-function timelineBars(row: MonitorMatrixRow) {
-  return monitorCardTimeline(row, props.coverage, timelineMode.value)
-}
+// Parsing probe history shouldn't repeat on each refresh-countdown tick.
+const timelines = computed(() => new Map(props.items.map(row => [row, monitorCardTimeline(row, props.coverage, timelineMode.value, props.selectedModels)])))
+function timelineBars(row: MonitorMatrixRow) { return timelines.value.get(row) || [] }
 function timelineCaption(row: MonitorMatrixRow) {
   if (timelineMode.value === 'samples') return t('channelMonitorV2.cards.sampledWindows', { count: timelineBars(row).length, limit: MONITOR_CARD_SLOT_COUNT })
   return t('channelMonitorV2.cards.windows', { count: MONITOR_CARD_SLOT_COUNT })
@@ -197,7 +202,7 @@ function latestCandyTime(row: MonitorMatrixRow) {
   }
   return Number.isFinite(latest) ? time(latest) : '—'
 }
-watch([() => props.items, () => props.coverage, () => props.timelineMode], closeDetail)
+watch([() => props.items, () => props.coverage, () => props.timelineMode, () => props.selectedModels], closeDetail)
 onMounted(() => {
   document.addEventListener('pointerdown', onOutsidePointer, true)
   document.addEventListener('keydown', onKeydown)
@@ -228,12 +233,29 @@ const platforms = computed(() => {
 })
 const healthBadge = { healthy: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', critical: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', unknown: 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400' }
 const healthBar = { healthy: 'h-5 bg-emerald-400', warning: 'h-3 bg-amber-400', critical: 'h-2 bg-red-400', unknown: 'h-1 bg-gray-300 dark:bg-dark-600' }
+const probeBar = { correct: 'h-4 border-2 border-dashed border-sky-500', incorrect: 'h-3 border-2 border-dashed border-amber-500', error: 'h-2 border-2 border-dashed border-red-500' }
 const candyColor = { correct: 'bg-emerald-400', incorrect: 'bg-amber-400', error: 'bg-red-400', unknown: 'bg-gray-400', stale: 'bg-gray-400' }
 const time = (value: number | string) => new Date(value).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit', hour12: false })
+function referencePercent(rate: number) {
+  return rate >= 0.999 ? `≥${formatMonitorPercent(0.999)}` : formatMonitorPercent(rate)
+}
+function cacheMetric(row: MonitorMatrixRow) {
+  const ref = row.cache_reference
+  const measured = formatMonitorPercent(row.metrics.cache_rate)
+  const name = t('channelMonitorV2.cards.cache')
+  if (!ref) return { name, value: hasMonitorSamples(row.metrics) ? measured : '—' }
+  const filteredName = t('channelMonitorV2.cards.cacheReference', { threshold: ref.threshold_percent })
+  if (ref.included_input_share == null) return { name: filteredName, value: '—', title: t('channelMonitorV2.cards.cacheReferenceEmpty') }
+  if (ref.rate == null) return { name, value: measured, title: t('channelMonitorV2.cards.cacheReferenceExcluded', { threshold: ref.threshold_percent, actual: measured }) }
+  return {
+    name: filteredName, value: referencePercent(ref.rate),
+    title: t('channelMonitorV2.cards.cacheReferenceDetails', { minutes: (props.coverage?.bucket_seconds || 0) / 60, threshold: ref.threshold_percent, actual: measured, share: formatMonitorPercent(ref.included_input_share) }),
+  }
+}
 function metrics(row: MonitorMatrixRow) {
   const sampled = hasMonitorSamples(row.metrics)
   return [
-    { name: t('channelMonitorV2.cards.cache'), value: sampled ? formatMonitorPercent(row.metrics.cache_rate) : '—', color: 'text-gray-800 dark:text-gray-100' },
+    { ...cacheMetric(row), color: 'text-gray-800 dark:text-gray-100' },
     { name: t('channelMonitorV2.cards.availability'), value: sampled ? formatMonitorPercent(1 - row.metrics.error_rate) : '—', color: sampled && row.health.error_rate === 'healthy' ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-800 dark:text-gray-100' },
     { name: t('channelMonitorV2.cards.ttft'), title: t('channelMonitorV2.metrics.ttftP50'), value: formatMonitorMs(row.metrics.ttft.p50_ms), color: 'text-gray-800 dark:text-gray-100' }
   ]
@@ -241,8 +263,11 @@ function metrics(row: MonitorMatrixRow) {
 function dateTime(value: number | string) {
   return new Date(value).toLocaleString(locale.value, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 }
+function barStatus(bar: TrafficBar) {
+  return bar.probe ? t('channelMonitorV2.cards.probeStatus', { status: t('channelMonitorV2.candy.states.' + bar.probe.result.verdict) }) : t('channelMonitorV2.cards.health.' + bar.state)
+}
 function trafficLabel(row: MonitorMatrixRow, bar: TrafficBar) {
-  return (row.group_name || '#' + row.group_id) + ' · ' + dateTime(bar.start) + ' - ' + dateTime(bar.end) + ' · ' + t('channelMonitorV2.cards.health.' + bar.state)
+  return (row.group_name || '#' + row.group_id) + ' · ' + dateTime(bar.start) + ' - ' + dateTime(bar.end) + ' · ' + barStatus(bar)
 }
 function trafficSample(bucket: MonitorMatrixBucket) {
   return t('channelMonitorV2.cards.sampleDetails', {

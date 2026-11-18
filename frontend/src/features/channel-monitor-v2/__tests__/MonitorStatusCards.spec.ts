@@ -71,6 +71,51 @@ function hoverFixture() {
 }
 const tooltip = () => document.querySelector<HTMLElement>('[role="tooltip"]')
 
+it('shows a single labeled reference, and keeps excluded, empty and legacy measurements distinct', async () => {
+  const { wrapper, row } = hoverFixture()
+  const coverage = { requested_start: '2026-09-28T00:00:00Z', requested_end: '2026-09-28T01:30:00Z', bucket_seconds: 300 } as MonitorCoverage
+  const ref = { threshold_percent: 30, rate: 0.81, included_input_share: 0.65 }
+  const measured = { ...row, metrics: { ...row.metrics, cache_rate: 0.54 } }
+  const cache = () => wrapper.get('dl dd')
+  await wrapper.setProps({ coverage, items: [{ ...measured, cache_reference: ref }] })
+  expect(wrapper.findAll('dl dd')).toHaveLength(3)
+  expect(wrapper.get('dl dt').text()).toContain('cacheReference 30')
+  expect(cache().text()).toBe('81.0%')
+  expect(cache().attributes('title')).toContain('5 30 54.0% 65.0%')
+  await wrapper.setProps({ coverage: { ...coverage, bucket_seconds: 3600 }, items: [{ ...measured, cache_reference: { ...ref, rate: 1 } }] })
+  expect(cache().text()).toBe('≥99.9%')
+  expect(cache().attributes('title')).toContain('60 30')
+  await wrapper.setProps({ items: [{ ...row, metrics: { ...row.metrics, cache_rate: 0 }, cache_reference: { ...ref, rate: null, included_input_share: 0 } }] })
+  expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.cache')
+  expect(cache().text()).toBe('0.00%')
+  expect(cache().attributes('title')).toContain('cacheReferenceExcluded')
+  await wrapper.setProps({ items: [{ ...row, cache_reference: { ...ref, rate: null, included_input_share: null } }] })
+  expect(cache().text()).toBe('—')
+  await wrapper.setProps({ items: [measured] })
+  expect(cache().text()).toBe('54.0%')
+})
+
+it('labels an actual automated check in its idle window and separates its result from range-wide cache', async () => {
+  const { wrapper, row } = hoverFixture()
+  const checked = { ...row, cache_reference: { rate: 0.92, threshold_percent: 30, included_input_share: 0.8 } }
+  await wrapper.setProps({ items: [checked] })
+  const bars = wrapper.findAll('[data-testid="traffic-history-bar"]')
+  expect(bars).toHaveLength(18)
+  const marker = bars[11] // 00:55 .. 01:00, includes the 00:59 probe
+  expect(marker.classes()).toContain('border-dashed')
+  expect(marker.attributes('aria-label')).toContain('probeStatus channelMonitorV2.candy.states.error')
+  expect(wrapper.text()).toContain('probeLegend')
+  await marker.trigger('focus')
+  expect(tooltip()?.textContent).toContain('probeDetails demo')
+  expect(tooltip()?.textContent).toContain('probeNoTrafficCache')
+  expect(tooltip()?.textContent).toContain('probeCacheComparison 30 92.0% 88.1%')
+  expect(tooltip()?.querySelectorAll('[data-testid="monitor-card-tooltip-sample"]')).toHaveLength(0)
+  await wrapper.setProps({ items: [{ ...row, cache_reference: { rate: null, threshold_percent: 30, included_input_share: null } }] })
+  await wrapper.findAll('[data-testid="traffic-history-bar"]')[11].trigger('click')
+  expect(tooltip()?.textContent).toContain('probeNoTrafficCache')
+  expect(tooltip()?.textContent).not.toContain('probeCacheComparison')
+})
+
 it('shows each original bucket on hover, with rates and P50 but no absolute volume', async () => {
   const { wrapper } = hoverFixture()
   const bar = wrapper.findAll('[data-testid="traffic-history-bar"]')[1]

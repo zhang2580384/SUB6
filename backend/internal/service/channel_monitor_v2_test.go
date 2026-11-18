@@ -163,6 +163,59 @@ func TestChannelMonitorV2MatrixForwardsGroupingAndAdminScope(t *testing.T) {
 	require.ErrorIs(t, err, ErrChannelMonitorV2InvalidGroupBy)
 }
 
+func TestChannelMonitorV2GroupCardCacheReference(t *testing.T) {
+	point := func(reads, input int64) ChannelMonitorV2TrendPoint {
+		m := ChannelMonitorV2Metric{RequestCount: 1, CacheRateNumerator: reads, CacheRateDenominator: input}
+		if input > 0 {
+			m.CacheRate = float64(reads) / float64(input)
+		}
+		return ChannelMonitorV2TrendPoint{Metrics: m}
+	}
+	groupA, groupB, groupC := int64(1), int64(2), int64(3)
+	older := []ChannelMonitorV2TrendPoint{point(100000, 100000)}
+	fixture := func() *channelMonitorV2RepoStub {
+		return &channelMonitorV2RepoStub{config: ChannelMonitorV2Config{Enabled: true}, matrix: &ChannelMonitorV2Matrix{Items: []ChannelMonitorV2MatrixRow{
+			{GroupID: &groupA, Metrics: point(1138, 2220).Metrics, Buckets: []ChannelMonitorV2TrendPoint{point(0, 100), point(2, 10), point(30, 100), point(301, 1000), point(800, 1000), point(5, 10)}, SampleBuckets: &older},
+			{GroupID: &groupB, Metrics: point(0, 4000).Metrics, Buckets: []ChannelMonitorV2TrendPoint{point(0, 4000)}},
+			{GroupID: &groupC, Metrics: point(0, 0).Metrics, Buckets: []ChannelMonitorV2TrendPoint{point(0, 0)}},
+		}}}
+	}
+	for _, admin := range []bool{false, true} {
+		svc := NewChannelMonitorV2Service(fixture())
+		out, err := svc.Matrix(context.Background(), ChannelMonitorV2Filter{IncludeCacheReference: true}, ChannelMonitorV2GroupByPlatformGroup, admin)
+		require.NoError(t, err)
+		a, b, c := out.Items[0], out.Items[1], out.Items[2]
+		require.NotNil(t, a.CacheReference)
+		require.Equal(t, 30, a.CacheReference.ThresholdPercent)
+		require.NotNil(t, a.CacheReference.Rate)
+		require.InDelta(t, 1106.0/2010, *a.CacheReference.Rate, 1e-12)
+		require.InDelta(t, 2010.0/2220, *a.CacheReference.IncludedInputShare, 1e-12)
+		require.InDelta(t, 1138.0/2220, a.Metrics.CacheRate, 1e-12)
+		require.Nil(t, b.CacheReference.Rate)
+		require.Zero(t, *b.CacheReference.IncludedInputShare)
+		require.Nil(t, c.CacheReference.Rate)
+		require.Nil(t, c.CacheReference.IncludedInputShare)
+		if !admin {
+			require.Zero(t, a.Buckets[3].Metrics.CacheRateDenominator)
+			require.Zero(t, a.Metrics.CacheRateNumerator)
+		}
+	}
+	for _, tc := range []struct {
+		group   ChannelMonitorV2GroupBy
+		enabled bool
+	}{
+		{ChannelMonitorV2GroupByPlatformGroup, false}, {ChannelMonitorV2GroupByPlatformModel, true},
+	} {
+		out, err := NewChannelMonitorV2Service(fixture()).Matrix(context.Background(), ChannelMonitorV2Filter{IncludeCacheReference: tc.enabled}, tc.group, true)
+		require.NoError(t, err)
+		require.Nil(t, out.Items[0].CacheReference)
+	}
+	// Exact comparisons must not overflow or round an above-threshold bucket down.
+	const n int64 = 6000000000000000000
+	require.Nil(t, channelMonitorV2CacheReference([]ChannelMonitorV2TrendPoint{point(n/10*3, n)}).Rate)
+	require.NotNil(t, channelMonitorV2CacheReference([]ChannelMonitorV2TrendPoint{point(n/10*3+1, n)}).Rate)
+}
+
 func TestChannelMonitorV2ConfigValidation(t *testing.T) {
 	cfg := ChannelMonitorV2Config{
 		Platforms: []ChannelMonitorV2PlatformConfig{

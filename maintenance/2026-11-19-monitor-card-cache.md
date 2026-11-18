@@ -1,0 +1,9 @@
+# V2 group cards: V4 cache reference and idle probe markers
+
+SUB6 base: `55258d8f74bc462d80abc6fc690cd19c513b17d8`. This feature does not import an upstream range.
+
+Only group cards request the optional reference. The ranges keep their original rollups: 90 minutes / 5 minutes, 24 hours / 1 hour, 7 days / 12 hours, and 30 days / 24 hours. For each group and selected model scope, exclude rollups with zero measured input or a cache hit rate at or below 30%. Divide the sum of cache-read tokens by the sum of all input tokens (uncached input plus cache writes plus cache reads) in the remaining rollups. Do not average percentages. The card names the threshold, shows the unfiltered rate and retained input share on hover, and displays rates of 99.9% or above as a lower bound. With only excluded measurements, show the unfiltered measured rate; with no measured input, show a dash. The existing `metrics.cache_rate` and analytics remain unchanged.
+
+In time-window mode, a dashed marker represents a recorded automatic check from this group's V2 probe history. Use the worst result in the slot (latest at equal severity) and identify its time and model. Traffic takes priority, including intervals overlapped by a coarse traffic rollup. Without a matching recorded check the gap stays empty; a check is neither traffic nor a cache sample. Recent-sample mode remains traffic only. Only checks actually returned by the existing, bounded history can fill a window. No checks are scheduled by the card.
+
+Validation covers the inclusive threshold, input weighting, privacy redaction, model/group and time scope, no-input versus measured zero, idle probe failures, and the unchanged three metrics and 18 windows. No database migration, extra query, billing change, or deployment setting is required; rolling back restores the previous display.

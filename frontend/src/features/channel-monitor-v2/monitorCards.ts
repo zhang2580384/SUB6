@@ -66,6 +66,7 @@ export interface MonitorCardBar {
   state: HealthState
   observed: boolean
   buckets: MonitorMatrixBucket[]
+  probe?: { model: string; result: MonitorCandyResult }
 }
 
 function coverageBounds(coverage: MonitorCoverage | undefined) {
@@ -98,17 +99,24 @@ export function monitorCardSampleTimeline(row: MonitorMatrixRow, coverage: Monit
 
 // Keep real time gaps. Each bar summarizes observed health in one of 18 equal
 // time windows, never interpolating a successful request into missing history.
-export function monitorCardWindowTimeline(row: MonitorMatrixRow, coverage: MonitorCoverage | undefined): MonitorCardBar[] {
+export function monitorCardWindowTimeline(row: MonitorMatrixRow, coverage: MonitorCoverage | undefined, selectedModels: readonly string[] = []): MonitorCardBar[] {
   const bounds = coverageBounds(coverage)
   if (!bounds) return []
   const { start, end } = bounds
   const width = (end - start) / MONITOR_CARD_SLOT_COUNT
   const bars: MonitorCardBar[] = Array.from({ length: MONITOR_CARD_SLOT_COUNT }, (_, index) => ({ start: start + index * width, end: start + (index + 1) * width, state: 'unknown', observed: false, buckets: [] }))
   const severity: Record<HealthState, number> = { unknown: 0, healthy: 1, warning: 2, critical: 3 }
+  const occupied = new Set<number>()
+  const bucketWidth = (coverage?.bucket_seconds || 0) * 1000
   for (const bucket of row.buckets) {
     const at = Date.parse(bucket.bucket_start)
-    if (at < start || at >= end || !hasMonitorSamples(bucket.metrics)) continue
-    const bar = bars[Math.floor((at - start) / width)]
+    if (!Number.isFinite(at) || at >= end || !hasMonitorSamples(bucket.metrics)) continue
+    // Coarse rollups may overlap more than one display slot. Don't label
+    // their overlapping slots as probe-only when the exact request time is unknown.
+    const index = Math.floor((at - start) / width)
+    const last = Math.min(bars.length, Math.ceil((at + bucketWidth - start) / width))
+    for (let i = Math.max(0, index); i < last; i++) occupied.add(i)
+    const bar = bars[index]
     if (!bar) continue
     bar.observed = true
     // Keep the original bucket metrics: redacted counts cannot weight rates,
@@ -116,12 +124,29 @@ export function monitorCardWindowTimeline(row: MonitorMatrixRow, coverage: Monit
     bar.buckets.push(bucket)
     if (severity[bucket.health.overall] > severity[bar.state]) bar.state = bucket.health.overall
   }
+  const probeSeverity = { correct: 0, incorrect: 1, error: 2 }
+  for (const history of monitorCandyHistories(row)) {
+    // A grouped "other" model filter gives no exact probe model to attribute.
+    if (selectedModels.length && !selectedModels.includes(history.model)) continue
+    for (const result of history.results) {
+      const at = Date.parse(result.checked_at)
+      if (!Number.isFinite(at) || at < start || at >= end || !Object.prototype.hasOwnProperty.call(probeSeverity, result.verdict)) continue
+      const index = Math.floor((at - start) / width)
+      const bar = bars[index]
+      if (!bar || bar.observed || occupied.has(index)) continue
+      const previous = bar.probe?.result
+      if (!previous || probeSeverity[result.verdict] > probeSeverity[previous.verdict] ||
+          (result.verdict === previous.verdict && at > Date.parse(previous.checked_at))) {
+        bar.probe = { model: history.model, result }
+      }
+    }
+  }
   for (const bar of bars) bar.buckets.sort((a, b) => Date.parse(a.bucket_start) - Date.parse(b.bucket_start))
   return bars
 }
 
-export function monitorCardTimeline(row: MonitorMatrixRow, coverage: MonitorCoverage | undefined, mode: MonitorCardTimelineMode = 'windows') {
-  return mode === 'samples' ? monitorCardSampleTimeline(row, coverage) : monitorCardWindowTimeline(row, coverage)
+export function monitorCardTimeline(row: MonitorMatrixRow, coverage: MonitorCoverage | undefined, mode: MonitorCardTimelineMode = 'windows', selectedModels: readonly string[] = []) {
+  return mode === 'samples' ? monitorCardSampleTimeline(row, coverage) : monitorCardWindowTimeline(row, coverage, selectedModels)
 }
 
 export function candyDisplayState(history: MonitorCandyHistory, now: number): 'correct' | 'incorrect' | 'error' | 'unknown' | 'stale' {
