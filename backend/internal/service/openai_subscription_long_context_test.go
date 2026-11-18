@@ -54,7 +54,7 @@ func TestOpenAIGPT61SolLongContextExempt(t *testing.T) {
 		{name: "上游透传不豁免", account: &Account{Platform: PlatformOpenAI, Type: AccountTypeUpstream}, result: &OpenAIForwardResult{Model: "gpt-6.1-sol"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, openAIGPT61SolLongContextExempt(tt.account, tt.result, tt.tokens))
+			require.Equal(t, tt.want, openAISubscriptionModelLongContextExempt(tt.account, tt.result, tt.tokens))
 		})
 	}
 }

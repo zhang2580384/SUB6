@@ -472,7 +472,7 @@ func TestTryModelFilePricing_Success(t *testing.T) {
 		},
 	})
 	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
-	result := tryModelFilePricing(bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
 	require.NotNil(t, result)
 	// 100*0.001 + 50*0.002 = 0.1 + 0.1 = 0.2
 	require.InDelta(t, 0.2, *result, 1e-12)
@@ -483,8 +483,8 @@ func TestTryModelFilePricing_Fable51HasNoImplicitReasoningMultiplier(t *testing.
 		"claude-fable-5-1": {InputPricePerToken: 0.001},
 	})
 	tokens := UsageTokens{InputTokens: 100}
-	standard := tryModelFilePricing(bs, "claude-fable-5-1", tokens, "", time.Time{}, true, "xhigh")
-	max := tryModelFilePricing(bs, "claude-fable-5-1", tokens, "", time.Time{}, true, "max")
+	standard := tryModelFilePricing(t.Context(), bs, "claude-fable-5-1", tokens, "", time.Time{}, true, "xhigh")
+	max := tryModelFilePricing(t.Context(), bs, "claude-fable-5-1", tokens, "", time.Time{}, true, "max")
 	require.NotNil(t, standard)
 	require.NotNil(t, max)
 	require.Equal(t, *standard, *max)
@@ -503,7 +503,7 @@ func TestTryModelFilePricing_AppliesLongContextPricing(t *testing.T) {
 	})
 	tokens := UsageTokens{InputTokens: 101, OutputTokens: 10, CacheReadTokens: 5}
 
-	result := tryModelFilePricing(bs, "gpt-5.6-sol", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "gpt-5.6-sol", tokens, "", time.Time{}, true)
 
 	require.NotNil(t, result)
 	// Input and cache-read use the 2x input tier; output uses the 1.5x tier.
@@ -542,7 +542,7 @@ func TestTryModelFilePricing_AppliesServiceTierPricing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tryModelFilePricing(bs, "gpt-5.6-sol", tokens, tt.serviceTier, time.Time{}, true)
+			result := tryModelFilePricing(t.Context(), bs, "gpt-5.6-sol", tokens, tt.serviceTier, time.Time{}, true)
 			require.NotNil(t, result)
 			require.InDelta(t, tt.want, *result, 1e-12)
 		})
@@ -572,7 +572,7 @@ func TestTryModelFilePricing_CombinesPriorityAndLongContextPricing(t *testing.T)
 		CacheReadTokens:     5,
 	}
 
-	result := tryModelFilePricing(bs, "gpt-5.6-sol", tokens, "priority", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "gpt-5.6-sol", tokens, "priority", time.Time{}, true)
 
 	require.NotNil(t, result)
 	// priority 单价先应用，再叠加长上下文输入 2x、输出 1.5x。
@@ -583,7 +583,7 @@ func TestTryModelFilePricing_PricingNotFound(t *testing.T) {
 	// "nonexistent-model" does not match any fallback pattern
 	bs := newTestBillingServiceWithPrices(map[string]*ModelPricing{})
 	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
-	result := tryModelFilePricing(bs, "nonexistent-model", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "nonexistent-model", tokens, "", time.Time{}, true)
 	require.Nil(t, result)
 }
 
@@ -593,7 +593,7 @@ func TestTryModelFilePricing_NilFallback(t *testing.T) {
 		"claude-sonnet-4": nil,
 	})
 	tokens := UsageTokens{InputTokens: 100}
-	result := tryModelFilePricing(bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
 	require.Nil(t, result)
 }
 
@@ -605,7 +605,7 @@ func TestTryModelFilePricing_ZeroCost(t *testing.T) {
 		},
 	})
 	tokens := UsageTokens{} // all zero tokens → cost = 0 → nil
-	result := tryModelFilePricing(bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
 	require.Nil(t, result)
 }
 
@@ -622,7 +622,7 @@ func TestTryModelFilePricing_WithImageOutput(t *testing.T) {
 		OutputTokens:      50,
 		ImageOutputTokens: 10,
 	}
-	result := tryModelFilePricing(bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
 	require.NotNil(t, result)
 	// ImageOutputTokens 是 OutputTokens 的子集，先扣除再按图片单价计。
 	// 100*0.001 + (50-10)*0.002 + 10*0.01 = 0.1 + 0.08 + 0.1 = 0.28
@@ -644,7 +644,7 @@ func TestTryModelFilePricing_WithCacheTokens(t *testing.T) {
 		CacheCreationTokens: 200,
 		CacheReadTokens:     300,
 	}
-	result := tryModelFilePricing(bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
+	result := tryModelFilePricing(t.Context(), bs, "claude-sonnet-4", tokens, "", time.Time{}, true)
 	require.NotNil(t, result)
 	// 100*0.001 + 50*0.002 + 200*0.003 + 300*0.0005
 	// = 0.1 + 0.1 + 0.6 + 0.15 = 0.95
@@ -692,7 +692,7 @@ func TestTryModelFilePricing_DeepSeekPeakPricing(t *testing.T) {
 					{"sunday", time.Date(2026, time.August, 23, 7, 0, 0, 0, time.UTC), 1},
 				} {
 					t.Run(slot.name, func(t *testing.T) {
-						cost := tryModelFilePricing(bs, model.name, tokens, "", slot.at, true)
+						cost := tryModelFilePricing(t.Context(), bs, model.name, tokens, "", slot.at, true)
 						require.NotNil(t, cost)
 						require.InDelta(t, baseCost*slot.multiplier, *cost, 1e-12)
 					})

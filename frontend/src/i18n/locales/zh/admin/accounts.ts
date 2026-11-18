@@ -1050,7 +1050,10 @@ export default {
         longContextBilling: 'API 长上下文计费',
         longContextBillingDesc: '默认关闭。仅当该账号的上游会按模型阈值收取 OpenAI API 长上下文费率时开启。',
         ultrafastBilling: 'UltraFast 档位计费',
-        ultrafastBillingDesc: '默认关闭。开启后识别上游响应中的 service_tier；该账号所有模型遇到 ultrafast 时按模型标准单价 ×6（含缓存读写），再乘账号/分组倍率。未返回档位时按请求档位结算。客户端请求 ultrafast 且最终仍按该档位结算时，关闭本开关也按6倍计费。本开关不强制上游使用 UltraFast。',
+        ultrafastBillingDesc: '开启后可按上游返回的 service_tier 结算。未返回档位时沿用请求档位。最终按 UltraFast 结算的请求通常收标准价的 6 倍，含缓存读写。',
+        ufPromoTitle: 'UltraFast 3 倍促销',
+        ufPromoHint: '仅对本账号勾选的模型生效。请求最终按 UltraFast 结算时，从标准单价的 6 倍降为 3 倍。北京时间 2027 年 3 月 1 日 16:00 起自动恢复 6 倍，以请求开始时间为准。',
+        ufPromoEnded: '促销已结束，UltraFast 已恢复标准单价的 6 倍。',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           '默认关闭。开启后可启用 responses_websockets_v2 协议能力（受网关全局开关与账号类型开关约束）。',

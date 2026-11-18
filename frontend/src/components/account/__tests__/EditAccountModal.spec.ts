@@ -1704,6 +1704,42 @@ describe('EditAccountModal', () => {
     )
   })
 
+  it('moves a promotion from Astra to Sol without changing tier detection', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2027-02-28T12:00:00Z'))
+    try {
+      const account = buildAccount()
+      account.extra = { openai_gpt62_astra_uf_promotion: true, openai_response_tier_billing_enabled: true }
+      updateAccountMock.mockReset()
+      checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+      updateAccountMock.mockResolvedValue(account)
+      const wrapper = mountModal(account)
+      expect((wrapper.get('[data-testid="uf-promo-astra"]').element as HTMLInputElement).checked).toBe(true)
+      await wrapper.get('[data-testid="uf-promo-astra"]').setValue(false)
+      await wrapper.get('[data-testid="uf-promo-sol"]').setValue(true)
+      await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+      const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
+      expect(extra?.openai_gpt62_sol_uf_promotion).toBe(true)
+      expect(extra).not.toHaveProperty('openai_gpt62_astra_uf_promotion')
+      expect(extra?.openai_response_tier_billing_enabled).toBe(true)
+    } finally { clock.mockRestore() }
+  })
+
+  it('shows stored promotions as expired at the deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2027-03-01T07:59:59Z'))
+      const account = buildAccount()
+      account.extra = { openai_gpt62_astra_uf_promotion: true }
+      const wrapper = mountModal(account)
+      const astra = wrapper.get('[data-testid="uf-promo-astra"]').element as HTMLInputElement
+      expect(astra.checked).toBe(true)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(astra.checked).toBe(false)
+      expect(astra.disabled).toBe(true)
+      expect(wrapper.text()).toContain('admin.accounts.openai.ufPromoEnded')
+    } finally { vi.useRealTimers() }
+  })
+
   it('keeps upstream response-tier billing enabled when saving an existing account', async () => {
     const account = buildAccount()
     account.extra = { openai_response_tier_billing_enabled: true }

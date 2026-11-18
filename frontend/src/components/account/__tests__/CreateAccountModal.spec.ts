@@ -215,7 +215,8 @@ async function submitApiKeyAccount(
   platform: 'openai' | 'anthropic',
   enableLongContextBilling = false,
   disableUpstreamBillingProbe = false,
-  enableResponseTierBilling = false
+  enableResponseTierBilling = false,
+  promotion?: 'sol' | 'astra'
 ) {
   const wrapper = mountModal()
   await selectButtonByText(wrapper, platform === 'openai' ? 'OpenAI' : 'admin.accounts.claudeConsole')
@@ -227,6 +228,7 @@ async function submitApiKeyAccount(
   if (enableLongContextBilling) {
     await wrapper.get('[data-testid="openai-long-context-billing-toggle"]').trigger('click')
   }
+  if (promotion) await wrapper.get(`[data-testid="uf-promo-${promotion}"]`).setValue(true)
   if (enableResponseTierBilling) {
     await wrapper.get('[data-testid="create-openai-ultrafast-billing-toggle"]').trigger('click')
   }
@@ -275,6 +277,17 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.extra).not.toHaveProperty(
       'openai_response_tier_billing_enabled'
     )
+  })
+
+  it('creates a Sol-only promotion without enabling upstream tier overrides', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2027-02-28T12:00:00Z'))
+    try {
+      await submitApiKeyAccount('openai', false, false, false, 'sol')
+      const extra = createAccountMock.mock.calls[0]?.[0]?.extra
+      expect(extra?.openai_gpt62_sol_uf_promotion).toBe(true)
+      expect(extra).not.toHaveProperty('openai_gpt62_astra_uf_promotion')
+      expect(extra).not.toHaveProperty('openai_response_tier_billing_enabled')
+    } finally { clock.mockRestore() }
   })
 
   it('enables upstream UltraFast billing for every model on a new API-key account', async () => {

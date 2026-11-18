@@ -2999,6 +2999,11 @@
         </div>
       </div>
 
+      <GPT62UFPromotionFields
+        v-if="account?.platform === 'openai' && !isSparkShadow"
+        v-model="openAIUFPromotions"
+      />
+
       <div
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'setup-token')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
@@ -3824,6 +3829,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import UpstreamRequestIdHeaderField from '@/components/account/UpstreamRequestIdHeaderField.vue'
+import GPT62UFPromotionFields from './GPT62UFPromotionFields.vue'
+import { readUFPromotions, writeUFPromotions } from './gpt62UFPromotions'
 import Toggle from '@/components/common/Toggle.vue'
 import AccountRpmSettings from '@/components/account/AccountRpmSettings.vue'
 import { applyAccountRPMSettings } from '@/components/account/accountRpm'
@@ -4676,6 +4683,7 @@ const openaiPassthroughEnabled = ref(false)
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
 const openAIResponseTierBillingEnabled = ref(false)
+const openAIUFPromotions = ref(readUFPromotions())
 // OpenAI 订阅档位（Plus / Pro 20x / Pro 5x / Business Standard / Business Premium / Free）手动覆盖值,
 // 存于 credentials.plan_type;'' 表示清空/自动识别
 const editPlanType = ref<string>('')
@@ -5249,6 +5257,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openaiFlattenNamespacesEnabled.value = false
   openAILongContextBillingEnabled.value = false
   openAIResponseTierBillingEnabled.value = false
+  openAIUFPromotions.value = readUFPromotions()
   editPlanType.value = ''
   openAICompactMode.value = 'auto'
   openAIResponsesMode.value = 'auto'
@@ -5303,6 +5312,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       newAccount.type === 'oauth' && extra?.openai_responses_flatten_namespaces === true
     const longContextBillingValue = extra?.openai_long_context_billing_enabled
     openAILongContextBillingEnabled.value = longContextBillingValue === true
+    openAIUFPromotions.value = readUFPromotions(extra)
     openAIResponseTierBillingEnabled.value =
       newAccount.type === 'apikey' && extra?.openai_response_tier_billing_enabled === true
     // plan_type 手动覆盖仅 OAuth 有实际调度语义(IsOpenAIChatGPTSubscription 要求 oauth),故只对 oauth 回填
@@ -7102,6 +7112,7 @@ const handleSubmit = async () => {
       } else {
         newExtra.openai_long_context_billing_enabled = openAILongContextBillingEnabled.value
       }
+      if (!isSparkShadow.value) writeUFPromotions(newExtra, openAIUFPromotions.value)
       if (props.account.type === 'apikey' && openAIResponseTierBillingEnabled.value) {
         newExtra.openai_response_tier_billing_enabled = true
       } else {

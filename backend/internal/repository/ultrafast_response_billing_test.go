@@ -12,7 +12,11 @@ import (
 func TestUltrafastResponseBillingSurvivesSchedulerProjection(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		original := map[string]any{service.OpenAIResponseTierBillingEnabledKey: enabled, "irrelevant_large_field": "drop"}
+		original[service.OpenAIGPT62SolUFPromotionKey] = enabled
+		original[service.OpenAIGPT62AstraUFPromotionKey] = !enabled
 		projected := filterSchedulerExtra(original)
+		require.Equal(t, enabled, projected[service.OpenAIGPT62SolUFPromotionKey])
+		require.Equal(t, !enabled, projected[service.OpenAIGPT62AstraUFPromotionKey])
 		require.Equal(t, enabled, projected[service.OpenAIResponseTierBillingEnabledKey])
 		require.NotContains(t, projected, "irrelevant_large_field")
 		account := &service.Account{Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey, Extra: projected}

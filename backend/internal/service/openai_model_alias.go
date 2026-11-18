@@ -37,6 +37,9 @@ func normalizeKnownOpenAICodexModel(model string) string {
 		}
 	}
 
+	if base := openai.GPT62ModelID(normalized); base != "" {
+		return base
+	}
 	if openai.IsGPT61TerraModelSpelling(normalized) {
 		return "gpt-6.1-terra"
 	}
