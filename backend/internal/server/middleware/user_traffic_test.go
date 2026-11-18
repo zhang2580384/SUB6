@@ -35,7 +35,7 @@ func TestTrafficCountsActualBytesOnceAcrossPreReadAndSSE(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			recorder := &trafficTestRecorder{}
 			r := gin.New()
-			r.Use(UserTraffic(recorder), trafficTestAuth, func(c *gin.Context) {
+			r.Use(UserTraffic(recorder, func() bool { return true }), trafficTestAuth, func(c *gin.Context) {
 				p, err := io.ReadAll(c.Request.Body)
 				require.NoError(t, err)
 				c.Request.Body = io.NopCloser(strings.NewReader(string(p)))
@@ -71,7 +71,7 @@ func TestTrafficRecordsErrorsAndCanceledPartialRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := &trafficTestRecorder{}
 	r := gin.New()
-	r.Use(UserTraffic(recorder), trafficTestAuth)
+	r.Use(UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 	r.POST("/v1/messages", func(c *gin.Context) {
 		p := make([]byte, 2)
 		_, err := io.ReadFull(c.Request.Body, p)
@@ -119,7 +119,7 @@ func TestTrafficExcludesUnauthenticatedAndUnsupportedProtocols(t *testing.T) {
 			if tc.forwarded {
 				r.Use(func(c *gin.Context) { c.Set("serverless_verified_ip", "203.0.113.1"); c.Next() })
 			}
-			r.Use(UserTraffic(recorder))
+			r.Use(UserTraffic(recorder, func() bool { return true }))
 			if tc.authenticated {
 				r.Use(trafficTestAuth)
 			}
@@ -154,7 +154,7 @@ func TestTrafficCountsPartialWritesAndFlushErrors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := &trafficTestRecorder{}
 	r := gin.New()
-	r.Use(UserTraffic(recorder), trafficTestAuth)
+	r.Use(UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 	r.POST("/v1/messages", func(c *gin.Context) { _, _ = c.Writer.Write([]byte("abcdef")) })
 	r.ServeHTTP(trafficPartialWriter{httptest.NewRecorder()}, httptest.NewRequest("POST", "/v1/messages", nil))
 	require.Len(t, recorder.events, 1)
@@ -162,7 +162,7 @@ func TestTrafficCountsPartialWritesAndFlushErrors(t *testing.T) {
 	require.Equal(t, "write_error", recorder.events[0].Outcome)
 	flushRecorder := &timingFlushErrorRecorder{ResponseRecorder: httptest.NewRecorder(), err: errors.New("flush failed")}
 	r = gin.New()
-	r.Use(UserTraffic(recorder), trafficTestAuth)
+	r.Use(UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 	r.POST("/v1/messages", func(c *gin.Context) { c.Writer.Flush() })
 	r.ServeHTTP(flushRecorder, httptest.NewRequest("POST", "/v1/messages", nil))
 	require.Equal(t, "write_error", recorder.events[1].Outcome)
@@ -172,7 +172,7 @@ func TestTrafficPanicRemainsVisibleToRecovery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := &trafficTestRecorder{}
 	r := gin.New()
-	r.Use(gin.Recovery(), UserTraffic(recorder), trafficTestAuth)
+	r.Use(gin.Recovery(), UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 	r.POST("/v1/messages", func(c *gin.Context) { panic("test") })
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("POST", "/v1/messages", nil))
@@ -188,7 +188,7 @@ func TestTrafficPanicIncludesProductionRecoveryResponse(t *testing.T) {
 		t.Run(map[bool]string{false: "before response", true: "after response"}[written], func(t *testing.T) {
 			recorder := &trafficTestRecorder{}
 			r := gin.New()
-			r.Use(Recovery(), UserTraffic(recorder), trafficTestAuth)
+			r.Use(Recovery(), UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 			r.POST("/v1/messages", func(c *gin.Context) {
 				if written {
 					c.String(http.StatusOK, "partial response")
@@ -215,7 +215,7 @@ func TestTrafficRecoveryBrokenPipeStillFinalizesOnce(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := &trafficTestRecorder{}
 	r := gin.New()
-	r.Use(Recovery(), UserTraffic(recorder), trafficTestAuth)
+	r.Use(Recovery(), UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 	r.POST("/v1/messages", func(c *gin.Context) {
 		panic(&net.OpError{Op: "write", Net: "tcp", Err: &os.SyscallError{Syscall: "write", Err: syscall.EPIPE}})
 	})
@@ -231,7 +231,7 @@ func TestTrafficRecoveryDoesNotRepeatFinalizationOnNextRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := &trafficTestRecorder{}
 	r := gin.New()
-	r.Use(Recovery(), UserTraffic(recorder), trafficTestAuth)
+	r.Use(Recovery(), UserTraffic(recorder, func() bool { return true }), trafficTestAuth)
 	r.POST("/v1/messages", func(c *gin.Context) {
 		if c.Query("panic") == "true" {
 			panic("test")
@@ -262,7 +262,7 @@ func TestTrafficAuxiliaryQueueCannotDelayGatewayResponse(t *testing.T) {
 		t.Fatal("storage resolver did not start")
 	}
 	router := gin.New()
-	router.Use(UserTraffic(delivery), trafficTestAuth)
+	router.Use(UserTraffic(delivery, func() bool { return true }), trafficTestAuth)
 	router.POST("/v1/messages", func(c *gin.Context) { c.String(200, "business-ok") })
 	health, err := delivery.Health(context.Background())
 	require.NoError(t, err)
@@ -293,4 +293,31 @@ func TestTrafficAuxiliaryQueueCannotDelayGatewayResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 5, health.QueueDroppedEvents)
 	require.Equal(t, health.QueueCapacity, health.QueuedEvents)
+}
+
+func TestUserTrafficOffLeavesStreamsAndBillingRequestAlone(t *testing.T) {
+	recorder := &trafficTestRecorder{}
+	on := false
+	r := gin.New()
+	r.Use(UserTraffic(recorder, func() bool { return on }), trafficTestAuth)
+	var wrapped []bool
+	r.POST("/v1/responses", func(c *gin.Context) {
+		_, b := c.Request.Body.(*trafficBody)
+		_, w := c.Writer.(*trafficWriter)
+		require.Equal(t, b, w)
+		wrapped = append(wrapped, b)
+		data, err := io.ReadAll(c.Request.Body)
+		require.NoError(t, err)
+		c.Data(200, "text/event-stream", data)
+	})
+	for _, state := range []bool{false, true, false} {
+		on = state
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest("POST", "/v1/responses", strings.NewReader("data: sample\n\n")))
+		require.Equal(t, 200, w.Code)
+		require.Equal(t, "data: sample\n\n", w.Body.String())
+	}
+	require.Equal(t, []bool{false, true, false}, wrapped)
+	require.Len(t, recorder.events, 1)
+	require.Equal(t, int64(len("data: sample\n\n")), recorder.events[0].DownloadBytes)
 }

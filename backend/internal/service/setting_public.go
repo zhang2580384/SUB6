@@ -247,6 +247,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
+		SettingKeyUserTrafficEnabled,
 		SettingKeyUsageShowLongContextBadge,
 		SettingKeyUsageShowCacheRate,
 		SettingKeyUsageShowCacheRateToUsers,
@@ -392,6 +393,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 
 		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
 
+		UserTrafficEnabled:        settings[SettingKeyUserTrafficEnabled] != "false",
 		UsageShowLongContextBadge: settings[SettingKeyUsageShowLongContextBadge] != "false",
 
 		UsageShowCacheRate:                    settings[SettingKeyUsageShowCacheRate] != "false",
@@ -715,6 +717,7 @@ type PublicSettingsInjectionPayload struct {
 	AffiliateEnabled                      bool `json:"affiliate_enabled"`
 	RiskControlEnabled                    bool `json:"risk_control_enabled"`
 	AllowUserViewErrorRequests            bool `json:"allow_user_view_error_requests"`
+	UserTrafficEnabled                    bool `json:"user_traffic_enabled"`
 	UsageShowLongContextBadge             bool `json:"usage_show_long_context_badge"`
 	UsageShowCacheRate                    bool `json:"usage_show_cache_rate"`
 	UsageShowCacheRateToUsers             bool `json:"usage_show_cache_rate_to_users"`
@@ -808,6 +811,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AffiliateEnabled:                      settings.AffiliateEnabled,
 		RiskControlEnabled:                    settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:            settings.AllowUserViewErrorRequests,
+		UserTrafficEnabled:                    settings.UserTrafficEnabled,
 		UsageShowLongContextBadge:             settings.UsageShowLongContextBadge,
 		UsageShowCacheRate:                    settings.UsageShowCacheRate,
 		UsageShowCacheRateToUsers:             settings.UsageShowCacheRateToUsers,

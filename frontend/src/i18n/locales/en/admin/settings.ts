@@ -1498,6 +1498,10 @@ export default {
         title: 'Usage Records',
         description: 'Settings for usage and failed-request records visible to end users.',
       },
+      userTraffic: {
+        label: 'Record request traffic',
+        description: 'Turning this off stops metering upload and download bytes for new requests and hides traffic reports for users and admins. Existing records and token billing are preserved.',
+      },
       user_error_view: {
         label: 'Allow users to view their own error requests',
         description: 'When enabled, users can see a redacted view of their failed requests on the usage page (no internal/upstream details). Requires ops monitoring enabled to have data.',

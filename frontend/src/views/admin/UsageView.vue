@@ -175,7 +175,7 @@
           :filters="connectionFilters"
           :refresh-key="connectionRefreshKey"
         />
-        <TrafficPanel v-if="!props.observerMode && activeTab === 'traffic'" admin />
+        <TrafficPanel v-if="!props.observerMode && trafficEnabled && activeTab === 'traffic'" admin />
         <LatencyObservabilityPanel
           v-if="!props.observerMode && activeTab === 'latency'"
           flat
@@ -906,13 +906,15 @@ const loadSavedColumns = () => {
 // Detail tabs
 type DetailTab = 'usage' | 'errors' | 'connections' | 'ranking' | 'traffic' | 'latency'
 const activeTab = ref<DetailTab>('usage')
+const trafficEnabled = computed(() => appStore.cachedPublicSettings?.user_traffic_enabled !== false)
+watch(trafficEnabled, enabled => { if (!enabled && activeTab.value === 'traffic') activeTab.value = 'usage' })
 const canViewErrors = computed(() => !props.observerMode || !!appStore.cachedPublicSettings?.allow_user_view_error_requests)
 const detailTabs = computed(() => [
   { key: 'usage' as const, label: t('usage.tabs.usage'), icon: 'document' as const },
   ...(canViewErrors.value ? [{ key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const }] : []),
   ...(!props.observerMode ? [{ key: 'connections' as const, label: t('connections.title'), icon: 'clock' as const }] : []),
   ...(!props.observerMode ? [{ key: 'ranking' as const, label: t('usage.tabs.ranking'), icon: 'chart' as const }] : []),
-  ...(!props.observerMode ? [{ key: 'traffic' as const, label: t('traffic.title'), icon: 'chart' as const }] : []),
+  ...(!props.observerMode && trafficEnabled.value ? [{ key: 'traffic' as const, label: t('traffic.title'), icon: 'chart' as const }] : []),
   ...(!props.observerMode ? [{ key: 'latency' as const, label: t('latencyObservability.title'), icon: 'clock' as const }] : []),
 ])
 const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)

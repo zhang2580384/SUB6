@@ -360,6 +360,7 @@ type SystemSettings struct {
 	RequestCaptureRetentionDays int
 	// 使用详情中长上下文计费 x2 徽标的展示开关（默认开启）
 	ExcelBPSImageMode                     string
+	UserTrafficEnabled                    bool
 	UsageShowLongContextBadge             bool
 	UsageShowCacheRate                    bool
 	UsageShowCacheRateToUsers             bool
@@ -492,6 +493,7 @@ type PublicSettings struct {
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 
 	// 使用详情中长上下文计费 x2 徽标的展示开关（默认开启）
+	UserTrafficEnabled        bool `json:"user_traffic_enabled"`
 	UsageShowLongContextBadge bool `json:"usage_show_long_context_badge"`
 
 	// 使用记录单条缓存率。功能默认开启；向用户展示默认关闭。

@@ -6535,6 +6535,17 @@
             </p>
           </div>
           <div class="space-y-4 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label for="user-traffic-enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.settings.userTraffic.label') }}</label>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.userTraffic.description') }}</p>
+              </div>
+              <label class="toggle">
+                <input id="user-traffic-enabled" v-model="form.user_traffic_enabled" type="checkbox" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
             <!-- User error requests visibility -->
             <div class="flex items-center justify-between">
               <div>
@@ -10734,6 +10745,7 @@ const form = reactive<SettingsForm>({
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
   // Allow user view error requests
+  user_traffic_enabled: true,
   allow_user_view_error_requests: false,
   // 使用详情中长上下文计费 x2 徽标展示（默认开启）
   usage_show_long_context_badge: true,
@@ -12578,6 +12590,7 @@ async function saveSettings() {
       },
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
+      user_traffic_enabled: form.user_traffic_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
       usage_show_long_context_badge: form.usage_show_long_context_badge,
       usage_show_cache_rate: form.usage_show_cache_rate,

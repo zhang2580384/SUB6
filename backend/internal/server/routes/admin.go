@@ -134,7 +134,7 @@ func RegisterAdminRoutes(
 		registerSubscriptionRoutes(admin, h)
 
 		// 使用记录管理
-		registerUsageRoutes(admin, h)
+		registerUsageRoutes(admin, h, settingService)
 
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
@@ -902,13 +902,13 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/users/:id/subscriptions", h.Admin.Subscription.ListByUser)
 }
 
-func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
 	usage := admin.Group("/usage")
 	{
 		usage.GET("", h.Admin.Usage.List)
-		usage.GET("/traffic", h.Admin.Usage.Traffic)
-		usage.GET("/traffic/keys", h.Admin.Usage.TrafficKeys)
-		usage.GET("/traffic/health", h.Admin.Usage.TrafficHealth)
+		usage.GET("/traffic", userTrafficReportGuard(settingService), h.Admin.Usage.Traffic)
+		usage.GET("/traffic/keys", userTrafficReportGuard(settingService), h.Admin.Usage.TrafficKeys)
+		usage.GET("/traffic/health", userTrafficReportGuard(settingService), h.Admin.Usage.TrafficHealth)
 		usage.GET("/stats", h.Admin.Usage.Stats)
 		usage.GET("/latency-report", h.Admin.Usage.LatencyReport)
 		usage.GET("/connections", h.Admin.Usage.Connections)

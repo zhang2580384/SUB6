@@ -439,6 +439,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AccountSchedulingThresholds:           settings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:            settings.AllowUserViewErrorRequests,
+		UserTrafficEnabled:                    settings.UserTrafficEnabled,
 		UsageShowLongContextBadge:             settings.UsageShowLongContextBadge,
 		UsageShowCacheRate:                    settings.UsageShowCacheRate,
 		UsageShowCacheRateToUsers:             settings.UsageShowCacheRateToUsers,
