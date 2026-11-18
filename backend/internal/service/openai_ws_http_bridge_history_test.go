@@ -336,6 +336,61 @@ func TestOpenAIWSHTTPBridgeHistoryExplicitToolResultIsNotReexecuted(t *testing.T
 	require.Equal(t, "fixture result applied once", items[3].Get("output").String())
 }
 
+func TestOpenAIWSHTTPBridgeFirstFrameCustomToolHistory(t *testing.T) {
+	const parts = `[{"type":"input_text","text":"one"},{"type":"input_text","text":"two"},{"type":"input_text","text":"three"}]`
+	for _, tc := range []struct{ name, tools string }{
+		{"still_declared", `[{"type":"custom","name":"fixture_note"}]`},
+		{"removed", `[{"type":"function","name":"fixture_other","parameters":{"type":"object"}}]`},
+		{"same_name_now_function", `[{"type":"function","name":"fixture_note","parameters":{"type":"object"}}]`},
+		{"empty", `[]`},
+		{"omitted", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, u, ctx, done := bridgeHistoryFixture(t, true, false, bridgeHistoryFixtureOptions{explicitBridge: true, strictOwnership: true})
+			frame := []byte(`{"type":"response.create","model":"gpt-fixture","store":false,"input":[
+				{"type":"custom_tool_call","id":"ctc_item_a","call_id":"call_pair_a","name":"fixture_note","input":"past note"},
+				{"type":"function_call","id":"fc_item_b","call_id":"call_pair_b","name":"fixture_lookup","arguments":"{}"},
+				{"type":"function_call_output","call_id":"call_pair_b","output":"other result"},
+				{"type":"custom_tool_call_output","id":"ctco_item_c","call_id":"call_pair_a","output":` + parts + `},
+				{"role":"user","content":"Continue."}]}`)
+			if tc.tools != "" {
+				var err error
+				frame, err = sjson.SetRawBytes(frame, "tools", []byte(tc.tools))
+				require.NoError(t, err)
+			}
+			require.NoError(t, conn.Write(ctx, websocket.MessageText, frame))
+			bridgeHistoryReadCompleted(t, ctx, conn)
+			require.NoError(t, conn.Close(websocket.StatusNormalClosure, "done"))
+			require.NoError(t, <-done)
+			require.Len(t, u.bodies, 1)
+			wire := u.bodies[0]
+			require.False(t, gjson.GetBytes(wire, "previous_response_id").Exists())
+			items := gjson.GetBytes(wire, "input").Array()
+			require.Len(t, items, 5)
+			require.Equal(t, "function_call", items[0].Get("type").String(), "wire types: %s / %s", items[0].Get("type"), items[3].Get("type"))
+			require.Equal(t, "fc_item_a", items[0].Get("id").String())
+			require.JSONEq(t, `{"input":"past note"}`, items[0].Get("arguments").String())
+			require.Equal(t, "function_call_output", items[3].Get("type").String())
+			require.False(t, items[3].Get("id").Exists())
+			require.JSONEq(t, parts, items[3].Get("output").Raw)
+			for _, i := range []int{0, 3} {
+				require.Equal(t, "call_pair_a", items[i].Get("call_id").String())
+			}
+			for _, i := range []int{1, 2} {
+				require.Equal(t, "call_pair_b", items[i].Get("call_id").String())
+			}
+			require.Equal(t, "other result", items[2].Get("output").String())
+			if tc.name == "still_declared" {
+				require.Equal(t, "function", gjson.GetBytes(wire, "tools.0.type").String())
+			} else if tc.tools == "" {
+				require.False(t, gjson.GetBytes(wire, "tools").Exists())
+			} else {
+				require.JSONEq(t, tc.tools, gjson.GetBytes(wire, "tools").Raw)
+			}
+		})
+	}
+}
+
 func TestOpenAIWSHTTPBridgeHistoryExistingLiteSeedPath(t *testing.T) {
 	conn, u, ctx, done := bridgeHistoryFixture(t, true, false, bridgeHistoryFixtureOptions{explicitBridge: true, oauth: true})
 	seed := bridgeHistoryCreate("Generate a fresh code.", "", false)

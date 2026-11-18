@@ -511,6 +511,52 @@ func TestAdaptResponsesClientTools_NormalizesCustomToolOutput(t *testing.T) {
 	}
 }
 
+func TestRemovedCustomToolPairsStayInTheRequestAndOutOfDeclarations(t *testing.T) {
+	const history = `{"tools":[{"type":"function","name":"note"}],"input":[
+		{"type":"custom_tool_call","call_id":"a","name":"note","input":""},
+		{"type":"custom_tool_call","call_id":"b","name":"gone","input":"B"},
+		{"type":"custom_tool_call_output","call_id":"b","output":"second"},
+		{"type":"custom_tool_call_output","call_id":"a","output":"first"},
+		{"role":"user","content":[{"type":"input_text","text":"continue"}],"metadata":{"type":"custom_tool_call_output","call_id":"a","output":"opaque"}}]}`
+	var req map[string]any
+	require.NoError(t, json.Unmarshal([]byte(history), &req))
+	mapping, changed, err := AdaptResponsesClientTools(req)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Empty(t, mapping, "historical names must not affect new responses")
+	encoded, err := json.Marshal(req)
+	require.NoError(t, err)
+	items := gjson.GetBytes(encoded, "input").Array()
+	require.Len(t, items, 5)
+	for i, id := range []string{"a", "b", "b", "a"} {
+		require.Equal(t, id, items[i].Get("call_id").String())
+	}
+	require.JSONEq(t, `{"input":""}`, items[0].Get("arguments").String())
+	require.JSONEq(t, `{"input":"B"}`, items[1].Get("arguments").String())
+	require.Equal(t, "function_call_output", items[2].Get("type").String())
+	require.Equal(t, "second", items[2].Get("output").String())
+	require.Equal(t, "function_call_output", items[3].Get("type").String())
+	require.Equal(t, "first", items[3].Get("output").String())
+	require.JSONEq(t, gjson.Get(history, "input.4").Raw, items[4].Raw, "data nested inside a history item is opaque")
+	require.JSONEq(t, gjson.Get(history, "tools").Raw, gjson.GetBytes(encoded, "tools").Raw)
+
+	for _, input := range []string{
+		`[{"type":"custom_tool_call_output","call_id":"a","output":"first"}]`,
+		`[{"type":"custom_tool_call","call_id":"a","name":"note","input":"X"},{"type":"custom_tool_call_output","call_id":"b","output":"Y"}]`,
+		`[{"type":"custom_tool_call","call_id":"a","name":"one","input":"X"},{"type":"custom_tool_call","call_id":"a","name":"two","input":"Y"},{"type":"custom_tool_call_output","call_id":"a","output":"Z"}]`,
+		`[{"type":"custom_tool_call","call_id":"a","name":"note","input":"X"},{"type":"custom_tool_call_output","call_id":"a"}]`,
+	} {
+		var other map[string]any
+		require.NoError(t, json.Unmarshal([]byte(`{"input":`+input+`}`), &other))
+		_, changed, err := AdaptResponsesClientToolsWithInheritedMapping(other, mapping)
+		require.NoError(t, err)
+		require.False(t, changed)
+		result, err := json.Marshal(other["input"])
+		require.NoError(t, err)
+		require.JSONEq(t, input, string(result))
+	}
+}
+
 func TestAdaptResponsesClientToolsWithInheritedMapping_PromotesOmittedToolsDiscoveryIntoEffectiveDeclarations(t *testing.T) {
 	req := map[string]any{
 		"input": []any{map[string]any{

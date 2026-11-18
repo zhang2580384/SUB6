@@ -25,7 +25,8 @@ func AdaptResponsesClientTools(req map[string]any) (ResponsesClientToolMapping, 
 	}
 	tools, ok := req["tools"].([]any)
 	if !ok || len(tools) == 0 {
-		return ResponsesClientToolMapping{}, false, nil
+		changed, err := rewriteClientToolHistory(req["input"], nil)
+		return ResponsesClientToolMapping{}, changed, err
 	}
 	discovered, err := promoteResponsesToolSearchDiscoveries(req)
 	if err != nil {
@@ -181,7 +182,7 @@ func AdaptResponsesClientToolsWithInheritedMapping(
 		return AdaptResponsesClientTools(req)
 	}
 	if len(inherited.CustomTools) == 0 && !inherited.ToolSearch && len(inherited.NamespaceTools) == 0 {
-		return ResponsesClientToolMapping{}, false, nil
+		return AdaptResponsesClientTools(req)
 	}
 	if len(inheritedLoweredTools) > 0 && len(inheritedLoweredTools[0]) > 0 {
 		req["tools"] = restoreInheritedResponsesClientToolDeclarations(inheritedLoweredTools[0], inherited)
@@ -217,67 +218,88 @@ func copyClientTool(tool map[string]any) map[string]any {
 }
 
 func rewriteClientToolHistory(value any, adapter *ResponsesClientToolMapping) (bool, error) {
+	var items []any
+	switch v := value.(type) {
+	case []any:
+		items = v
+	case map[string]any:
+		items = []any{v}
+	}
+	// A full replay may contain custom tools removed from the current model's
+	// declarations. Match those historical pairs only within this input; do not
+	// restore their names into the set of tools the model can call now.
+	var pending map[string]map[string]any
 	changed := false
-	var visit func(any) error
-	visit = func(value any) error {
-		switch typed := value.(type) {
-		case []any:
-			for _, item := range typed {
-				if err := visit(item); err != nil {
-					return err
-				}
-			}
-		case map[string]any:
-			typ := strings.TrimSpace(stringValue(typed["type"]))
-			switch typ {
-			case "custom_tool_call":
-				if adapter.CustomTools[strings.TrimSpace(stringValue(typed["name"]))] {
-					typed["type"] = "function_call"
-					typed["arguments"] = customToolCallArguments(stringValue(typed["input"]))
-					delete(typed, "input")
-					normalizeLoweredFunctionItemID(typed)
-					changed = true
-				}
-			case "custom_tool_call_output":
-				typed["type"] = "function_call_output"
-				normalizeLoweredFunctionItemID(typed)
-				normalizeClientToolOutput(typed)
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(stringValue(item["type"])) {
+		case "custom_tool_call":
+			name := strings.TrimSpace(stringValue(item["name"]))
+			if adapter != nil && adapter.CustomTools[name] {
+				lowerCustomToolHistoryCall(item)
 				changed = true
-			case "tool_search_call":
-				if adapter.ToolSearch {
-					typed["type"] = "function_call"
-					typed["name"] = toolSearchProxyName
-					typed["arguments"] = rawObjectString(typed["arguments"])
-					delete(typed, "execution")
-					normalizeLoweredFunctionItemID(typed)
-					changed = true
+				continue
+			}
+			id := stringValue(item["call_id"])
+			if _, hasInput := item["input"].(string); name != "" && strings.TrimSpace(id) != "" && hasInput {
+				if pending == nil {
+					pending = make(map[string]map[string]any)
 				}
-			case "tool_search_output":
-				if adapter.ToolSearch {
-					callID := strings.TrimSpace(stringValue(typed["call_id"]))
-					if callID == "" {
-						return fmt.Errorf("tool_search_output requires a non-empty string call_id before it can be lowered to function_call_output")
-					}
-					typed["type"] = "function_call_output"
-					normalizeLoweredFunctionItemID(typed)
-					if err := normalizeToolSearchOutput(typed); err != nil {
-						return err
-					}
-					changed = true
+				if _, duplicate := pending[id]; duplicate {
+					pending[id] = nil // The ID cannot distinguish these calls.
+				} else {
+					pending[id] = item
 				}
 			}
-			for _, child := range typed {
-				if err := visit(child); err != nil {
-					return err
+		case "custom_tool_call_output":
+			id := stringValue(item["call_id"])
+			if call, seen := pending[id]; seen {
+				if call == nil || item["output"] == nil {
+					continue
 				}
+				lowerCustomToolHistoryCall(call)
+				delete(pending, id)
+			} else if adapter == nil {
+				continue
+			}
+			item["type"] = "function_call_output"
+			normalizeLoweredFunctionItemID(item)
+			normalizeClientToolOutput(item)
+			changed = true
+		case "tool_search_call":
+			if adapter != nil && adapter.ToolSearch {
+				item["type"] = "function_call"
+				item["name"] = toolSearchProxyName
+				item["arguments"] = rawObjectString(item["arguments"])
+				delete(item, "execution")
+				normalizeLoweredFunctionItemID(item)
+				changed = true
+			}
+		case "tool_search_output":
+			if adapter != nil && adapter.ToolSearch {
+				if strings.TrimSpace(stringValue(item["call_id"])) == "" {
+					return false, fmt.Errorf("tool_search_output requires a non-empty string call_id before it can be lowered to function_call_output")
+				}
+				item["type"] = "function_call_output"
+				normalizeLoweredFunctionItemID(item)
+				if err := normalizeToolSearchOutput(item); err != nil {
+					return false, err
+				}
+				changed = true
 			}
 		}
-		return nil
-	}
-	if err := visit(value); err != nil {
-		return false, err
 	}
 	return changed, nil
+}
+
+func lowerCustomToolHistoryCall(item map[string]any) {
+	item["type"] = "function_call"
+	item["arguments"] = customToolCallArguments(stringValue(item["input"]))
+	delete(item, "input")
+	normalizeLoweredFunctionItemID(item)
 }
 
 // normalizeLoweredFunctionItemID reconciles Codex client-only item IDs such as
