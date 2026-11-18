@@ -58,22 +58,53 @@ func mayContainCodexHostTurn(body []byte) bool {
 // Only the last input can start the current turn. Replaying the output of
 // this function is a no-op, even when another host item precedes the last one.
 func normalizeCodexCurrentHostTurn(body []byte) ([]byte, bool) {
-	if !mayContainCodexHostTurn(body) {
+	n, last, ok := currentCodexHostTurn(body)
+	if !ok {
 		return body, false
+	}
+	return writeCodexHostMessage(body, n, last)
+}
+
+// Require the original client frame and the outbound projection to identify
+// the same current event. A parser must not make ambiguous input actionable.
+func normalizeCodexBridgeHostTurn(client, outbound []byte) ([]byte, bool) {
+	n, original, ok := currentCodexHostTurn(client)
+	if !ok {
+		return outbound, false
+	}
+	if bytes.Equal(client, outbound) {
+		return writeCodexHostMessage(outbound, n, original)
+	}
+	count, last, ok := currentCodexHostTurn(outbound)
+	if !ok || n != count {
+		return outbound, false
+	}
+	for _, key := range []string{"namespace", "name", "output", "id"} {
+		a, b := original.Get(key), last.Get(key)
+		if a.Exists() != b.Exists() || a.String() != b.String() {
+			return outbound, false
+		}
+	}
+	return writeCodexHostMessage(outbound, count, last)
+}
+
+func currentCodexHostTurn(body []byte) (int, gjson.Result, bool) {
+	if !mayContainCodexHostTurn(body) {
+		return 0, gjson.Result{}, false
 	}
 	input := gjson.GetBytes(body, "input")
 	if !input.IsArray() {
-		return body, false
+		return 0, gjson.Result{}, false
 	}
 	var last gjson.Result
 	n := 0
 	input.ForEach(func(_, v gjson.Result) bool { last = v; n++; return true })
 	if !codexHostEnvelope(last) || !hasUniqueJSONMembers(body) {
-		return body, false
+		return 0, gjson.Result{}, false
 	}
 	previous := gjson.GetBytes(body, "previous_response_id")
 	if previous.Exists() && previous.Type != gjson.String {
-		return body, false
+		return 0, gjson.Result{}, false
 	}
 	ambiguous := false
 	input.ForEach(func(_, v gjson.Result) bool {
@@ -87,8 +118,12 @@ func normalizeCodexCurrentHostTurn(body []byte) ([]byte, bool) {
 		return !ambiguous
 	})
 	if ambiguous {
-		return body, false
+		return 0, gjson.Result{}, false
 	}
+	return n, last, true
+}
+
+func writeCodexHostMessage(body []byte, n int, last gjson.Result) ([]byte, bool) {
 	message := map[string]any{"type": "message", "role": "user", "content": []map[string]string{{"type": "input_text", "text": last.Get("output").String()}}}
 	updated, err := sjson.SetBytes(body, "input."+strconv.Itoa(n-1), message)
 	if err != nil {

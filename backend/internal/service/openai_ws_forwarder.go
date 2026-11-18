@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -276,6 +277,12 @@ type OpenAIWSIngressHooks struct {
 	// normalization; use it only for local client identity validation. payload
 	// retains the processed request used by all other admission checks.
 	BeforeRequestWithClientPayload func(turn int, payload, clientPayload []byte, originalModel string) error
+	// Only for readable OpenAI turns selected for HTTP bridging; native WS
+	// and the original frame used for ownership checks remain unchanged.
+	NormalizeHTTPBridgeHostTurn func(client, outbound []byte) ([]byte, bool)
+	// Recognize inert historical client events for same-socket HTTP history.
+	// These inputs neither fulfill a tool call nor authorize another owner.
+	IsHistoricalHostEvent func(gjson.Result) bool
 	// BeforePayloadParse runs synchronously before parsing a follow-up client
 	// frame on the native/bridge path. Handlers run one bounded fresh
 	// authorization here and install the current frame's immutable permissions,

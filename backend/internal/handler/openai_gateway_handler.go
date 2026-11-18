@@ -3566,6 +3566,8 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 		// Client identity continues to resolve from the immutable original frame.
 		var rebuiltAuditBody []byte
 		hooks := &service.OpenAIWSIngressHooks{
+			NormalizeHTTPBridgeHostTurn: normalizeCodexBridgeHostTurn,
+			IsHistoricalHostEvent:       codexHostEnvelope,
 			ClientLifecycleContext:      clientLifecycleCtx,
 			InitialRequestModel:         reqModel,
 			InitialTurnStartedAt:        firstTurnStartedAt,
