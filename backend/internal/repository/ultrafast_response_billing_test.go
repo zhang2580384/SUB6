@@ -14,7 +14,13 @@ func TestUltrafastResponseBillingSurvivesSchedulerProjection(t *testing.T) {
 		original := map[string]any{service.OpenAIResponseTierBillingEnabledKey: enabled, "irrelevant_large_field": "drop"}
 		original[service.OpenAIGPT62SolUFPromotionKey] = enabled
 		original[service.OpenAIGPT62AstraUFPromotionKey] = !enabled
+		original[service.OpenAIModelLongContextOverrideKey] = enabled
+		original[service.OpenAIGPT62SolLongContextKey] = !enabled
+		original[service.OpenAIGPT62AstraLongContextKey] = enabled
 		projected := filterSchedulerExtra(original)
+		require.Equal(t, enabled, projected[service.OpenAIModelLongContextOverrideKey])
+		require.Equal(t, !enabled, projected[service.OpenAIGPT62SolLongContextKey])
+		require.Equal(t, enabled, projected[service.OpenAIGPT62AstraLongContextKey])
 		require.Equal(t, enabled, projected[service.OpenAIGPT62SolUFPromotionKey])
 		require.Equal(t, !enabled, projected[service.OpenAIGPT62AstraUFPromotionKey])
 		require.Equal(t, enabled, projected[service.OpenAIResponseTierBillingEnabledKey])

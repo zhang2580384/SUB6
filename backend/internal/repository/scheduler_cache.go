@@ -1417,6 +1417,9 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		service.OpenAIResponseTierBillingEnabledKey,
 		service.OpenAIGPT62SolUFPromotionKey,
 		service.OpenAIGPT62AstraUFPromotionKey,
+		service.OpenAIModelLongContextOverrideKey,
+		service.OpenAIGPT62SolLongContextKey,
+		service.OpenAIGPT62AstraLongContextKey,
 		service.OpenAIOAuthRelayFastBillingKey,
 		// Priority scoring runs on candidate metadata before full hydration.
 		// Dropping saved procurement cost silently substitutes the 0.1 default.

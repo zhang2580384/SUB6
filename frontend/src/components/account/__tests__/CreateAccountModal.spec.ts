@@ -216,7 +216,8 @@ async function submitApiKeyAccount(
   enableLongContextBilling = false,
   disableUpstreamBillingProbe = false,
   enableResponseTierBilling = false,
-  promotion?: 'sol' | 'astra'
+  promotion?: 'sol' | 'astra',
+  longContextModel?: 'sol' | 'astra'
 ) {
   const wrapper = mountModal()
   await selectButtonByText(wrapper, platform === 'openai' ? 'OpenAI' : 'admin.accounts.claudeConsole')
@@ -229,6 +230,10 @@ async function submitApiKeyAccount(
     await wrapper.get('[data-testid="openai-long-context-billing-toggle"]').trigger('click')
   }
   if (promotion) await wrapper.get(`[data-testid="uf-promo-${promotion}"]`).setValue(true)
+  if (longContextModel) {
+    await wrapper.get('[data-testid="gpt62-long-context-override"]').trigger('click')
+    await wrapper.get(`[data-testid="gpt62-long-context-${longContextModel}"]`).setValue(true)
+  }
   if (enableResponseTierBilling) {
     await wrapper.get('[data-testid="create-openai-ultrafast-billing-toggle"]').trigger('click')
   }
@@ -270,6 +275,16 @@ function expectWSAcceleration(extra: unknown, enabled: boolean) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it('creates a model-specific long-context opt-in without enabling the account-wide gate or a promotion', async () => {
+    await submitApiKeyAccount('openai', false, false, false, undefined, 'sol')
+    const extra = createAccountMock.mock.calls[0]?.[0]?.extra
+    expect(extra?.openai_model_long_context_override).toBe(true)
+    expect(extra?.openai_gpt62_sol_long_context).toBe(true)
+    expect(extra).not.toHaveProperty('openai_gpt62_astra_long_context')
+    expect(extra?.openai_long_context_billing_enabled).not.toBe(true)
+    expect(extra).not.toHaveProperty('openai_gpt62_sol_uf_promotion')
+  })
+
   it('leaves upstream response-tier billing disabled by default', async () => {
     await submitApiKeyAccount('openai')
 
@@ -860,6 +875,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     await submitApiKeyAccount('openai')
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra).not.toHaveProperty('openai_model_long_context_override')
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBe(false)
   })
 
