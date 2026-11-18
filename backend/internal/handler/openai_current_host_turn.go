@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,8 @@ func codexHostEnvelope(item gjson.Result) bool {
 		case "type", "namespace", "name", "output", "call_id":
 		case "id":
 			fieldsOK = v.Type == gjson.String
+		case "internal_chat_message_metadata_passthrough":
+			fieldsOK = codexHostEventMetadata(v)
 		default:
 			fieldsOK = false
 		}
@@ -46,6 +49,30 @@ func codexHostEnvelope(item gjson.Result) bool {
 		return validCodexDelegationEnvelope(out.String())
 	}
 	return ns == "codex_app" && name == "automation_update" && (validCodexAutomationBootstrap(out.String()) || validCodexAutomationHeartbeat(out.String()))
+}
+
+// Optional desktop bookkeeping. It does not identify a response owner and is
+// not included in the current user message. Unknown metadata stays opaque.
+func codexHostEventMetadata(meta gjson.Result) bool {
+	if !meta.IsObject() {
+		return false
+	}
+	var at, turn, valid bool
+	valid = true
+	meta.ForEach(func(k, v gjson.Result) bool {
+		switch k.String() {
+		case "create_time":
+			at = !at && v.Type == gjson.Number && v.Num >= 0 && !math.IsInf(v.Num, 0) && !math.IsNaN(v.Num)
+			valid = at
+		case "turn_id":
+			turn = !turn && v.Type == gjson.String && len(v.Str) <= 128 && strings.TrimSpace(v.Str) != "" && strings.TrimSpace(v.Str) == v.Str
+			valid = turn
+		default:
+			valid = false
+		}
+		return valid
+	})
+	return valid && at && turn
 }
 
 func mayContainCodexHostTurn(body []byte) bool {

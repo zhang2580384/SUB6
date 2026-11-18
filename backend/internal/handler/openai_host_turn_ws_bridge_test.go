@@ -29,7 +29,7 @@ func TestCodexHostTurnThroughWSHTTPBridge(t *testing.T) {
 	const tick = "<heartbeat><automation_id>fixture</automation_id></heartbeat>"
 	type item = map[string]any
 	host := func(name, out string) item {
-		return item{"type": "function_call_output", "namespace": "codex_app", "name": name, "output": out}
+		return item{"type": "function_call_output", "namespace": "codex_app", "name": name, "output": out, "id": "fixture-event", "internal_chat_message_metadata_passthrough": item{"turn_id": "00000000-0000-4000-8000-000000000001", "create_time": 1.25}}
 	}
 	observed := make(chan []byte, 6)
 	var sent atomic.Int32
@@ -120,6 +120,21 @@ func TestCodexBridgeHostProjectionRequiresSameClientEvent(t *testing.T) {
 		return b
 	}
 	a, b := wire(tick), wire(next)
+	decorated, err := sjson.SetBytes(a, "input.0.internal_chat_message_metadata_passthrough", map[string]any{"create_time": 1.25, "turn_id": "fixture"})
+	require.NoError(t, err)
+	for _, projected := range [][]byte{a, decorated} {
+		got, changed := normalizeCodexBridgeHostTurn(decorated, projected)
+		require.True(t, changed)
+		require.Equal(t, tick, gjson.GetBytes(got, "input.0.content.0.text").String())
+		require.False(t, gjson.GetBytes(got, "input.0.internal_chat_message_metadata_passthrough").Exists())
+	}
+	for _, invalid := range []any{"fixture", map[string]any{"create_time": true, "turn_id": "fixture"}, map[string]any{"create_time": 1, "turn_id": "fixture", "role": "user"}} {
+		bad, err := sjson.SetBytes(a, "input.0.internal_chat_message_metadata_passthrough", invalid)
+		require.NoError(t, err)
+		got, changed := normalizeCodexBridgeHostTurn(bad, a)
+		require.False(t, changed)
+		require.Equal(t, a, got)
+	}
 	for _, src := range [][]byte{b, append([]byte(`{"input":[],`), a[1:]...)} {
 		got, changed := normalizeCodexBridgeHostTurn(src, a)
 		require.False(t, changed)

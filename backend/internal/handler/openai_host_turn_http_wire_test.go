@@ -47,7 +47,7 @@ func TestHTTPCurrentHostTurnThroughGateway(t *testing.T) {
 	const handoff = "<codex_delegation><source_thread_id>fixture</source_thread_id><input>Count the fixture.</input></codex_delegation>"
 	const clock = "<heartbeat><automation_id>example</automation_id><current_time_iso>2026-11-10T01:00:00Z</current_time_iso><instructions>Count the fixture.</instructions></heartbeat>"
 	host := func(name, out string) any {
-		return map[string]any{"type": "function_call_output", "namespace": "codex_app", "name": name, "output": out}
+		return map[string]any{"type": "function_call_output", "namespace": "codex_app", "name": name, "output": out, "id": "fixture-event", "internal_chat_message_metadata_passthrough": map[string]any{"turn_id": "00000000-0000-4000-8000-000000000001", "create_time": 1.25}}
 	}
 	deleg, sched := host("send_message_to_thread", handoff), host("automation_update", clock)
 	tool := map[string]any{"type": "function", "name": "count_fixture", "parameters": map[string]any{"type": "object", "properties": map[string]any{}}}
