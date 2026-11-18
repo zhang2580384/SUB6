@@ -1724,6 +1724,44 @@ describe('EditAccountModal', () => {
     } finally { clock.mockRestore() }
   })
 
+  it('moves the long-context opt-in between models independently of the expired UF promotion', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2027-03-02T00:00:00Z'))
+    try {
+      const account = buildAccount()
+      account.extra = { openai_model_long_context_override: true, openai_gpt62_sol_long_context: true, openai_gpt62_sol_uf_promotion: true }
+      updateAccountMock.mockReset()
+      checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+      updateAccountMock.mockResolvedValue(account)
+      const wrapper = mountModal(account)
+      const sol = wrapper.get('[data-testid="gpt62-long-context-sol"]')
+      expect((sol.element as HTMLInputElement).checked).toBe(true)
+      await sol.setValue(false)
+      await wrapper.get('[data-testid="gpt62-long-context-astra"]').setValue(true)
+      await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+      const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
+      expect(extra?.openai_gpt62_sol_long_context).toBe(false)
+      expect(extra?.openai_gpt62_astra_long_context).toBe(true)
+      expect(extra?.openai_model_long_context_override).toBe(true)
+      expect(extra?.openai_gpt62_sol_uf_promotion).toBe(true)
+      expect(extra?.openai_long_context_billing_enabled).not.toBe(true)
+    } finally { clock.mockRestore() }
+  })
+
+  it('restores inherited long-context prices without clearing the saved model selections', async () => {
+    const account = buildAccount()
+    account.extra = { openai_model_long_context_override: true, openai_gpt62_astra_long_context: true }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="gpt62-long-context-override"]').trigger('click')
+    expect(wrapper.find('[data-testid="gpt62-long-context-astra"]').exists()).toBe(false)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
+    expect(extra?.openai_model_long_context_override).toBe(false)
+    expect(extra?.openai_gpt62_astra_long_context).toBe(true)
+  })
+
   it('shows stored promotions as expired at the deadline', async () => {
     vi.useFakeTimers()
     try {

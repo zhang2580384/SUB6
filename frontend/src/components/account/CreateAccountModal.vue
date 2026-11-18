@@ -3659,6 +3659,10 @@
         v-if="form.platform === 'openai' && (accountCategory === 'apikey' || accountCategory === 'oauth-based')"
         v-model="openAIUFPromotions"
       />
+      <GPT62LongContextFields
+        v-if="form.platform === 'openai' && accountCategory === 'apikey'"
+        v-model="gpt62LongContext"
+      />
 
       <div
         v-if="form.platform === 'openai' && accountCategory === 'oauth-based'"
@@ -4377,6 +4381,8 @@ import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.
 import AccountAutoBPSSection from '@/components/account/AccountAutoBPSSection.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import GPT62UFPromotionFields from './GPT62UFPromotionFields.vue'
+import GPT62LongContextFields from './GPT62LongContextFields.vue'
+import { readGPT62LongContext, writeGPT62LongContext } from './gpt62LongContext'
 import { readUFPromotions, writeUFPromotions } from './gpt62UFPromotions'
 import Toggle from '@/components/common/Toggle.vue'
 import AccountRpmSettings from '@/components/account/AccountRpmSettings.vue'
@@ -4963,6 +4969,7 @@ const openAILongContextBillingEnabled = ref(false)
 const openAILongContextBillingTouched = ref(false)
 const openAIResponseTierBillingEnabled = ref(false)
 const openAIUFPromotions = ref(readUFPromotions())
+const gpt62LongContext = ref(readGPT62LongContext())
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
 // Images 非流式响应缺 b64_json 时由网关下载 url 回填（仅 OpenAI API Key）。
@@ -6070,6 +6077,7 @@ const resetForm = () => {
   openAILongContextBillingTouched.value = false
   openAIResponseTierBillingEnabled.value = false
   openAIUFPromotions.value = readUFPromotions()
+  gpt62LongContext.value = readGPT62LongContext()
   openAICompactMode.value = 'auto'
   openAIResponsesMode.value = 'auto'
   openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
@@ -6193,6 +6201,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   }
   extra.openai_long_context_billing_enabled = openAILongContextBillingEnabled.value
   writeUFPromotions(extra, openAIUFPromotions.value)
+  if (form.type === 'apikey') writeGPT62LongContext(extra, gpt62LongContext.value)
   if (form.type === 'apikey' && openAIResponseTierBillingEnabled.value) {
     extra.openai_response_tier_billing_enabled = true
   } else {

@@ -1052,6 +1052,8 @@ export default {
         ultrafastBilling: 'UltraFast 档位计费',
         ultrafastBillingDesc: '开启后可按上游返回的 service_tier 结算。未返回档位时沿用请求档位。最终按 UltraFast 结算的请求通常收标准价的 6 倍，含缓存读写。',
         ufPromoTitle: 'UltraFast 3 倍促销',
+        gpt62LongContextTitle: '按模型设置长上下文计费',
+        gpt62LongContextHint: 'GPT-6.1 Sol 和 GPT-6 Astra 免长上下文加价。两款 GPT-6.2 仅对勾选的模型加价，适用于所有速度档位。这四款优先于账号和分组总开关，其他模型沿用原设置。',
         ufPromoHint: '仅对本账号勾选的模型生效。请求最终按 UltraFast 结算时，从标准单价的 6 倍降为 3 倍。北京时间 2027 年 3 月 1 日 16:00 起自动恢复 6 倍，以请求开始时间为准。',
         ufPromoEnded: '促销已结束，UltraFast 已恢复标准单价的 6 倍。',
         responsesWebsocketsV2: 'Responses WebSocket v2',

@@ -374,20 +374,30 @@ func normalizeAccountConcurrency(platform, accountType string, concurrency int) 
 	return concurrency
 }
 
-// ValidateOpenAILongContextBillingExtra validates the OpenAI account billing flag when present.
+var openAILongContextBillingKeys = [...]string{
+	openAILongContextBillingEnabledKey, OpenAIModelLongContextOverrideKey, OpenAIGPT62SolLongContextKey, OpenAIGPT62AstraLongContextKey,
+}
+
+func hasOpenAILongContextBillingExtra(extra map[string]any) bool {
+	for _, key := range openAILongContextBillingKeys {
+		if _, exists := extra[key]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateOpenAILongContextBillingExtra validates only supplied billing flags.
 func ValidateOpenAILongContextBillingExtra(platform string, extra map[string]any) error {
 	if platform != PlatformOpenAI {
 		return nil
 	}
-	raw, exists := extra[openAILongContextBillingEnabledKey]
-	if !exists {
-		return nil
-	}
-	if _, ok := raw.(bool); !ok {
-		return infraerrors.BadRequest(
-			"OPENAI_LONG_CONTEXT_BILLING_INVALID",
-			"openai_long_context_billing_enabled must be a boolean",
-		)
+	for _, key := range openAILongContextBillingKeys {
+		if raw, exists := extra[key]; exists {
+			if _, ok := raw.(bool); !ok {
+				return infraerrors.BadRequest("OPENAI_LONG_CONTEXT_BILLING_INVALID", key+" must be a boolean")
+			}
+		}
 	}
 	return nil
 }
@@ -417,11 +427,11 @@ func normalizeOpenAILongContextBillingUpdateExtra(account *Account, input *Updat
 		return normalized, err
 	}
 
-	_, provided := input.Extra[openAILongContextBillingEnabledKey]
-	current, hasCurrent := account.Extra[openAILongContextBillingEnabledKey].(bool)
-	if !provided {
-		if hasCurrent {
-			normalized[openAILongContextBillingEnabledKey] = current
+	for _, key := range openAILongContextBillingKeys {
+		if _, provided := input.Extra[key]; !provided {
+			if current, ok := account.Extra[key].(bool); ok {
+				normalized[key] = current
+			}
 		}
 	}
 	return normalized, nil
@@ -1094,7 +1104,7 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 	delete(updates, OllamaCloudUsageSnapshotExtraKey)
 	delete(updates, OpenCodeGoUsageAutoRefreshExtraKey)
 	delete(updates, OpenCodeGoUsageSnapshotExtraKey)
-	if _, exists := updates[openAILongContextBillingEnabledKey]; exists {
+	if hasOpenAILongContextBillingExtra(updates) {
 		account, err := s.accountRepo.GetByID(ctx, id)
 		if err != nil {
 			return err

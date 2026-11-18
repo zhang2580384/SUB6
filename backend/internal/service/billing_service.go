@@ -1658,10 +1658,7 @@ type CostInput struct {
 func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
 	if input.Resolver == nil {
 		// 无 Resolver，回退到旧路径
-		applyLongContextBilling := true
-		if input.LongContextBillingEnabled != nil {
-			applyLongContextBilling = *input.LongContextBillingEnabled
-		}
+		applyLongContextBilling := input.longContextPricingEnabled(input.LongContextBillingEnabled == nil)
 		pricing, err := s.getModelPricingAt(input.Model, input.PricingAt)
 		if err != nil {
 			return nil, err
@@ -1711,11 +1708,7 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakdown, error) {
 	totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
 
-	// 分组开关是统一入口；账号 API 开关保留为额外开启能力，但 false 不否决分组配置。
-	contextTierPricingEnabled := resolved.longContextPricingEnabled
-	if input.LongContextBillingEnabled != nil && *input.LongContextBillingEnabled {
-		contextTierPricingEnabled = true
-	}
+	contextTierPricingEnabled := input.longContextPricingEnabled(resolved.longContextPricingEnabled)
 
 	pricingContext := totalContext
 	if !contextTierPricingEnabled {

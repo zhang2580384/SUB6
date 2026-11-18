@@ -40,7 +40,7 @@ func normalizeBulkOpenAISettings(input *BulkUpdateAccountsInput) (bulkOpenAISett
 		return settings, err
 	}
 
-	if _, exists := input.Extra[openAILongContextBillingEnabledKey]; exists {
+	if hasOpenAILongContextBillingExtra(input.Extra) {
 		settings.longContextBilling = true
 		if err := ValidateOpenAILongContextBillingExtra(PlatformOpenAI, input.Extra); err != nil {
 			return settings, err

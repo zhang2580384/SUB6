@@ -935,6 +935,8 @@ export default {
         ultrafastBilling: 'UltraFast tier billing',
         ultrafastBillingDesc: 'Use the upstream service_tier for billing when present. Otherwise use the requested tier. UltraFast normally costs 6× the standard token rates, including cache reads and writes.',
         ufPromoTitle: 'UltraFast 3× promotion',
+        gpt62LongContextTitle: 'Per-model long-context billing',
+        gpt62LongContextHint: 'GPT-6.1 Sol and GPT-6 Astra pay no long-context surcharge. Only the selected GPT-6.2 models pay it, at any speed tier. These four models override account and group switches; other models retain their settings.',
         ufPromoHint: 'Selected models on this account cost 3× standard token rates when billed as UltraFast. Requests starting on or after March 1, 2027 at 08:00 UTC automatically return to 6×.',
         ufPromoEnded: 'The promotion has ended. UltraFast is billed at 6× standard token rates.',
         responsesWebsocketsV2: 'Responses WebSocket v2',
