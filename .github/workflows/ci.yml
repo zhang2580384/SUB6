@@ -37,10 +37,17 @@ jobs:
       - name: Managed rolling updater safety tests
         run: python3 -m unittest discover -s deploy/managed-updater -p test_controller.py -v
       - name: Install real Redis for cross-node history regressions
+        env:
+          REDIS_TEST_IMAGE: docker.io/library/redis:7.2.17-bookworm@sha256:b690ae83413c6051e087c9fb92a420b002e820a9fe434ef6e266d612e3915306
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends redis-server
-          redis-server --version
+          set -euo pipefail
+          bin_dir="$(mktemp -d "$RUNNER_TEMP/redis-test.XXXXXX")"
+          container="$(docker create --platform linux/amd64 "$REDIS_TEST_IMAGE")"
+          trap 'docker rm -v "$container" >/dev/null' EXIT
+          docker cp "$container:/usr/local/bin/redis-server" "$bin_dir/redis-server"
+          echo "c446cb45025cb78af5db10ab78974b347b3014e6390d3d1c70c4d2d8dc22a051  $bin_dir/redis-server" | sha256sum --check --strict
+          "$bin_dir/redis-server" --version
+          echo "$bin_dir" >> "$GITHUB_PATH"
       - name: Verify Go modules
         working-directory: backend
         run: go mod verify
