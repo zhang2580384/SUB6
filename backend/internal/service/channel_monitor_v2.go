@@ -123,6 +123,8 @@ type ChannelMonitorV2Filter struct {
 	// IncludeRecentSamples attaches the latest sampled buckets per group.
 	// Those buckets ignore Start and use the 5-minute history, not this range.
 	IncludeRecentSamples bool
+	// V4 cards request the dedicated history only when the saved mode calls for it.
+	UseConfiguredRecentSamples bool
 	// IncludeCacheReference adds the filtered display rate to group cards only.
 	IncludeCacheReference bool
 }
@@ -637,6 +639,9 @@ func (s *ChannelMonitorV2Service) Matrix(ctx context.Context, filter ChannelMoni
 	cfg, err := s.getEnabledConfig(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if filter.UseConfiguredRecentSamples {
+		filter.IncludeRecentSamples = groupBy == ChannelMonitorV2GroupByPlatformGroup && cfg.CardTimelineMode == ChannelMonitorV2CardTimelineSamples
 	}
 	matrix, err := s.repo.GetMatrix(ctx, filter, *cfg, groupBy, admin)
 	if err != nil {

@@ -180,8 +180,13 @@ export function monitorCardWindowTimeline(row: MonitorMatrixRow, coverage: Monit
   return bars
 }
 
-export function monitorCardTimeline(row: MonitorMatrixRow, coverage: MonitorCoverage | undefined, mode: MonitorCardTimelineMode = 'windows', selectedModels: readonly string[] = [], includeIdleProbes = false) {
-  return mode === 'samples' ? monitorCardSampleTimeline(row, coverage) : monitorCardWindowTimeline(row, coverage, selectedModels, includeIdleProbes)
+export function monitorCardTimeline(row: MonitorMatrixRow, coverage: MonitorCoverage | undefined, mode: MonitorCardTimelineMode = 'windows', selectedModels: readonly string[] = [], v4 = false) {
+  if (mode === 'samples') {
+    // In V4 only the dedicated five-minute history can populate this view.
+    if (v4 && !Array.isArray(row.sample_buckets)) return []
+    return monitorCardSampleTimeline(row, coverage)
+  }
+  return monitorCardWindowTimeline(row, coverage, selectedModels, v4)
 }
 
 export function candyDisplayState(history: MonitorCandyHistory, now: number): 'correct' | 'incorrect' | 'error' | 'unknown' | 'stale' {

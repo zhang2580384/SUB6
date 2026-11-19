@@ -372,3 +372,22 @@ it('shows each configured model with its own history limit', async () => {
   expect(models[1].find('[data-testid="candy-history-slots"]').element.children).toHaveLength(30)
   expect(wrapper.findAll('[data-testid="candy-history-bar"]')).toHaveLength(2)
 })
+
+it('uses only dedicated five-minute history in V4 sample mode and keeps the range percentile', async () => {
+  const { wrapper, row } = hoverFixture()
+  const epoch = Date.UTC(2026, 0, 1)
+  const at = (hours: number) => new Date(epoch + hours * 3_600_000).toISOString()
+  const coverage = { requested_start: at(0), requested_end: at(24), coverage_start: at(0), coverage_complete: true, data_through: at(24), bucket_seconds: 3600 } as MonitorCoverage
+  const buckets = Array.from({ length: 10 }, (_, i) => ({ ...row.buckets[0], bucket_start: at(i), metrics: { ...row.metrics, cache_rate: 0.6 } }))
+  const recent = { ...row.buckets[0], bucket_start: at(-1), metrics: { ...row.metrics, cache_rate: 1 } }
+  const bars = () => wrapper.findAll('[data-testid="traffic-history-bar"]')
+  await wrapper.setProps({ statisticsVersion: 'v4', range: '24h', timelineMode: 'samples', coverage, items: [{ ...row, buckets }] })
+  expect(bars()).toHaveLength(0)
+  expect(wrapper.find('[data-testid="card-timeline-empty"]').exists()).toBe(true)
+  await wrapper.setProps({ items: [{ ...row, buckets, sample_buckets: [recent] }] })
+  expect(bars()).toHaveLength(1)
+  expect(wrapper.get('dl dd').text()).toBe('60.0%')
+  await wrapper.setProps({ timelineMode: 'windows' })
+  expect(bars()).toHaveLength(18)
+  expect(wrapper.get('dl dd').text()).toBe('60.0%')
+})

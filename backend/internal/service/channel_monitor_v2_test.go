@@ -15,6 +15,7 @@ type channelMonitorV2RepoStub struct {
 	matrix *ChannelMonitorV2Matrix
 	errors *ChannelMonitorV2List[ChannelMonitorV2ErrorRow]
 	snap   *ChannelMonitorV2Snapshot
+	filter ChannelMonitorV2Filter
 	group  ChannelMonitorV2GroupBy
 	admin  bool
 }
@@ -55,8 +56,8 @@ func (s *channelMonitorV2RepoStub) GetSnapshot(_ context.Context, _ ChannelMonit
 func (s *channelMonitorV2RepoStub) GetModels(context.Context, ChannelMonitorV2Filter, ChannelMonitorV2Config, bool) (*ChannelMonitorV2List[ChannelMonitorV2ModelRow], error) {
 	return nil, nil
 }
-func (s *channelMonitorV2RepoStub) GetMatrix(_ context.Context, _ ChannelMonitorV2Filter, _ ChannelMonitorV2Config, groupBy ChannelMonitorV2GroupBy, admin bool) (*ChannelMonitorV2Matrix, error) {
-	s.group, s.admin = groupBy, admin
+func (s *channelMonitorV2RepoStub) GetMatrix(_ context.Context, filter ChannelMonitorV2Filter, _ ChannelMonitorV2Config, groupBy ChannelMonitorV2GroupBy, admin bool) (*ChannelMonitorV2Matrix, error) {
+	s.group, s.admin, s.filter = groupBy, admin, filter
 	return s.matrix, nil
 }
 func (s *channelMonitorV2RepoStub) GetErrors(_ context.Context, _ ChannelMonitorV2Filter, _ ChannelMonitorV2Config, admin bool) (*ChannelMonitorV2List[ChannelMonitorV2ErrorRow], error) {
@@ -161,6 +162,29 @@ func TestChannelMonitorV2MatrixForwardsGroupingAndAdminScope(t *testing.T) {
 
 	_, err = NewChannelMonitorV2Service(repo).Matrix(context.Background(), ChannelMonitorV2Filter{}, "bad", false)
 	require.ErrorIs(t, err, ErrChannelMonitorV2InvalidGroupBy)
+}
+
+func TestChannelMonitorV4ConfiguredCardSampleHistory(t *testing.T) {
+	for _, admin := range []bool{false, true} {
+		for _, tc := range []struct {
+			mode    string
+			groupBy ChannelMonitorV2GroupBy
+			want    bool
+		}{
+			{ChannelMonitorV2CardTimelineSamples, ChannelMonitorV2GroupByPlatformGroup, true},
+			{ChannelMonitorV2CardTimelineWindows, ChannelMonitorV2GroupByPlatformGroup, false},
+			{"", ChannelMonitorV2GroupByPlatformGroup, false},
+			{ChannelMonitorV2CardTimelineSamples, ChannelMonitorV2GroupByPlatformModel, false},
+		} {
+			repo := &channelMonitorV2RepoStub{config: ChannelMonitorV2Config{Enabled: true, CardTimelineMode: tc.mode}}
+			filter := ChannelMonitorV2Filter{UseConfiguredRecentSamples: true, GroupIDs: []int64{7}, AllowedGroupIDs: []int64{7, 11}, Models: []string{"example"}}
+			_, err := NewChannelMonitorV2Service(repo).Matrix(context.Background(), filter, tc.groupBy, admin)
+			require.NoError(t, err)
+			filter.IncludeRecentSamples = tc.want
+			require.Equal(t, filter, repo.filter)
+			require.Equal(t, admin, repo.admin)
+		}
+	}
 }
 
 func TestChannelMonitorV2GroupCardCacheReference(t *testing.T) {

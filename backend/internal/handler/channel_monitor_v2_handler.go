@@ -147,7 +147,9 @@ func (h *ChannelMonitorV2Handler) matrix(c *gin.Context, admin, v4 bool) {
 		return
 	}
 	// Card view asks for the latest sampled buckets. Those ignore the range.
-	filter.IncludeRecentSamples = parseBoolQuery(c.Query("recent_samples"))
+	recentSamples := c.Query("recent_samples")
+	filter.IncludeRecentSamples = parseBoolQuery(recentSamples)
+	filter.UseConfiguredRecentSamples = v4 && recentSamples == "configured"
 	filter.IncludeCacheReference = v4 && parseBoolQuery(c.Query("cache_reference"))
 	result, err := h.service.Matrix(c.Request.Context(), filter, groupBy, admin)
 	if err != nil {

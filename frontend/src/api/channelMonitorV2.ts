@@ -290,10 +290,10 @@ export async function getSnapshot(filter: MonitorFilter, admin = false, signal?:
   const { data } = await apiClient.get<MonitorSnapshot>(`${base(admin, version)}/snapshot`, requestConfig(filter, signal))
   return data
 }
-export async function getMatrix(filter: MonitorFilter, groupBy: MonitorMatrixGroupBy, admin = false, signal?: AbortSignal, options?: { recentSamples?: boolean; cacheReference?: boolean }, version: StatisticsVersion = 'v2') {
+export async function getMatrix(filter: MonitorFilter, groupBy: MonitorMatrixGroupBy, admin = false, signal?: AbortSignal, options?: { recentSamples?: boolean | 'configured'; cacheReference?: boolean }, version: StatisticsVersion = 'v2') {
   const { data } = await apiClient.get<MonitorMatrixResponse>(`${base(admin, version)}/matrix`, requestConfig(filter, signal, {
     group_by: groupBy,
-    recent_samples: options?.recentSamples ? 1 : undefined,
+    recent_samples: options?.recentSamples === 'configured' ? 'configured' : options?.recentSamples ? 1 : undefined,
     cache_reference: version === 'v4' && options?.cacheReference ? 1 : undefined,
   }))
   return data

@@ -109,16 +109,22 @@ it('moves groups inside one platform and saves that display order', async () => 
   wrapper.unmount()
 })
 
-it('saves the admin card timeline mode and keeps an omitted value on time windows', async () => {
-  mocks.get.mockResolvedValue({ ...config(), card_timeline_mode: 'samples' })
+it.each(['v2', 'v4'] as const)('round-trips both saved card timeline modes on the %s admin tab', async (statisticsVersion) => {
+  let saved = { ...config(), card_timeline_mode: 'samples' }
+  mocks.get.mockImplementation(async () => saved)
   mocks.groups.mockResolvedValue([])
-  mocks.update.mockImplementation(async (payload) => ({ ...payload, version: 4 }))
-  const wrapper = mount(MonitorSettingsPanel, { global: { stubs: { Toggle: true, Icon: true, RouterLink: true } } })
-  await flushPromises()
-  expect(wrapper.get('[data-testid="monitor-v2-card-timeline-samples"]').classes()).toContain('tab-active')
-  await wrapper.get('[data-testid="monitor-v2-card-timeline-windows"]').trigger('click')
-  await wrapper.get('header button.btn-primary').trigger('click')
-  await flushPromises()
-  expect(mocks.update.mock.calls[0][0].card_timeline_mode).toBe('windows')
-  wrapper.unmount()
+  mocks.update.mockImplementation(async (payload) => (saved = { ...JSON.parse(JSON.stringify(payload)), version: saved.version + 1 }))
+  for (const mode of ['windows', 'samples']) {
+    const wrapper = mount(MonitorSettingsPanel, { props: { statisticsVersion }, global: { stubs: { Toggle: true, Icon: true, RouterLink: true } } })
+    await flushPromises()
+    const option = (value: string) => wrapper.get(`[data-testid="monitor-v2-card-timeline-${value}"]`)
+    expect(option(saved.card_timeline_mode).attributes('aria-pressed')).toBe('true')
+    await option(mode).trigger('click')
+    await wrapper.get('header button.btn-primary').trigger('click')
+    await flushPromises()
+    expect(mocks.error).not.toHaveBeenCalled()
+    expect(saved.card_timeline_mode).toBe(mode)
+    expect(option(mode).attributes('aria-pressed')).toBe('true')
+    wrapper.unmount()
+  }
 })

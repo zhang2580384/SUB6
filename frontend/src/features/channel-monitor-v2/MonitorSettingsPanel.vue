@@ -8,7 +8,7 @@
           <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400">
             <Icon name="chart" size="sm" />
           </span>
-          {{ t('channelMonitorV2.settings.title') }}
+          {{ t('channelMonitorV2.settings.title', { version: statisticsVersion.toUpperCase() }) }}
         </h2>
         <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           {{ t('channelMonitorV2.settings.description') }}
@@ -33,7 +33,6 @@
       {{
         t('channelMonitorV2.settings.modeBanner', {
           mode: systemModeLabel,
-          modeV2: t('channelMonitorV2.settings.modeV2'),
         })
       }}
       <router-link class="ml-1 font-medium underline" to="/admin/settings">{{ t('admin.settings.tabs.features') }}</router-link>
@@ -81,7 +80,7 @@
             </button>
           </div>
         </div>
-        <div v-if="statisticsVersion !== 'v4'" class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
             <strong class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('channelMonitorV2.settings.cardTimelineTitle') }}</strong>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('channelMonitorV2.settings.cardTimelineHint') }}</p>
@@ -91,6 +90,7 @@
               type="button"
               class="tab"
               data-testid="monitor-v2-card-timeline-windows"
+              :aria-pressed="draft.card_timeline_mode !== 'samples'"
               :class="draft.card_timeline_mode !== 'samples' ? 'tab-active' : ''"
               @click="draft.card_timeline_mode = 'windows'"
             >
@@ -100,6 +100,7 @@
               type="button"
               class="tab"
               data-testid="monitor-v2-card-timeline-samples"
+              :aria-pressed="draft.card_timeline_mode === 'samples'"
               :class="draft.card_timeline_mode === 'samples' ? 'tab-active' : ''"
               @click="draft.card_timeline_mode = 'samples'"
             >
@@ -389,7 +390,6 @@ const errorCategories = MONITOR_ERROR_CATEGORIES
 const countedErrorCategoryCount = computed(
   () => errorCategories.length - (draft.value?.ignored_error_categories?.length || 0)
 )
-/** System settings mode must be v2 for aggregation to run; config remains editable for prep. */
 withDefaults(defineProps<{ statisticsVersion?: 'v2' | 'v4' }>(), { statisticsVersion: 'v2' })
 const systemModeV2 = computed(() => isChannelMonitorV2Mode() || isChannelMonitorV4Mode())
 const systemModeLabel = computed(() => {

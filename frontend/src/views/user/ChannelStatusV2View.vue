@@ -492,7 +492,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Select from '@/components/common/Select.vue'
 import FilterMultiSelect from '@/features/channel-monitor-v2/FilterMultiSelect.vue'
 import MonitorStatusCards from '@/features/channel-monitor-v2/MonitorStatusCards.vue'
-import { hasMonitorSamples, monitorRefreshSeconds } from '@/features/channel-monitor-v2/monitorCards'
+import { hasMonitorSamples, monitorCardTimelineMode, monitorRefreshSeconds } from '@/features/channel-monitor-v2/monitorCards'
 import { monitorCardPlatformOrder } from '@/features/channel-monitor-v2/monitorFormat'
 import MetricCell from '@/features/channel-monitor-v2/MetricCell.vue'
 import MonitorRankBadge from '@/features/channel-monitor-v2/MonitorRankBadge.vue'
@@ -597,7 +597,7 @@ const snapshot = ref<MonitorSnapshot | null>(null)
 // Dimensions load only in analytics mode. Cards are the default view, so their
 // order comes from the snapshot config fetched with the matrix.
 const cardPlatformOrder = computed(() => monitorCardPlatformOrder(snapshot.value?.config?.platforms))
-const cardTimelineMode = computed(() => props.statisticsVersion === 'v2' && snapshot.value?.config?.card_timeline_mode === 'samples' ? 'samples' : 'windows')
+const cardTimelineMode = computed(() => monitorCardTimelineMode(snapshot.value?.config?.card_timeline_mode))
 const matrix = ref<MonitorMatrixResponse | null>(null)
 const modelRows = ref<MonitorModelRow[]>([])
 const errorRows = ref<MonitorErrorRow[]>([])
@@ -759,7 +759,7 @@ async function loadMetrics(signal?: AbortSignal, id = sequence) {
   const [nextSnapshot, nextMatrix] = await Promise.all([
     api.getSnapshot(filter.value, isAdmin.value, signal, readVersion.value),
     api.getMatrix(filter.value, analytics.value ? matrixGroupBy.value : 'platform_group', isAdmin.value, signal, {
-      recentSamples: !analytics.value && props.statisticsVersion === 'v2',
+      recentSamples: analytics.value ? undefined : props.statisticsVersion === 'v4' ? 'configured' : true,
       cacheReference: !analytics.value && props.statisticsVersion === 'v4',
     }, readVersion.value),
   ])
