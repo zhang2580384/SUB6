@@ -53,7 +53,9 @@ type openAIWSLogicalSession struct {
 	frames             chan openAIWSStreamFrame
 	controls           chan openAIWSStreamFrame
 	closed             chan struct{}
-	once               sync.Once
+	drainOnce          sync.Once // marks the lane draining, without waiting for I/O
+	closeOnce          sync.Once
+	closeErr           error
 	busy               bool // protected by router.mu
 	wroteError         atomic.Bool
 	started            bool
@@ -85,6 +87,8 @@ type openAIWSStreamRouter struct {
 	wg              sync.WaitGroup
 	connectionID    string
 	responseOwners  map[string]string
+
+	transportClosing atomic.Bool // a sole legacy session has claimed the physical close
 }
 
 // The physical socket has one reader. Named lanes and legacy threads have
@@ -201,6 +205,9 @@ func openAIWSStreamID(body []byte) (string, error) {
 }
 
 func (r *openAIWSStreamRouter) route(kind coderws.MessageType, body []byte, arrived time.Time) error {
+	if r.transportClosing.Load() {
+		return nil
+	}
 	streamID, err := openAIWSStreamID(body)
 	if err != nil {
 		return r.writeError("", "invalid_stream_id", "stream_id must contain 1-256 letters, numbers, underscores, hyphens or periods")
@@ -216,6 +223,10 @@ func (r *openAIWSStreamRouter) route(kind coderws.MessageType, body []byte, arri
 	apiKey, _ := middleware.GetAPIKeyFromContext(r.template)
 	identity := service.ResolveCyberSessionIdentity(apiKey.ID, r.template, body)
 	r.mu.Lock()
+	if r.transportClosing.Load() { // the close may have started during frame validation
+		r.mu.Unlock()
+		return nil
+	}
 	base := "named:" + streamID
 	last := r.lastNamed[streamID]
 	if streamID == "" {
@@ -628,41 +639,37 @@ func (s *openAIWSLogicalSession) isStopped() bool {
 	}
 }
 
-func (s *openAIWSLogicalSession) stop()           { s.once.Do(func() { s.cancel(); close(s.closed) }) }
+func (s *openAIWSLogicalSession) stop()           { s.drainOnce.Do(func() { s.cancel(); close(s.closed) }) }
 func (s *openAIWSLogicalSession) CloseNow() error { s.stop(); return nil }
 func (s *openAIWSLogicalSession) Close(code coderws.StatusCode, reason string) error {
-	if s.streamID == "" {
-		r := s.router
-		r.mu.Lock()
-		otherSessions := len(r.sessions) > 1
-		r.mu.Unlock()
-		s.stop()
-		if otherSessions {
-			// A legacy lane retains its historical close behavior when alone,
-			// but it must not take other multiplexed conversations down with it.
-			if code != coderws.StatusNormalClosure && code != coderws.StatusGoingAway {
-				s.writeCloseError(reason)
-			}
-			return nil
-		}
-		return r.conn.Close(code, reason)
-	}
-	if code != coderws.StatusNormalClosure && code != coderws.StatusGoingAway {
-		s.writeCloseError(reason)
-	}
-	s.stop()
-	return nil
-}
+	s.closeOnce.Do(func() {
+		// Reject new work immediately. Canceling the lane while coder/websocket
+		// is writing its last accepted frame would hard-close the shared socket.
+		s.drainOnce.Do(func() { close(s.closed) })
+		defer s.cancel()
 
-func (s *openAIWSLogicalSession) writeCloseError(reason string) {
-	r := s.router
-	r.writeMu.Lock()
-	defer r.writeMu.Unlock()
-	if !s.wroteError.Load() {
-		if err := r.writeEventLocked(openAIWSStreamErrorPayload(s.streamID, "websocket_session_closed", reason)); err == nil {
-			s.wroteError.Store(true)
+		r := s.router
+		r.writeMu.Lock() // let an already accepted write finish on its own deadline
+		r.mu.Lock()
+		physical := s.streamID == "" && len(r.sessions) <= 1
+		if physical {
+			r.transportClosing.Store(true)
 		}
-	}
+		r.mu.Unlock()
+		if physical {
+			r.writeMu.Unlock() // never hold a router lock while awaiting the peer's close
+			s.closeErr = r.conn.Close(code, reason)
+			return
+		}
+		defer r.writeMu.Unlock()
+		if code != coderws.StatusNormalClosure && code != coderws.StatusGoingAway && !s.wroteError.Load() {
+			s.closeErr = r.writeEventLocked(openAIWSStreamErrorPayload(s.streamID, "websocket_session_closed", reason))
+			if s.closeErr == nil {
+				s.wroteError.Store(true)
+			}
+		}
+	})
+	return s.closeErr
 }
 
 func openAIWSStreamErrorPayload(stream, code, message string) map[string]any {
@@ -684,6 +691,9 @@ func (r *openAIWSStreamRouter) writeEvent(payload any) error {
 }
 
 func (r *openAIWSStreamRouter) writeEventLocked(payload any) error {
+	if r.transportClosing.Load() {
+		return nil // the physical close already owns the client-visible outcome
+	}
 	body, _ := json.Marshal(payload)
 	ctx, cancel := context.WithTimeout(r.ctx, 2*time.Second)
 	defer cancel()

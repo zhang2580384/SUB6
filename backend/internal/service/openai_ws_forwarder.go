@@ -83,6 +83,9 @@ func wrapOpenAIWSFallback(reason string, err error) error {
 	return &openAIWSFallbackError{Reason: strings.TrimSpace(reason), Err: err}
 }
 
+// ErrOpenAIWSLocalAdmissionRejected marks a gateway refusal, not a peer or provider failure.
+var ErrOpenAIWSLocalAdmissionRejected = errors.New("openai websocket request rejected by local admission policy")
+
 // OpenAIWSClientCloseError 表示应以指定 WebSocket close code 主动关闭客户端连接的错误。
 type OpenAIWSClientCloseError struct {
 	statusCode coderws.StatusCode
