@@ -1,4 +1,4 @@
-import type { HealthState, MonitorCandyHistory, MonitorCandyResult, MonitorCoverage, MonitorMatrixBucket, MonitorMatrixRow, MonitorMetric } from '@/api/channelMonitorV2'
+import type { HealthState, MonitorCandyHistory, MonitorCandyResult, MonitorCoverage, MonitorMatrixBucket, MonitorMatrixRow, MonitorMetric, MonitorRange } from '@/api/channelMonitorV2'
 
 export const CANDY_HISTORY_LIMIT = 100
 export const CANDY_HISTORY_LIMIT_MIN = 15
@@ -76,10 +76,21 @@ function coverageBounds(coverage: MonitorCoverage | undefined) {
   return { start, end }
 }
 
-/** Nearest-rank P90 of completed, occupied five-minute windows; never use probe or recent-sample history. */
-export function highWindowCache(row: MonitorMatrixRow, coverage?: MonitorCoverage) {
-  const bounds = coverageBounds(coverage), step = MONITOR_CARD_SAMPLE_BUCKET_MS
-  if (!bounds || !coverage?.coverage_complete || coverage.bucket_seconds * 1000 !== step || bounds.end - bounds.start !== MONITOR_CARD_SLOT_COUNT * step || !hasMonitorSamples(row.metrics)) return null
+// Matches the native rollups returned by ChannelMonitorV2Service.ParseFilter.
+const cacheWindows: Record<MonitorRange, { bucketSeconds: number; count: number }> = {
+  '90m': { bucketSeconds: 5 * 60, count: 18 },
+  '24h': { bucketSeconds: 3600, count: 24 },
+  '7d': { bucketSeconds: 12 * 3600, count: 14 },
+  '30d': { bucketSeconds: 24 * 3600, count: 30 },
+}
+
+/** Nearest-rank P90 of completed business-traffic intervals in the selected range. */
+export function highWindowCache(row: MonitorMatrixRow, coverage?: MonitorCoverage, range: MonitorRange = '90m') {
+  const bounds = coverageBounds(coverage)
+  if (!bounds || !coverage?.coverage_complete || !hasMonitorSamples(row.metrics)) return null
+  const { bucketSeconds, count } = cacheWindows[range]
+  const step = bucketSeconds * 1000
+  if (coverage.bucket_seconds !== bucketSeconds || bounds.end - bounds.start !== count * step) return null
   const through = Math.min(bounds.end, Date.parse(coverage.data_through))
   if (!Number.isFinite(through) || !(Date.parse(coverage.coverage_start) <= bounds.start)) return null
   const values: number[] = [], seen = new Set<number>()

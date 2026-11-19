@@ -98,6 +98,35 @@ it('keeps the original headline for all business traffic and labels the weighted
   expect(cache().text()).toBe('54.0%')
 })
 
+it('switches the V4 headline and tooltip to the active range, keeping the measured rate available', async () => {
+  const { wrapper, row } = hoverFixture()
+  const start = Date.parse('2026-09-28T00:00:00Z')
+  const at = (minutes: number) => new Date(start + minutes * 60_000).toISOString()
+  const cases = [
+    ['90m', 5, 18, 0.6, 'minutes 5'], ['24h', 60, 24, 0.7, 'hours 1'],
+    ['7d', 720, 14, 0.8, 'hours 12'], ['30d', 1440, 30, 0.9, 'days 1'],
+  ] as const
+  for (const [range, width, count, high, intervalLabel] of cases) {
+    await wrapper.setProps({ statisticsVersion: 'v4', range })
+    expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.cache') // Previous response while the next range loads.
+    const coverage = { requested_start: at(0), coverage_start: at(0), requested_end: at(width * count),
+      data_through: at(width * count - 1), bucket_seconds: width * 60, coverage_complete: true } as MonitorCoverage
+    const buckets = Array.from({ length: 10 }, (_, i) => ({ ...row.buckets[0], bucket_start: at(width * i),
+      metrics: { ...row.metrics, cache_rate: i < 8 ? 0 : i === 8 ? high : 1 } }))
+    await wrapper.setProps({ coverage, items: [{ ...row, buckets }] })
+    expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.highCache')
+    expect(wrapper.get('dl dd').text()).toBe(`${(high * 100).toFixed(1)}%`)
+    const title = wrapper.get('dl dd').attributes('title')
+    expect(title).toContain(range)
+    expect(title).toContain(intervalLabel)
+    expect(title).toContain('10')
+    expect(title).toContain('88.1%')
+  }
+  await wrapper.setProps({ statisticsVersion: 'v2' })
+  expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.cache')
+  expect(wrapper.get('dl dd').text()).toBe('88.1%')
+})
+
 it('colors idle connectivity by actual response and keeps the answer-quality result separate', async () => {
   const { wrapper, row } = hoverFixture()
   const checked = { ...row, cache_reference: { rate: 0.92, threshold_percent: 30, included_input_share: 0.8 } }

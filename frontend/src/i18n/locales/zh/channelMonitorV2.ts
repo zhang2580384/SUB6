@@ -13,7 +13,7 @@ export default {
         "groupRate": "分组倍率 {value}x",
         "cache": "缓存率",
         "highCache": "高位缓存率",
-        "highCacheDetails": "近 90 分钟，{count} 个有业务的完整 5 分钟格，缓存率由低到高取第 90 百分位（P90），含零值。全部业务按输入 Token 计算的缓存率为 {actual}。",
+        "highCacheDetails": "{range} · {bucket}。取 {count} 个有业务的完整时段缓存率的第 90 百分位（P90），含零值。同期按输入 Token 加权的总体缓存率为 {actual}。",
         "connectionHistory": "业务状态与空闲时的连通检测",
         "connectionOK": "空闲检测：模型已响应",
         "connectionFailed": "空闲检测：模型请求失败",

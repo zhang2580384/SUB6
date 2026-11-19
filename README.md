@@ -1,6 +1,6 @@
 # SUB6
 
-SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。本分支版本为 [**0.1.13**](https://github.com/zhang2580384/SUB6/releases/tag/v0.1.13)，基于已审查 Ranxi **v2.21.3**，精确同步 SHA：`aa8e596e6d6f3e4648d6beba73b39b240dd5357a`。发行与生产部署分别验收。
+SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维护的开源 AI API 网关发行版，保留上游作者与贡献者署名。本分支版本为 [**0.1.14**](https://github.com/zhang2580384/SUB6/releases/tag/v0.1.14)，基于已审查 Ranxi **v2.21.3**，精确同步 SHA：`aa8e596e6d6f3e4648d6beba73b39b240dd5357a`。发行与生产部署分别验收。
 
 [English](README_EN.md) · [日本語](README_JA.md) · [升级与兼容性](maintenance/2026-11-14-upstream-review.md) · [部署说明](deploy/README.md)
 
@@ -8,7 +8,7 @@ SUB6 是基于 [Ranxi Sub2API](https://github.com/ranxi2001/sub2api) 独立维�
 
 ## 来源与功能
 
-0.1.13 新增渠道监控 V4：在后台先预览，再确认切换客户页面；随时可切回 V2。保留原来的 90 分钟、三项指标和 18 个格子。详见[升级说明](maintenance/UPGRADE-v0.1.13.md)。
+0.1.14 的渠道监控 V4 在 90 分钟、24 小时、7 天和 30 天四个范围均可显示高位缓存率（P90）。将鼠标移到数值上，可查看样本数和同期按输入 Token 加权的总体缓存率。详见[升级说明](maintenance/UPGRADE-v0.1.14.md)。
 
 0.1.11 保留完整 0.1.9，并修复普通 WS→HTTP 桥接在 `store=false` 时仅携带 `previous_response_id` 的首次续接。支持的明文会话在原逻辑连接内保留助手说明和已完成工具调用，全量历史不重复，多会话独立；账号、凭据、模型、路由和交付检查继续生效。详见 [修复范围与限制](maintenance/2026-11-17-ws-http-bridge-history.md)。本次没有新增 SQL、依赖或设置。
 
@@ -28,7 +28,7 @@ pnpm --dir frontend run build
 cd backend
 go mod download
 go mod verify
-CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.13 -X main.BuildType=source' -o sub6 ./cmd/server
+CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.14 -X main.BuildType=source' -o sub6 ./cmd/server
 ./sub6
 ```
 
@@ -38,7 +38,7 @@ Google OAuth 客户端未内置。Antigravity/Gemini CLI 登录和令牌刷新�
 
 ## 更新与发布
 
-只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。正式发行包提供完整源码、嵌入前端的 Linux amd64 二进制、运行资源包和干净构建的 Docker 镜像归档（未向镜像仓库发布）。精确来源、镜像 ID、基础镜像与资产摘要见发行 build-info.json 和 checksums.txt；参阅 [构建说明](maintenance/BUILD-v0.1.13.md) 与 [升级说明](maintenance/UPGRADE-v0.1.13.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
+只使用 [SUB6 仓库](https://github.com/zhang2580384/SUB6) 和 [SUB6 Releases](https://github.com/zhang2580384/SUB6/releases)。正式发行包提供完整源码、嵌入前端的 Linux amd64 二进制、运行资源包和干净构建的 Docker 镜像归档（未向镜像仓库发布）。精确来源、镜像 ID、基础镜像与资产摘要见发行 build-info.json 和 checksums.txt；参阅 [构建说明](maintenance/BUILD-v0.1.14.md) 与 [升级说明](maintenance/UPGRADE-v0.1.14.md)。内置更新器仅接受该仓库的 Release 下载路径，且强制要求 `checksums.txt`；源码版本没有兼容二进制资产时会拒绝在线替换。旧上游自动安装脚本已关闭，不能用它切回上游包。
 
 本维护分支修正了发行构建误标为 `source` 而隐藏“立即更新”的问题。后续发行使用
 `make build-release`（需先安装已审查的依赖），输出 `backend/bin/sub6-linux-amd64`，

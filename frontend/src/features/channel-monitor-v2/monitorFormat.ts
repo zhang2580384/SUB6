@@ -35,6 +35,12 @@ export function monitorCardPlatformOrder(
   return out
 }
 
+export function formatMonitorBucket(seconds: number, t: (key: string, values: { count: number }) => string): string {
+  if (seconds < 3600) return t('channelMonitorV2.bucket.minutes', { count: seconds / 60 })
+  if (seconds < 86400) return t('channelMonitorV2.bucket.hours', { count: seconds / 3600 })
+  return t('channelMonitorV2.bucket.days', { count: seconds / 86400 })
+}
+
 export function monitorIntlLocale(): string {
   if (typeof document !== 'undefined') {
     const htmlLang = document.documentElement.getAttribute('lang')?.trim()

@@ -13,7 +13,7 @@ export default {
         "groupRate": "Group rate {value}x",
         "cache": "Cache rate",
         "highCache": "High cache rate",
-        "highCacheDetails": "90th percentile (P90) across {count} completed five-minute windows with traffic in the last 90 minutes, including zero rates. All traffic by input tokens: {actual}.",
+        "highCacheDetails": "{range} · {bucket}. The 90th percentile (P90) across {count} completed intervals with traffic, including zero rates. The overall rate by input tokens is {actual}.",
         "connectionHistory": "Traffic health and connectivity checks during quiet periods",
         "connectionOK": "Idle check: model responded",
         "connectionFailed": "Idle check: model request failed",

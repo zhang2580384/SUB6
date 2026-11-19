@@ -206,6 +206,7 @@
       <MonitorStatusCards
         v-if="!analytics"
         :items="matrix?.items || []"
+        :range="filter.range"
         :coverage="matrix?.coverage"
         :loading="loading"
         :countdown="countdown"

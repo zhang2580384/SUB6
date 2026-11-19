@@ -75,7 +75,7 @@ import { Line } from 'vue-chartjs'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { MonitorCoverage, MonitorMetric, MonitorHealth } from '@/api/channelMonitorV2'
-import { formatMonitorMs, formatMonitorPercent } from '@/features/channel-monitor-v2/monitorFormat'
+import { formatMonitorBucket, formatMonitorMs, formatMonitorPercent } from '@/features/channel-monitor-v2/monitorFormat'
 import {
   applyWheelZoom,
   clientXRatio,
@@ -102,14 +102,7 @@ const isDark = computed(() =>
   typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 )
 
-const bucketLabel = computed(() => {
-  const seconds = props.coverage?.bucket_seconds || 60
-  const minutes = seconds / 60
-  if (minutes < 60) return t('channelMonitorV2.bucket.minutes', { count: minutes })
-  const hours = minutes / 60
-  if (hours < 24) return t('channelMonitorV2.bucket.hours', { count: hours })
-  return t('channelMonitorV2.bucket.days', { count: hours / 24 })
-})
+const bucketLabel = computed(() => formatMonitorBucket(props.coverage?.bucket_seconds || 60, t))
 
 const chartData = computed(() => {
   const points = visibleTrend.value

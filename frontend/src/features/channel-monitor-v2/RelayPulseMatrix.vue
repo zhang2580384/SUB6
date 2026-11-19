@@ -180,6 +180,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import {
   formatLatencyPrivacy,
+  formatMonitorBucket,
   formatMonitorMs,
   formatMonitorPercent,
   formatMonitorSuccessRateFromError,
@@ -281,13 +282,7 @@ const axisStart = computed(() =>
 const axisEnd = computed(() =>
   bucketStarts.value.length ? formatAxisTime(bucketStarts.value[bucketStarts.value.length - 1]) : ''
 )
-const bucketLabel = computed(() => {
-  const minutes = props.coverage.bucket_seconds / 60
-  if (minutes < 60) return t('channelMonitorV2.bucket.minutes', { count: minutes })
-  const hours = minutes / 60
-  if (hours < 24) return t('channelMonitorV2.bucket.hours', { count: hours })
-  return t('channelMonitorV2.bucket.days', { count: hours / 24 })
-})
+const bucketLabel = computed(() => formatMonitorBucket(props.coverage.bucket_seconds, t))
 
 /** Shared ISO start → column index for the visible window (rebuilt when zoom/coverage changes). */
 const bucketStartIndex = computed(() => {

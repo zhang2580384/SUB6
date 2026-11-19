@@ -116,13 +116,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { MonitorCandyResult, MonitorCoverage, MonitorMatrixBucket, MonitorMatrixRow } from '@/api/channelMonitorV2'
+import type { MonitorCandyResult, MonitorCoverage, MonitorMatrixBucket, MonitorMatrixRow, MonitorRange } from '@/api/channelMonitorV2'
 import ProviderIcon from '@/components/user/monitor/ProviderIcon.vue'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
-import { formatMonitorMs, formatMonitorPercent } from './monitorFormat'
+import { formatMonitorBucket, formatMonitorMs, formatMonitorPercent } from './monitorFormat'
 import { candyDisplayState, candyHistoryLimit, candyHistorySlots, hasMonitorSamples, highWindowCache, MONITOR_CARD_SLOT_COUNT, monitorCandyHistories, monitorCardTimeline, monitorCardTimelineMode, type MonitorCardTimelineMode } from './monitorCards'
 
-const props = defineProps<{ items: MonitorMatrixRow[]; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode; selectedModels?: string[]; statisticsVersion?: 'v2' | 'v4' }>()
+const props = withDefaults(defineProps<{ items: MonitorMatrixRow[]; range?: MonitorRange; coverage?: MonitorCoverage; countdown: number; loading: boolean; now: number; platformOrder?: string[]; timelineMode?: MonitorCardTimelineMode; selectedModels?: string[]; statisticsVersion?: 'v2' | 'v4' }>(), { range: '90m' })
 const { t, locale } = useI18n()
 type TrafficBar = ReturnType<typeof monitorCardTimeline>[number]
 type CardDetail = { kind: 'traffic'; row: MonitorMatrixRow; bar: TrafficBar } | { kind: 'candy'; row: MonitorMatrixRow; result: MonitorCandyResult; model: string; effort: string }
@@ -273,12 +273,18 @@ const time = (value: number | string) => new Date(value).toLocaleTimeString(loca
 function referencePercent(rate: number) {
   return rate >= 0.999 ? `≥${formatMonitorPercent(0.999)}` : formatMonitorPercent(rate)
 }
-const highCache = computed(() => new Map(props.statisticsVersion === 'v4' ? props.items.map(row => [row, highWindowCache(row, props.coverage)] as const) : []))
+const highCache = computed(() => new Map(props.statisticsVersion === 'v4' ? props.items.map(row => [row, highWindowCache(row, props.coverage, props.range)] as const) : []))
 function cacheMetric(row: MonitorMatrixRow) {
   const ref = props.statisticsVersion === 'v4' ? row.cache_reference : undefined
   const measured = formatMonitorPercent(row.metrics.cache_rate)
   const high = highCache.value.get(row)
-  if (high) return { name: t('channelMonitorV2.cards.highCache'), value: referencePercent(high.rate), title: t('channelMonitorV2.cards.highCacheDetails', { count: high.count, actual: measured }) }
+  if (high && props.coverage) {
+    const title = t('channelMonitorV2.cards.highCacheDetails', {
+      range: t(`channelMonitorV2.ranges.${props.range}`), bucket: formatMonitorBucket(props.coverage.bucket_seconds, t),
+      count: high.count, actual: measured,
+    })
+    return { name: t('channelMonitorV2.cards.highCache'), value: referencePercent(high.rate), title }
+  }
   const name = t('channelMonitorV2.cards.cache')
   const check = idleCheck(row)
   if (check) return { name, value: measuredCheckRate(check.result) || '—', title: t('channelMonitorV2.cards.latestCheckRate', { model: check.model, time: dateTime(check.result.checked_at) }) }
