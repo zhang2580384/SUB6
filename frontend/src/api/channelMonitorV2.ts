@@ -167,6 +167,8 @@ export interface MonitorMatrixBucket {
 }
 
 export interface MonitorMatrixRow {
+  /** V4: selected range only; null share = no measured input, zero share = all excluded. */
+  cache_reference?: { rate: number | null; included_input_share: number | null; threshold_percent: number }
   group_rate_multiplier?: number
   /** First enabled probe, kept for older payloads. */
   candy?: MonitorCandyHistory
@@ -192,6 +194,8 @@ export interface MonitorCandyProbe {
 }
 export interface MonitorCandyResult {
   checked_at: string
+  /** Fraction of measured input for this check; absent on older or unmetered responses. */
+  cache_rate?: number | null
   verdict: 'correct' | 'incorrect' | 'error'
   latency_ms: number
   answer_preview?: string
@@ -272,33 +276,38 @@ const requestConfig = (filter: MonitorFilter, signal?: AbortSignal, extraParams:
   signal,
 })
 
-function base(admin: boolean) { return admin ? '/admin/channel-monitor-v2' : '/channel-monitor-v2' }
+export type StatisticsVersion = 'v2' | 'v4'
 
-export async function getDimensions(filter: MonitorFilter, admin = false, signal?: AbortSignal) {
-  const { data } = await apiClient.get<MonitorDimensions>(`${base(admin)}/dimensions`, requestConfig(filter, signal))
+function base(admin: boolean, version: StatisticsVersion) {
+  return (admin ? '/admin' : '') + '/channel-monitor-' + version
+}
+
+export async function getDimensions(filter: MonitorFilter, admin = false, signal?: AbortSignal, version: StatisticsVersion = 'v2') {
+  const { data } = await apiClient.get<MonitorDimensions>(`${base(admin, version)}/dimensions`, requestConfig(filter, signal))
   return data
 }
-export async function getSnapshot(filter: MonitorFilter, admin = false, signal?: AbortSignal) {
-  const { data } = await apiClient.get<MonitorSnapshot>(`${base(admin)}/snapshot`, requestConfig(filter, signal))
+export async function getSnapshot(filter: MonitorFilter, admin = false, signal?: AbortSignal, version: StatisticsVersion = 'v2') {
+  const { data } = await apiClient.get<MonitorSnapshot>(`${base(admin, version)}/snapshot`, requestConfig(filter, signal))
   return data
 }
-export async function getMatrix(filter: MonitorFilter, groupBy: MonitorMatrixGroupBy, admin = false, signal?: AbortSignal, options?: { recentSamples?: boolean }) {
-  const { data } = await apiClient.get<MonitorMatrixResponse>(`${base(admin)}/matrix`, requestConfig(filter, signal, {
+export async function getMatrix(filter: MonitorFilter, groupBy: MonitorMatrixGroupBy, admin = false, signal?: AbortSignal, options?: { recentSamples?: boolean; cacheReference?: boolean }, version: StatisticsVersion = 'v2') {
+  const { data } = await apiClient.get<MonitorMatrixResponse>(`${base(admin, version)}/matrix`, requestConfig(filter, signal, {
     group_by: groupBy,
     recent_samples: options?.recentSamples ? 1 : undefined,
+    cache_reference: version === 'v4' && options?.cacheReference ? 1 : undefined,
   }))
   return data
 }
-export async function getModels(filter: MonitorFilter, admin = false, signal?: AbortSignal) {
-  const { data } = await apiClient.get<{ coverage: MonitorCoverage; items: MonitorModelRow[] }>(`${base(admin)}/models`, requestConfig(filter, signal))
+export async function getModels(filter: MonitorFilter, admin = false, signal?: AbortSignal, version: StatisticsVersion = 'v2') {
+  const { data } = await apiClient.get<{ coverage: MonitorCoverage; items: MonitorModelRow[] }>(`${base(admin, version)}/models`, requestConfig(filter, signal))
   return data
 }
-export async function getErrors(filter: MonitorFilter, admin = false, signal?: AbortSignal) {
-  const { data } = await apiClient.get<{ coverage: MonitorCoverage; items: MonitorErrorRow[] }>(`${base(admin)}/errors`, requestConfig(filter, signal))
+export async function getErrors(filter: MonitorFilter, admin = false, signal?: AbortSignal, version: StatisticsVersion = 'v2') {
+  const { data } = await apiClient.get<{ coverage: MonitorCoverage; items: MonitorErrorRow[] }>(`${base(admin, version)}/errors`, requestConfig(filter, signal))
   return data
 }
-export async function getUsers(filter: MonitorFilter, admin = false, signal?: AbortSignal) {
-  const { data } = await apiClient.get<{ coverage: MonitorCoverage; items: MonitorUserRow[] }>(`${base(admin)}/users`, requestConfig(filter, signal))
+export async function getUsers(filter: MonitorFilter, admin = false, signal?: AbortSignal, version: StatisticsVersion = 'v2') {
+  const { data } = await apiClient.get<{ coverage: MonitorCoverage; items: MonitorUserRow[] }>(`${base(admin, version)}/users`, requestConfig(filter, signal))
   return data
 }
 export async function getConfig() {

@@ -50,6 +50,8 @@ func TestOpenAIResponsesWebSocket_FirstFrameAllowlistedModelProceeds(t *testing.
 
 // 后续 turn 切换到白名单外的模型：连接被 1008 关闭（passthrough relay 模式）。
 func TestOpenAIResponsesWebSocket_SubsequentTurnModelNotAllowedCloses_Passthrough(t *testing.T) {
+	logs, restore := captureHandlerStructuredLog(t)
+	defer restore()
 	runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
 		firstPayload:            `{"type":"response.create","model":"gpt-5.4","stream":false}`,
 		secondPayload:           `{"type":"response.create","model":"gpt-4.1","stream":false}`,
@@ -57,6 +59,9 @@ func TestOpenAIResponsesWebSocket_SubsequentTurnModelNotAllowedCloses_Passthroug
 		ingressMode:             service.OpenAIWSIngressModePassthrough,
 		secondTurnCloseExpected: true,
 	})
+	if reason, ok := logs.FieldValueForMessage("openai.websocket_local_admission_rejected", "reason"); !ok || reason != `Model "gpt-4.1" is not available for this group` {
+		t.Errorf("expected the group refusal to survive session cleanup; got reason=%v, present=%t", reason, ok)
+	}
 }
 
 // 后续 turn 切换到白名单外的模型：连接被 1008 关闭（原生 ingress 模式）。

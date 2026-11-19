@@ -42,6 +42,7 @@
             role="tablist"
             :aria-label="t('channelMonitorV2.admin.tabAria')"
           >
+            <button type="button" role="tab" class="tab flex-1 sm:flex-none" :class="adminMonitorTab === 'v4' ? 'tab-active' : ''" :aria-selected="adminMonitorTab === 'v4'" data-testid="monitor-tab-v4" @click="adminMonitorTab = 'v4'">{{ t('channelMonitorV3.modes.v4') }}</button>
             <button
               type="button"
               role="tab"
@@ -77,7 +78,12 @@
         </div>
       </header>
 
-      <V3SettingsPanel v-if="adminMonitorTab === 'v3'" />
+      <section v-if="adminMonitorTab === 'v4'" class="space-y-4" data-testid="monitor-v4-panel">
+        <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('channelMonitorV3.admin.switchEffect.v4') }}</p>
+        <router-link v-if="siteMode !== 'v1' && siteMode !== 'off'" to="/admin/channels/monitor/v4-preview" class="btn btn-secondary btn-sm">{{ t('channelMonitorV2.v4Preview') }}</router-link>
+        <MonitorSettingsPanel statistics-version="v4" />
+      </section>
+      <V3SettingsPanel v-else-if="adminMonitorTab === 'v3'" />
       <MonitorSettingsPanel v-else-if="adminMonitorTab === 'v2'" />
 
       <TablePageLayout v-else>
@@ -247,10 +253,10 @@ import { getChannelMonitorMode, isChannelMonitorV1Mode, type ChannelMonitorMode 
 const { t } = useI18n()
 const appStore = useAppStore()
 const isV1Mode = computed(() => isChannelMonitorV1Mode())
-const modes: ChannelMonitorMode[] = ['v1', 'v2', 'v3']
+const modes: ChannelMonitorMode[] = ['v1', 'v2', 'v3', 'v4']
 const siteMode = computed(() => (appStore.cachedPublicSettings?.channel_monitor_enabled === false ? 'off' : getChannelMonitorMode()))
 const tabForMode = (mode: ChannelMonitorMode) => (mode === 'v1' ? 'legacy' : mode)
-const adminMonitorTab = ref<'v3' | 'v2' | 'legacy'>(tabForMode(getChannelMonitorMode()))
+const adminMonitorTab = ref<'v4' | 'v3' | 'v2' | 'legacy'>(tabForMode(getChannelMonitorMode()))
 const pendingMode = ref<ChannelMonitorMode | null>(null)
 const switchingMode = ref(false)
 

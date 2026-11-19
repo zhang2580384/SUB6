@@ -14,7 +14,7 @@ import (
 func TestOpsMonitorCapabilityRejectionsAndForwardedDuplicates(t *testing.T) {
 	ctx := context.Background()
 	ops := NewOpsRepository(integrationDB).(*opsRepository)
-	monitor := NewChannelMonitorV2Repository(integrationDB).(*channelMonitorV2Repository)
+	monitor := NewChannelMonitorV2Repository(integrationDB, nil).(*channelMonitorV2Repository)
 	start := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
 	end := start.Add(time.Hour)
 	model := "monitor-rejection-regression"

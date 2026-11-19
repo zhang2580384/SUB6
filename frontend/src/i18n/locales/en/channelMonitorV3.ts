@@ -15,6 +15,7 @@ export default {
       unknown: 'No recent request data',
     },
     modes: {
+      v4: 'V4 group statistics',
       v1: 'V1 active probes',
       v2: 'V2 passive stats',
       v3: 'V3 components',
@@ -143,6 +144,7 @@ export default {
       siteModeHint: 'Takes effect immediately; only one monitor runs at a time.',
       siteModeOff: 'Channel monitor is turned off in system settings.',
       description: {
+        v4: 'This site uses V4 group statistics from real traffic and recorded group checks.',
         v1: 'This site uses V1 active probes. You can prepare V3 now; users see it after switching.',
         v2: 'This site uses V2 passive stats. V3 reads the same real-traffic statistics, so you can prepare it and switch.',
         v3: 'This site uses V3: the categories and components below are measured from real user requests.',
@@ -151,6 +153,7 @@ export default {
       switchTitle: 'Switch display mode',
       switchConfirm: 'Switch this site to "{mode}"? {effect}',
       switchEffect: {
+        v4: 'Shows 18 time windows. Traffic provides measured cache rates; idle windows can show recorded group checks. The cache reference weights windows above 30% by input tokens. Hover for the unfiltered rate. Existing group probe settings are shared.',
         v1: 'V1 monitors start probing (requests are sent upstream) and the real-traffic statistics stop.',
         v2: 'Users see the V2 statistics page and the V3 page is hidden from them.',
         v3: 'Users see the V3 component status page, built from real-traffic statistics; no extra requests are sent except for groups with idle probes enabled. V1 probes and the V2 page stop.',

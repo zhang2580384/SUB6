@@ -1452,6 +1452,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		firstTurnStartedAt = hooks.InitialTurnStartedAt
 	}
 	failureAccountSideEffectsApplied := false
+	localRefusalChosen := false
 	relayResult, relayExit := openaiwsv2.RunEntry(openaiwsv2.EntryInput{
 		Ctx:                ctx,
 		ClientConn:         policyClientConn,
@@ -1609,6 +1610,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				// Match the handler close path and stay within the WebSocket control
 				// frame limit; an oversized reason makes coder/websocket skip the
 				// close frame, leaving the client with EOF instead of the status code.
+				localRefusalChosen = errors.Is(exit.Err, ErrOpenAIWSLocalAdmissionRejected)
 				reason = truncateString(reason, 120)
 				WriteAPIKeyLongContextWSFailure(clientConn, exit.Err)
 				_ = clientConn.Close(status, reason)
@@ -1728,7 +1730,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			streamReadIncomplete: true,
 		}
 	}
-	if cause := context.Cause(ctx); cause != nil {
+	// An orderly local refusal also cancels its lane after the close is delivered.
+	// Keep the original policy result; independent lease loss or preemption still wins.
+	if cause := context.Cause(ctx); cause != nil && !(cause == context.Canceled && localRefusalChosen && relayExit != nil) {
 		if isOpenAIWSSessionPreempted(ctx) {
 			if turn := activeTurn.Swap(0); turn != 0 && hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(int(turn), unfinishedResult, errOpenAIWSSessionPreempted)

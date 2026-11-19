@@ -123,6 +123,8 @@ type ChannelMonitorV2Filter struct {
 	// IncludeRecentSamples attaches the latest sampled buckets per group.
 	// Those buckets ignore Start and use the 5-minute history, not this range.
 	IncludeRecentSamples bool
+	// IncludeCacheReference adds the filtered display rate to group cards only.
+	IncludeCacheReference bool
 }
 
 type ChannelMonitorV2Metric struct {
@@ -296,7 +298,43 @@ type ChannelMonitorV2MatrixRow struct {
 	// SampleBuckets is the newest 5-minute buckets that meet the minimum sample,
 	// independent of the selected range. Nil means the request did not ask for
 	// them. A non-nil empty slice means history was searched and none qualified.
-	SampleBuckets *[]ChannelMonitorV2TrendPoint `json:"sample_buckets,omitempty"`
+	SampleBuckets  *[]ChannelMonitorV2TrendPoint   `json:"sample_buckets,omitempty"`
+	CacheReference *ChannelMonitorV2CacheReference `json:"cache_reference,omitempty"`
+}
+
+// Both rates are fractions. A nil share means no measured input; a zero share
+// means input was measured but every bucket was at or below the threshold.
+type ChannelMonitorV2CacheReference struct {
+	Rate               *float64 `json:"rate"`
+	IncludedInputShare *float64 `json:"included_input_share"`
+	ThresholdPercent   int      `json:"threshold_percent"`
+}
+
+func channelMonitorV2CacheReference(buckets []ChannelMonitorV2TrendPoint) *ChannelMonitorV2CacheReference {
+	const threshold = 30
+	ref := &ChannelMonitorV2CacheReference{ThresholdPercent: threshold}
+	var allInput, keptInput, keptReads int64
+	for _, bucket := range buckets {
+		input, reads := bucket.Metrics.CacheRateDenominator, bucket.Metrics.CacheRateNumerator
+		if input <= 0 || reads < 0 || reads > input {
+			continue
+		}
+		allInput += input
+		// Compare with floor(input * threshold / 100) without overflowing.
+		if reads > input/100*threshold+input%100*threshold/100 {
+			keptInput += input
+			keptReads += reads
+		}
+	}
+	if allInput > 0 {
+		share := float64(keptInput) / float64(allInput)
+		ref.IncludedInputShare = &share
+	}
+	if keptInput > 0 {
+		rate := float64(keptReads) / float64(keptInput)
+		ref.Rate = &rate
+	}
+	return ref
 }
 
 type ChannelMonitorV2Matrix struct {
@@ -604,6 +642,14 @@ func (s *ChannelMonitorV2Service) Matrix(ctx context.Context, filter ChannelMoni
 	if err != nil {
 		return nil, err
 	}
+	if matrix != nil && filter.IncludeCacheReference && groupBy == ChannelMonitorV2GroupByPlatformGroup {
+		for i := range matrix.Items {
+			row := &matrix.Items[i]
+			// The recent-sample timeline may contain older traffic. Only use the
+			// already scoped buckets for the selected range, before public redaction.
+			row.CacheReference = channelMonitorV2CacheReference(row.Buckets)
+		}
+	}
 	if !admin && matrix != nil {
 		hideTP := s.hideThroughputForViewer(ctx, admin)
 		for i := range matrix.Items {
@@ -619,7 +665,7 @@ func (s *ChannelMonitorV2Service) Matrix(ctx context.Context, filter ChannelMoni
 		}
 	}
 	if s.candy != nil && matrix != nil {
-		if err := s.candy.attachHistory(ctx, matrix, cfg, admin); err != nil {
+		if err := s.candy.attachHistory(ctx, matrix, cfg, admin, filter.IncludeCacheReference && groupBy == ChannelMonitorV2GroupByPlatformGroup); err != nil {
 			return nil, err
 		}
 	}

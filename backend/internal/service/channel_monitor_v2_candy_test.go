@@ -44,7 +44,7 @@ func (r *candyRepoFake) FinishCandyProbe(_ context.Context, result ChannelMonito
 	r.results = append(r.results, result)
 	return nil
 }
-func (r *candyRepoFake) CandyHistory(_ context.Context, scopes []ChannelMonitorV2CandyScope, since time.Time, limit int) ([]ChannelMonitorV2CandyResult, error) {
+func (r *candyRepoFake) CandyHistory(_ context.Context, scopes []ChannelMonitorV2CandyScope, since time.Time, limit int, _ bool) ([]ChannelMonitorV2CandyResult, error) {
 	r.historyScopes = scopes
 	r.historySince = since
 	r.historyLimit = limit
@@ -153,6 +153,27 @@ func TestChannelMonitorV2CandyGatesAndValidation(t *testing.T) {
 	require.Equal(t, ChannelMonitorV2CandyHistoryDefault, cfg.CandyHistoryLimit)
 }
 
+func TestChannelMonitorV2CandyCacheUsesOnlyTheFinalAnsweredAttempt(t *testing.T) {
+	repo := &candyRepoFake{channelMonitorV2RepoStub: channelMonitorV2RepoStub{config: candyConfigFixture()}}
+	router := &groupTestRouterFake{steps: []routeStep{{account: account(11, "first")}, {account: account(12, "second")}}}
+	groups, _ := newGroupTestService(newGroupTestRepoFake(), router, func(ctx context.Context, id int64, _ string, _ *PelicanTestConfig) (*ScheduledTestResult, error) {
+		u := startPelicanTestUsage(ctx, "openai")
+		if id == 11 {
+			u.read(`{"type":"response.completed","response":{"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":98}}}}`)
+			return &ScheduledTestResult{Status: "failed", ErrorMessage: "API returned 429: rate limited"}, nil
+		}
+		u.read(`{"type":"response.completed","response":{"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":0}}}}`)
+		return &ScheduledTestResult{Status: "success", ResponseText: "21"}, nil
+	})
+	s := candyServiceFixture(repo, groups)
+	s.RunDue(context.Background(), groupTestNow)
+	require.Len(t, repo.results, 1)
+	require.Equal(t, "correct", repo.results[0].Verdict)
+	require.NotNil(t, repo.results[0].CacheRate)
+	require.Zero(t, *repo.results[0].CacheRate)
+	require.Len(t, router.released, 2)
+}
+
 func TestChannelMonitorV2CandyHistoryScopeAndRedaction(t *testing.T) {
 	p := candyProbeFixture()
 	second := p
@@ -172,7 +193,7 @@ func TestChannelMonitorV2CandyHistoryScopeAndRedaction(t *testing.T) {
 	cfg.CandyProbes = []ChannelMonitorV2CandyProbe{p, second, other}
 	id := int64(4)
 	matrix := &ChannelMonitorV2Matrix{Items: []ChannelMonitorV2MatrixRow{{GroupID: &id}}}
-	require.NoError(t, s.attachHistory(context.Background(), matrix, &cfg, false))
+	require.NoError(t, s.attachHistory(context.Background(), matrix, &cfg, false, true))
 	require.Equal(t, []ChannelMonitorV2CandyScope{{GroupID: 4, ConfigKey: p.key()}, {GroupID: 4, ConfigKey: second.key()}}, repo.historyScopes)
 	require.Equal(t, 40, repo.historyLimit)
 	require.Equal(t, groupTestNow.Add(-24*time.Hour), repo.historySince)
@@ -185,7 +206,7 @@ func TestChannelMonitorV2CandyHistoryScopeAndRedaction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "private")
 	require.NotContains(t, string(encoded), "other group")
-	require.NoError(t, s.attachHistory(context.Background(), matrix, &cfg, true))
+	require.NoError(t, s.attachHistory(context.Background(), matrix, &cfg, true, true))
 	require.Equal(t, "private answer", matrix.Items[0].Candy.Results[0].AnswerPreview)
 	require.Equal(t, "second private", matrix.Items[0].CandyChecks[1].Results[0].AnswerPreview)
 	redactChannelMonitorV2PublicConfig(&cfg)

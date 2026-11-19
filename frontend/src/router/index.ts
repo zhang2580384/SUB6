@@ -547,6 +547,13 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/channels/monitor/v4-preview',
+    name: 'AdminChannelMonitorV4Preview',
+    component: () => import('@/views/user/ChannelStatusV2View.vue'),
+    props: { statisticsVersion: 'v4' },
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'V4 statistics', titleKey: 'channelMonitorV2.v4Preview' },
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),

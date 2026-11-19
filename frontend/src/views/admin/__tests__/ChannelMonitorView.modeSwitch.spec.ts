@@ -39,7 +39,7 @@ const ConfirmStub = defineComponent({
 const stubs = {
   AppLayout: { template: '<main><slot /></main>' },
   TablePageLayout: true, ConfirmDialog: ConfirmStub, MonitorFormDialog: true, MonitorTemplateManagerDialog: true,
-  MonitorRunResultDialog: true, Icon: true, RouterLink: true,
+  MonitorRunResultDialog: true, Icon: true, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
 }
 
 beforeEach(() => {
@@ -70,6 +70,26 @@ describe('channel monitor site mode switch', () => {
     expect(wrapper.find('[data-testid="v3-panel"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="monitor-mode-v3"]').attributes('aria-checked')).toBe('true')
     expect(mocks.showSuccess).toHaveBeenCalled()
+  })
+
+  it('previews V4 without flipping the site and switches only on confirmation', async () => {
+    const wrapper = mount(ChannelMonitorView, { global: { stubs } })
+    await wrapper.get('[data-testid="monitor-tab-v4"]').trigger('click')
+    expect(wrapper.get('[data-testid="monitor-v4-panel"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="monitor-v4-panel"] a').attributes('href')).toBe('/admin/channels/monitor/v4-preview')
+    expect(wrapper.get('[data-testid="monitor-mode-v2"]').attributes('aria-checked')).toBe('true')
+    expect(mocks.setMonitorMode).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="monitor-mode-v4"]').trigger('click')
+    expect(mocks.setMonitorMode).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click')
+    await flushPromises()
+    expect(mocks.setMonitorMode).toHaveBeenCalledWith('v4')
+    expect(wrapper.get('[data-testid="monitor-mode-v4"]').attributes('aria-checked')).toBe('true')
+    await wrapper.get('[data-testid="monitor-mode-v2"]').trigger('click')
+    await wrapper.get('[data-testid="confirm-yes"]').trigger('click')
+    await flushPromises()
+    expect(mocks.setMonitorMode.mock.calls.map(([mode]) => mode)).toEqual(['v4', 'v2'])
+    expect(wrapper.get('[data-testid="monitor-mode-v2"]').attributes('aria-checked')).toBe('true')
   })
 
   it('does nothing when the switch is cancelled or the mode is unchanged', async () => {

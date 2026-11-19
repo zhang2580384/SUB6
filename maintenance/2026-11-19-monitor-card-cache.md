@@ -1,0 +1,13 @@
+# V4 channel monitoring
+
+SUB6 base: `70f8f1954aeac9110a5c908cf4150bb9715b53b0` (v0.1.12). No upstream range is imported by this change.
+
+V4 is a separate monitor mode with its own authenticated user and admin endpoints. Admins may preview the cards without changing the active mode. The default V4 card has the same cache, availability and first-token fields as V2 and 18 equal time windows over 90 minutes. V2 retains its previous metrics and timeline setting.
+
+In the original cache tile, the 90-minute card can show a labeled high cache rate: nearest-rank P90 of the reported ratios in distinct, completed five-minute windows with traffic. It requires at least ten such windows, keeps low and zero ratios, and does not use probes. Its tooltip identifies the percentile, sample count and the ordinary input-weighted rate. When coverage or evidence is insufficient, or a different range is selected, the ordinary field remains. No extra daily request, controls or comparison line. The other ranges use their original rollups.
+
+In an otherwise empty slot, a matching recorded check uses the original solid colors: a model response is green (even if the answer was incorrect), a failed request is red, and no check stays gray. The separate quality timeline retains its original verdict colors. Use the worst verdict in the slot, latest at equal severity. The detail identifies the check and only shows its own reported cache; missing cache remains unknown. A fresh idle check can still supply the existing headline, with its source and time in the badge. Checks do not count toward the P90, traffic totals, availability or latency percentiles.
+
+The database schema is unchanged. Existing operator-selected checks run in V2 or V4; the change adds no scheduled requests, account failovers or chargeable customer traffic. Only the final answered attempt may supply a ratio. After PostgreSQL confirms completion of the claim, the optional measurement is stored in Redis for 24 hours, keyed by the group, configuration, claim ID and database timestamp. V4 reads only the authorized result set. A missing, evicted or unreadable rate leaves the verdict intact and the percentage unknown. V2 does not read these keys. The user API retains existing group permissions and redaction; raw token counts, check answers and failure details are not revealed by the new field.
+
+Validation covers the authenticated route gates, scope and redaction, filters and coverage, timestamp and model matching, new versus expired measurements, concurrent completion and unchanged V2 presentation. Historical checks without a measurement are not backfilled. See the [upgrade and rollback guide](UPGRADE-v0.1.13.md).

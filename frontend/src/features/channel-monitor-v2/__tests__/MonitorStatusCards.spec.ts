@@ -71,6 +71,88 @@ function hoverFixture() {
 }
 const tooltip = () => document.querySelector<HTMLElement>('[role="tooltip"]')
 
+it('keeps the original headline for all business traffic and labels the weighted subset in its details', async () => {
+  const { wrapper, row } = hoverFixture()
+  const coverage = { requested_start: '2026-09-28T00:00:00Z', requested_end: '2026-09-28T01:30:00Z', bucket_seconds: 300 } as MonitorCoverage
+  const ref = { threshold_percent: 30, rate: 0.81, included_input_share: 0.65 }
+  const measured = { ...row, metrics: { ...row.metrics, cache_rate: 0.54 } }
+  const cache = () => wrapper.get('dl dd')
+  await wrapper.setProps({ coverage, items: [{ ...measured, cache_reference: ref }] })
+  expect(cache().text()).toBe('54.0%') // Existing V2 cards never show a filtered reference.
+  await wrapper.setProps({ statisticsVersion: 'v4' })
+  expect(wrapper.findAll('dl dd')).toHaveLength(3)
+  expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.cache')
+  expect(cache().text()).toBe('54.0%')
+  expect(cache().attributes('title')).toContain('5 30 54.0% 65.0% 81.0%')
+  await wrapper.setProps({ coverage: { ...coverage, bucket_seconds: 3600 }, items: [{ ...measured, cache_reference: { ...ref, rate: 1 } }] })
+  expect(cache().text()).toBe('54.0%')
+  expect(cache().attributes('title')).toContain('≥99.9%')
+  expect(cache().attributes('title')).toContain('60 30')
+  await wrapper.setProps({ items: [{ ...row, metrics: { ...row.metrics, cache_rate: 0 }, cache_reference: { ...ref, rate: null, included_input_share: 0 } }] })
+  expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.cache')
+  expect(cache().text()).toBe('0.00%')
+  expect(cache().attributes('title')).toContain('cacheReferenceExcluded')
+  await wrapper.setProps({ items: [{ ...row, cache_reference: { ...ref, rate: null, included_input_share: null } }] })
+  expect(cache().text()).toBe('—')
+  await wrapper.setProps({ items: [measured] })
+  expect(cache().text()).toBe('54.0%')
+})
+
+it('colors idle connectivity by actual response and keeps the answer-quality result separate', async () => {
+  const { wrapper, row } = hoverFixture()
+  const checked = { ...row, cache_reference: { rate: 0.92, threshold_percent: 30, included_input_share: 0.8 } }
+  await wrapper.setProps({ items: [checked] })
+  expect(wrapper.findAll('[data-testid="traffic-history-bar"]')[11].classes()).toContain('bg-gray-300')
+  await wrapper.setProps({ statisticsVersion: 'v4' })
+  const bars = wrapper.findAll('[data-testid="traffic-history-bar"]')
+  expect(bars).toHaveLength(18)
+  const marker = bars[11] // 00:55 .. 01:00, includes the 00:59 probe
+  expect(marker.classes()).toContain('bg-red-400')
+  expect(marker.attributes('aria-label')).toContain('connectionFailed')
+  await marker.trigger('focus')
+  expect(tooltip()?.textContent).toContain('probeDetails demo')
+  expect(tooltip()?.textContent).toContain('checkCacheMissing')
+  expect(tooltip()?.textContent).not.toMatch(/92.0%|88.1%/)
+  expect(tooltip()?.querySelectorAll('[data-testid="monitor-card-tooltip-sample"]')).toHaveLength(0)
+  await wrapper.setProps({ items: [{ ...row, cache_reference: { rate: null, threshold_percent: 30, included_input_share: null } }] })
+  await wrapper.findAll('[data-testid="traffic-history-bar"]')[11].trigger('click')
+  expect(tooltip()?.textContent).toContain('checkCacheMissing')
+  expect(tooltip()?.textContent).not.toContain('probeCacheComparison')
+  await wrapper.setProps({ items: [{ ...row, metrics: { ...row.metrics, cache_rate: 0 } }] })
+  await wrapper.findAll('[data-testid="traffic-history-bar"]')[11].trigger('click')
+  expect(tooltip()?.textContent).toContain('checkCacheMissing')
+  expect(tooltip()?.querySelector('[data-testid="slot-cache-range"]')).toBeNull()
+  const reply = { ...row.candy!.results[0], verdict: 'incorrect' as const, cache_rate: 0.74 }
+  await wrapper.setProps({ items: [{ ...row, candy: { ...row.candy!, results: [reply] } }] })
+  await wrapper.findAll('[data-testid="traffic-history-bar"]')[11].trigger('click')
+  expect(wrapper.findAll('[data-testid="traffic-history-bar"]')[11].classes()).toContain('bg-emerald-400')
+  expect(wrapper.get('[data-testid="candy-history-bar"]').classes()).toContain('bg-amber-400')
+  expect(tooltip()?.textContent).toContain('cards.cache 74.0%')
+})
+
+it('uses the unchanged cache field for a fresh idle check only, including a measured zero', async () => {
+  const { wrapper, row } = hoverFixture()
+  const check = { ...row.candy!.results[0], verdict: 'correct' as const, cache_rate: 0.46 }
+  const idle = { ...row, metrics: { ...row.metrics, has_samples: false, ttft: { ...row.metrics.ttft, p50_ms: null } }, health: { ...row.health, overall: 'unknown' as const }, buckets: [], candy: { ...row.candy!, results: [check] } }
+  await wrapper.setProps({ statisticsVersion: 'v4', items: [idle], now: Date.parse(check.checked_at) + 30000 })
+  expect(wrapper.get('dl dt').text()).toBe('channelMonitorV2.cards.cache')
+  expect(wrapper.findAll('dl dd').map(m => m.text())).toEqual(['46.0%', '—', '-'])
+  expect(wrapper.get('[data-testid="card-check-status"]').text()).toContain('check.correct')
+  const hover = async () => { await wrapper.findAll('[data-testid="traffic-history-bar"]')[11].trigger('mouseenter'); return tooltip()?.textContent }
+  expect(await hover()).toContain('cards.cache 46.0%')
+  await wrapper.setProps({ items: [{ ...idle, candy: { ...idle.candy, results: [{ ...check, cache_rate: 0 }] } }] })
+  expect(wrapper.get('dl dd').text()).toBe('0.00%')
+  expect(await hover()).toContain('cards.cache 0.00%')
+  await wrapper.setProps({ selectedModels: ['another-model'] })
+  expect(wrapper.get('dl dd').text()).toBe('—')
+  expect(wrapper.find('[data-testid="card-check-status"]').exists()).toBe(false)
+  await wrapper.setProps({ selectedModels: [], now: Date.parse(check.checked_at) + 61 * 60000 })
+  expect(wrapper.get('dl dd').text()).toBe('—')
+  await wrapper.setProps({ now: Date.parse(check.checked_at), items: [{ ...idle, metrics: row.metrics }] })
+  expect(wrapper.get('dl dd').text()).toBe('88.1%')
+  expect(wrapper.find('[data-testid="card-check-status"]').exists()).toBe(false)
+})
+
 it('shows each original bucket on hover, with rates and P50 but no absolute volume', async () => {
   const { wrapper } = hoverFixture()
   const bar = wrapper.findAll('[data-testid="traffic-history-bar"]')[1]

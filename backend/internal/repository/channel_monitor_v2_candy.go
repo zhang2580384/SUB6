@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -22,11 +23,69 @@ func (r *channelMonitorV2Repository) ClaimCandyProbe(ctx context.Context, probe 
 }
 
 func (r *channelMonitorV2Repository) FinishCandyProbe(ctx context.Context, result service.ChannelMonitorV2CandyResult) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE channel_monitor_v2_candy_results SET verdict=$2,latency_ms=$3,answer_preview=$4,reason=$5,finished_at=NOW() WHERE id=$1 AND verdict='running'`, result.ID, result.Verdict, result.LatencyMs, result.AnswerPreview, result.Reason)
-	return err
+	const finish = `UPDATE channel_monitor_v2_candy_results SET verdict=$2,latency_ms=$3,answer_preview=$4,reason=$5,finished_at=NOW() WHERE id=$1 AND verdict='running'`
+	args := []any{result.ID, result.Verdict, result.LatencyMs, result.AnswerPreview, result.Reason}
+	if r.probeCache == nil || result.CacheRate == nil || !validProbeRate(*result.CacheRate) || !answeredProbe(result.Verdict) {
+		_, err := r.db.ExecContext(ctx, finish, args...)
+		return err
+	}
+	// Only the worker that completed this exact claim may attach a measurement.
+	err := r.db.QueryRowContext(ctx, finish+` RETURNING group_id,config_key,checked_at`, args...).Scan(&result.GroupID, &result.ConfigKey, &result.CheckedAt)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	_ = r.probeCache.Set(cacheCtx, candyRateKey(result), strconv.FormatFloat(*result.CacheRate, 'g', -1, 64), service.ChannelMonitorV2CandyRetention).Err()
+	return nil
 }
 
-func (r *channelMonitorV2Repository) CandyHistory(ctx context.Context, scopes []service.ChannelMonitorV2CandyScope, since time.Time, limit int) ([]service.ChannelMonitorV2CandyResult, error) {
+func validProbeRate(v float64) bool     { return v >= 0 && v <= 1 }
+func answeredProbe(verdict string) bool { return verdict == "correct" || verdict == "incorrect" }
+
+func candyRateKey(v service.ChannelMonitorV2CandyResult) string {
+	return fmt.Sprintf("sub6:monitor:v4:probe-rate:%d:%s:%d:%d", v.GroupID, v.ConfigKey, v.ID, v.CheckedAt.UnixMicro())
+}
+
+// PostgreSQL supplies the verdict and authorization scope. Missing Redis
+// measurements stay unknown; V2 reads never consult this cache.
+func (r *channelMonitorV2Repository) loadCandyRates(ctx context.Context, history []service.ChannelMonitorV2CandyResult) {
+	if r.probeCache == nil || len(history) == 0 {
+		return
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	for start := 0; start < len(history); start += 256 {
+		batch := history[start:min(start+256, len(history))]
+		keys := make([]string, 0, len(batch))
+		indices := make([]int, 0, len(batch))
+		for i, v := range batch {
+			if answeredProbe(v.Verdict) {
+				keys = append(keys, candyRateKey(v))
+				indices = append(indices, i)
+			}
+		}
+		if len(keys) == 0 {
+			continue
+		}
+		values, err := r.probeCache.MGet(cacheCtx, keys...).Result()
+		if err != nil {
+			return
+		}
+		for i, raw := range values {
+			if s, ok := raw.(string); ok {
+				if v, err := strconv.ParseFloat(s, 64); err == nil && validProbeRate(v) {
+					batch[indices[i]].CacheRate = &v
+				}
+			}
+		}
+	}
+}
+
+func (r *channelMonitorV2Repository) CandyHistory(ctx context.Context, scopes []service.ChannelMonitorV2CandyScope, since time.Time, limit int, includeRates bool) ([]service.ChannelMonitorV2CandyResult, error) {
 	out := []service.ChannelMonitorV2CandyResult{}
 	if len(scopes) == 0 {
 		return out, nil
@@ -66,7 +125,13 @@ func (r *channelMonitorV2Repository) CandyHistory(ctx context.Context, scopes []
 		}
 		out = append(out, item)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if includeRates {
+		r.loadCandyRates(ctx, out)
+	}
+	return out, nil
 }
 
 func (r *channelMonitorV2Repository) PruneCandyHistory(ctx context.Context, now time.Time) error {

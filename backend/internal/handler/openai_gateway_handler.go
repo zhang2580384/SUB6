@@ -167,7 +167,6 @@ func advanceOpenAIWSCyberBlockState(blocked, pending, marked bool, turnErr error
 }
 
 var errOpenAIWSUnsupportedModelSwitch = errors.New("selected account does not support websocket model switch")
-var errOpenAIWSLocalAdmissionRejected = errors.New("openai websocket request rejected by local admission policy")
 
 func newOpenAIWSUnsupportedModelSwitchError(model string) error {
 	cause := fmt.Errorf("%w: model %q", errOpenAIWSUnsupportedModelSwitch, strings.TrimSpace(model))
@@ -175,7 +174,7 @@ func newOpenAIWSUnsupportedModelSwitchError(model string) error {
 }
 
 func newOpenAIWSLocalAdmissionCloseError(reason string) error {
-	return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, reason, errOpenAIWSLocalAdmissionRejected)
+	return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, reason, service.ErrOpenAIWSLocalAdmissionRejected)
 }
 
 func shouldReportOpenAIWSProxyAccountFailure(err error) bool {
@@ -183,7 +182,7 @@ func shouldReportOpenAIWSProxyAccountFailure(err error) bool {
 	return err != nil &&
 		!errors.As(err, &recovery) &&
 		!errors.Is(err, errOpenAIWSUnsupportedModelSwitch) &&
-		!errors.Is(err, errOpenAIWSLocalAdmissionRejected) &&
+		!errors.Is(err, service.ErrOpenAIWSLocalAdmissionRejected) &&
 		!errors.Is(err, service.ErrOpenAIWSNodeOwner) &&
 		!service.IsOpenAIWSSessionPreemptedError(err)
 }
@@ -3787,13 +3786,13 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 					if blocked := blockedModelAllowlistCandidate(apiKey.Group, turnQueuePermissions.Models); blocked != "" {
 						service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
 						middleware2.MarkIngressRejected(c, middleware2.IngressRejectModelNotAllowed)
-						return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, fmt.Sprintf("Model %q is not available for this group", blocked), nil)
+						return newOpenAIWSLocalAdmissionCloseError(fmt.Sprintf("Model %q is not available for this group", blocked))
 					}
 				}
 				if denied := service.FirstUserGroupDeniedModel(apiKey.DeniedModelsInGroup(), turnQueuePermissions.Models); denied != "" {
 					service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
 					middleware2.MarkIngressRejected(c, middleware2.IngressRejectModelNotAllowed)
-					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, fmt.Sprintf("Model %q is not available for your account in this group", denied), nil)
+					return newOpenAIWSLocalAdmissionCloseError(fmt.Sprintf("Model %q is not available for your account in this group", denied))
 				}
 				auditBody := clientPayload
 				if rebuiltAuditBody != nil {
@@ -3801,11 +3800,11 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 				}
 				if decision := h.checkSecurityAuditStage(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, model, auditBody, "subsequent_turn"); decision != nil && !decision.AllowNextStage {
 					writeSecurityAuditWSError(ctx, wsConn, decision)
-					return service.NewOpenAIWSClientCloseError(securityAuditWSCloseStatus(decision), securityAuditWSCloseReason(decision), errOpenAIWSLocalAdmissionRejected)
+					return service.NewOpenAIWSClientCloseError(securityAuditWSCloseStatus(decision), securityAuditWSCloseReason(decision), service.ErrOpenAIWSLocalAdmissionRejected)
 				}
 				if decision := checkSelectedUpstreamAudit(c, c.Request.Context(), account); decision != nil && !decision.AllowNextStage {
 					writeSecurityAuditWSError(ctx, wsConn, decision)
-					return service.NewOpenAIWSClientCloseError(securityAuditWSCloseStatus(decision), securityAuditWSCloseReason(decision), errOpenAIWSLocalAdmissionRejected)
+					return service.NewOpenAIWSClientCloseError(securityAuditWSCloseStatus(decision), securityAuditWSCloseReason(decision), service.ErrOpenAIWSLocalAdmissionRejected)
 				}
 				return nil
 			},
@@ -4294,7 +4293,7 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSSession(c *gin.Context, wsConn servi
 				return
 			}
 
-			if errors.Is(err, errOpenAIWSLocalAdmissionRejected) {
+			if errors.Is(err, service.ErrOpenAIWSLocalAdmissionRejected) {
 				fields := []zap.Field{zap.Int64("account_id", account.ID)}
 				if hasClientCloseErr {
 					fields = append(fields, zap.String("reason", closeErr.Reason()))

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -87,6 +88,44 @@ func TestPelicanTestUsageStreams(t *testing.T) {
 			require.NotNil(t, cost)
 			require.Positive(t, *cost)
 			require.Equal(t, tc.partial, partial)
+		})
+	}
+}
+
+func TestMonitorProbeCacheRequiresMeasuredCountersFromOneCompletedResponse(t *testing.T) {
+	tests := []struct {
+		name, protocol string
+		events         []string
+		want           string
+	}{
+		{"measured miss", "openai", []string{`{"type":"response.completed","response":{"usage":{"input_tokens":55,"input_tokens_details":{"cached_tokens":0}}}}`}, "0"},
+		{"missing hits", "openai", []string{`{"type":"response.completed","response":{"usage":{"input_tokens":55}}}`}, ""},
+		{"missing input", "openai", []string{`{"type":"response.completed","response":{"usage":{"input_tokens_details":{"cached_tokens":22}}}}`}, ""},
+		{"partial", "openai", []string{`{"type":"response.in_progress","response":{"usage":{"input_tokens":55,"input_tokens_details":{"cached_tokens":44}}}}`}, ""},
+		{"exceed total", "openai", []string{`{"type":"response.completed","response":{"usage":{"input_tokens":55,"input_tokens_details":{"cached_tokens":60}}}}`}, ""},
+		{"invalid fractional counter", "openai", []string{`{"type":"response.completed","response":{"usage":{"input_tokens":55,"input_tokens_details":{"cached_tokens":0.5}}}}`}, ""},
+		{"openai", "openai", []string{`{"type":"response.completed","response":{"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":46}}}}`}, "0.46"},
+		{"chat final usage", "chat", []string{`{"choices":[{"finish_reason":"stop"}]}`, `{"usage":{"prompt_tokens":100,"prompt_tokens_details":{"cached_tokens":42}}}`}, "0.42"},
+		{"anthropic input splits", "anthropic", []string{`{"type":"message_start","message":{"usage":{"input_tokens":10,"cache_read_input_tokens":80,"cache_creation_input_tokens":10}}}`, `{"type":"message_delta","usage":{"output_tokens":3}}`, `{"type":"message_stop"}`}, "0.8"},
+		{"gemini input total", "gemini", []string{`{"candidates":[{"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":20,"cachedContentTokenCount":5}}`}, "0.25"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &pelicanTestUsageCollector{}
+			ctx := context.WithValue(context.Background(), pelicanTestUsageKey{}, c)
+			u := startPelicanTestUsage(ctx, tc.protocol)
+			for _, e := range tc.events {
+				u.read(e)
+			}
+			rate := c.singleResponseCacheRate()
+			if tc.want == "" {
+				require.Nil(t, rate)
+				return
+			}
+			require.NotNil(t, rate)
+			require.Equal(t, tc.want, strconv.FormatFloat(*rate, 'f', -1, 64))
+			startPelicanTestUsage(ctx, tc.protocol)
+			require.Nil(t, c.singleResponseCacheRate(), "ambiguous multi-stream samples are not a single measured request")
 		})
 	}
 }

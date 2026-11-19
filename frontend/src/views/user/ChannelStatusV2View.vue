@@ -11,7 +11,7 @@
               <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400">
                 <Icon name="chart" size="sm" />
               </span>
-              {{ t('channelMonitorV2.title') }}
+              {{ t(statisticsVersion === 'v4' ? 'channelMonitorV2.v4Title' : 'channelMonitorV2.title') }}
             </h1>
             <div class="page-description mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span class="relative flex h-2 w-2 shrink-0">
@@ -196,7 +196,7 @@
           </div>
           </template>
           <template v-else>
-            <span class="ml-3 text-xs text-gray-500 dark:text-gray-400">{{ t('channelMonitorV2.cards.passive') }}</span>
+            <span class="ml-3 text-xs text-gray-500 dark:text-gray-400">{{ t(statisticsVersion === 'v4' ? 'channelMonitorV2.cards.v4Source' : 'channelMonitorV2.cards.passive') }}</span>
             <button v-if="hasDimensionFilter" class="btn btn-ghost btn-sm" @click="clearDimensions">{{ t('channelMonitorV2.clearFilters') }}</button>
             <span v-if="snapshot && hasMonitorSamples(snapshot.metrics)" class="ml-auto hidden text-xs text-gray-500 dark:text-gray-400 md:inline">{{ t('channelMonitorV2.cards.availability') }} {{ formatPercent(1 - snapshot.metrics.error_rate) }} · {{ t('channelMonitorV2.cards.cache') }} {{ formatPercent(snapshot.metrics.cache_rate) }}</span>
           </template>
@@ -212,6 +212,8 @@
         :now="clockNow"
         :platform-order="cardPlatformOrder"
         :timeline-mode="cardTimelineMode"
+        :selected-models="filter.models"
+        :statistics-version="statisticsVersion"
       />
       <template v-else>
       <!-- Overview KPI: success · TTFT · tokens/s(optional) · cache · (+ RPM when throughput visible) -->
@@ -535,6 +537,8 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const props = withDefaults(defineProps<{ statisticsVersion?: api.StatisticsVersion; readVersion?: api.StatisticsVersion; viewerOnly?: boolean }>(), { statisticsVersion: 'v2' })
+const readVersion = computed(() => props.readVersion ?? props.statisticsVersion)
 const { t, te, locale } = useI18n()
 const { providerLabel } = useChannelMonitorFormat()
 const analytics = ref(false)
@@ -542,7 +546,7 @@ const clockNow = ref(Date.now())
 const nextRefreshAt = ref(0)
 const countdown = computed(() => Math.max(0, Math.ceil((nextRefreshAt.value - clockNow.value) / 1000)))
 let clockTimer: ReturnType<typeof setInterval> | undefined
-const isAdmin = computed(() => authStore.isAdmin)
+const isAdmin = computed(() => !props.viewerOnly && authStore.isAdmin)
 /** Admins always see RPM/TPM; users honor the hide-throughput system setting. */
 const showThroughput = computed(() => isAdmin.value || !isChannelMonitorThroughputHidden())
 /** Admins always see ranking; users honor the hide-user-ranking system setting. */
@@ -592,7 +596,7 @@ const snapshot = ref<MonitorSnapshot | null>(null)
 // Dimensions load only in analytics mode. Cards are the default view, so their
 // order comes from the snapshot config fetched with the matrix.
 const cardPlatformOrder = computed(() => monitorCardPlatformOrder(snapshot.value?.config?.platforms))
-const cardTimelineMode = computed(() => snapshot.value?.config?.card_timeline_mode === 'samples' ? 'samples' : 'windows')
+const cardTimelineMode = computed(() => props.statisticsVersion === 'v2' && snapshot.value?.config?.card_timeline_mode === 'samples' ? 'samples' : 'windows')
 const matrix = ref<MonitorMatrixResponse | null>(null)
 const modelRows = ref<MonitorModelRow[]>([])
 const errorRows = ref<MonitorErrorRow[]>([])
@@ -745,15 +749,18 @@ async function loadDimensions(signal?: AbortSignal, id = sequence) {
     groupIds: [],
     models: [],
   }
-  const next = await api.getDimensions(rangeOnly, isAdmin.value, signal)
+  const next = await api.getDimensions(rangeOnly, isAdmin.value, signal, readVersion.value)
   if (id !== sequence) return
   dimensions.value = next
 }
 
 async function loadMetrics(signal?: AbortSignal, id = sequence) {
   const [nextSnapshot, nextMatrix] = await Promise.all([
-    api.getSnapshot(filter.value, isAdmin.value, signal),
-    api.getMatrix(filter.value, analytics.value ? matrixGroupBy.value : 'platform_group', isAdmin.value, signal, { recentSamples: !analytics.value }),
+    api.getSnapshot(filter.value, isAdmin.value, signal, readVersion.value),
+    api.getMatrix(filter.value, analytics.value ? matrixGroupBy.value : 'platform_group', isAdmin.value, signal, {
+      recentSamples: !analytics.value && props.statisticsVersion === 'v2',
+      cacheReference: !analytics.value && props.statisticsVersion === 'v4',
+    }, readVersion.value),
   ])
   if (id !== sequence) return
   snapshot.value = nextSnapshot
@@ -815,11 +822,11 @@ async function loadTab(signal?: AbortSignal, id = sequence) {
   tabLoading.value = true
   try {
     if (activeTab.value === 'models') {
-      modelRows.value = (await api.getModels(filter.value, isAdmin.value, signal)).items || []
+      modelRows.value = (await api.getModels(filter.value, isAdmin.value, signal, readVersion.value)).items || []
     } else if (activeTab.value === 'errors') {
-      errorRows.value = (await api.getErrors(filter.value, isAdmin.value, signal)).items || []
+      errorRows.value = (await api.getErrors(filter.value, isAdmin.value, signal, readVersion.value)).items || []
     } else if (showUserRanking.value) {
-      userRows.value = (await api.getUsers(filter.value, isAdmin.value, signal)).items || []
+      userRows.value = (await api.getUsers(filter.value, isAdmin.value, signal, readVersion.value)).items || []
     } else {
       userRows.value = []
     }

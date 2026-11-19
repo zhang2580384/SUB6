@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,7 @@ type pelicanTestUsage struct {
 	inputSeen   bool
 	outputSeen  bool
 	complete    bool
+	cacheRate   *float64
 }
 
 func startPelicanTestStream(c *gin.Context, protocol string) *pelicanTestUsage {
@@ -104,6 +106,25 @@ func (u *pelicanTestUsage) read(raw string) {
 	if !usage.IsObject() {
 		return
 	}
+	// Keep the measured input ratio independent of billing's best-effort token counts.
+	switch u.protocol {
+	case "openai":
+		if eventType == "response.completed" || eventType == "response.done" {
+			u.cacheRate = measuredProbeCacheRate(usage, "input_tokens", "input_tokens_details.cached_tokens", "")
+		}
+	case "chat":
+		hits := "prompt_tokens_details.cached_tokens"
+		if !usage.Get(hits).Exists() {
+			hits = "prompt_cache_hit_tokens"
+		}
+		u.cacheRate = measuredProbeCacheRate(usage, "prompt_tokens", hits, "")
+	case "anthropic":
+		if eventType == "message_start" || usage.Get("input_tokens").Exists() {
+			u.cacheRate = measuredProbeCacheRate(usage, "input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+		}
+	case "gemini":
+		u.cacheRate = measuredProbeCacheRate(usage, "promptTokenCount", "cachedContentTokenCount", "")
+	}
 	set := func(field string, value *int) {
 		if n := usage.Get(field); n.Type == gjson.Number && n.Float() >= 0 {
 			*value = int(n.Int())
@@ -147,6 +168,43 @@ func (u *pelicanTestUsage) read(raw string) {
 		u.tokens.InputTokens = max(0, u.input-u.tokens.CacheReadTokens-u.tokens.CacheCreationTokens)
 	}
 	u.tokens.OutputTokens = u.output + u.thoughts
+}
+
+// OpenAI and Gemini report total input. Anthropic reports uncached input,
+// cache reads and cache writes separately. Missing counters are not zeroes.
+func measuredProbeCacheRate(usage gjson.Result, input, hits, writes string) *float64 {
+	tokens := func(path string) (uint64, bool) {
+		n := usage.Get(path)
+		if n.Type != gjson.Number {
+			return 0, false
+		}
+		v, err := strconv.ParseUint(n.Raw, 10, 53)
+		return v, err == nil
+	}
+	total, inputOK := tokens(input)
+	cached, hitsOK := tokens(hits)
+	if !inputOK || !hitsOK {
+		return nil
+	}
+	if writes != "" {
+		created, ok := tokens(writes)
+		if !ok {
+			return nil
+		}
+		total += cached + created
+	}
+	if total == 0 || cached > total {
+		return nil
+	}
+	rate := float64(cached) / float64(total)
+	return &rate
+}
+
+func (c *pelicanTestUsageCollector) singleResponseCacheRate() *float64 {
+	if len(c.requests) != 1 || !c.requests[0].complete {
+		return nil
+	}
+	return c.requests[0].cacheRate
 }
 
 // Return a cost snapshot, not a debit. Use the account's upstream cost multiplier,

@@ -11,12 +11,16 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
-type channelMonitorV2Repository struct{ db *sql.DB }
+type channelMonitorV2Repository struct {
+	db         *sql.DB
+	probeCache *redis.Client
+}
 
-func NewChannelMonitorV2Repository(db *sql.DB) service.ChannelMonitorV2Repository {
-	return &channelMonitorV2Repository{db: db}
+func NewChannelMonitorV2Repository(db *sql.DB, probeCache *redis.Client) service.ChannelMonitorV2Repository {
+	return &channelMonitorV2Repository{db: db, probeCache: probeCache}
 }
 
 func (r *channelMonitorV2Repository) GetConfig(ctx context.Context) (*service.ChannelMonitorV2Config, error) {
