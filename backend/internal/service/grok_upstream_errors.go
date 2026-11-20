@@ -259,7 +259,8 @@ func grokUpstreamErrorCode(body []byte) string {
 }
 
 func grokContentPolicyClientMessage(responseBody []byte) string {
-	message := sanitizeUpstreamErrorMessage(strings.TrimSpace(grokUpstreamErrorMessage(responseBody)))
+	// A flat refusal uses the public policy message. Media validation errors have their own formatter.
+	message := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(responseBody)))
 	if message == "" {
 		return "Request blocked by upstream content policy"
 	}
