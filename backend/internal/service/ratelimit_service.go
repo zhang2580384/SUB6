@@ -1961,7 +1961,7 @@ func (s *RateLimitService) persistOpenAICodexSnapshot(ctx context.Context, accou
 	if len(updates) == 0 {
 		return
 	}
-	if _, err := persistCodexUsageUpdates(ctx, s.accountRepo, account.ID, updates); err != nil {
+	if _, err := persistCodexUsageUpdates(ctx, s.accountRepo, account.ID, updates, CodexResponseObservation); err != nil {
 		slog.Warn("openai_codex_snapshot_persist_failed", "account_id", account.ID, "error", err)
 		return
 	}

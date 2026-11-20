@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -50,6 +51,20 @@ func confirmTestNotification() *payment.PaymentNotification {
 	}
 }
 
+func TestEasyPayConfirmRejectsInvalidNotifiedAmountsBeforeQuery(t *testing.T) {
+	p, calls := newConfirmTestEasyPay(t, "", http.StatusOK)
+	for _, amount := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		notification := confirmTestNotification()
+		notification.Amount = amount
+		if err := p.ConfirmNotification(t.Context(), notification); err == nil {
+			t.Fatalf("accepted invalid notified amount %v", amount)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatal("invalid notifications must be rejected before querying an order")
+	}
+}
+
 func TestEasyPayConfirmNotification(t *testing.T) {
 	t.Parallel()
 
@@ -83,6 +98,11 @@ func TestEasyPayConfirmNotification(t *testing.T) {
 			body:        `{"code":-1,"msg":"订单号不存在","status":1,"money":"10.00"}`,
 			notifyTrade: "2026101600001",
 			wantErr:     "订单号不存在",
+		},
+		{
+			name:    "invalid numeric value in a paid order",
+			body:    `{"code":1,"money":"NaN","status":1}`,
+			wantErr: "amount mismatch",
 		},
 		{
 			name:        "amount mismatch",

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -557,6 +558,26 @@ func ApplyReasoningEffortPolicy(body []byte, maxEffort string, mappings []Reason
 	if requestModel == "" {
 		requestModel = strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	}
+	resolve := func(original string) (string, error) {
+		effective, mapped := mapReasoningEffort(original, mappings, requestModel)
+		if mapped && isReasoningEffortMappingDeny(effective) {
+			requested := normalizeReasoningEffortMappingSource(original)
+			if requested == "" {
+				requested = original
+			}
+			return "", &ReasoningEffortMappingDeniedError{Requested: requested}
+		}
+		if currentRank, recognized := reasoningEffortRank(effective); recognized {
+			effective = NormalizeMaxReasoningEffort(effective)
+			if hasMax && currentRank > maxRank {
+				if deny {
+					return "", &ReasoningEffortOverLimitError{Requested: effective, Max: canonicalMax}
+				}
+				effective = canonicalMax
+			}
+		}
+		return effective, nil
+	}
 	result := body
 	changed := false
 	for _, path := range []string{"reasoning.effort", "reasoning_effort", "output_config.effort"} {
@@ -569,22 +590,9 @@ func ApplyReasoningEffortPolicy(body []byte, maxEffort string, mappings []Reason
 			continue
 		}
 
-		effective, mapped := mapReasoningEffort(original, mappings, requestModel)
-		if mapped && isReasoningEffortMappingDeny(effective) {
-			requested := normalizeReasoningEffortMappingSource(original)
-			if requested == "" {
-				requested = original
-			}
-			return body, false, &ReasoningEffortMappingDeniedError{Requested: requested}
-		}
-		if currentRank, recognized := reasoningEffortRank(effective); recognized {
-			effective = NormalizeMaxReasoningEffort(effective)
-			if hasMax && currentRank > maxRank {
-				if deny {
-					return body, false, &ReasoningEffortOverLimitError{Requested: effective, Max: canonicalMax}
-				}
-				effective = canonicalMax
-			}
+		effective, err := resolve(original)
+		if err != nil {
+			return body, false, err
 		}
 		if effective == original {
 			continue
@@ -597,7 +605,73 @@ func ApplyReasoningEffortPolicy(body []byte, maxEffort string, mappings []Reason
 		result = updated
 		changed = true
 	}
-	return result, changed, nil
+	updated, updatesChanged, err := rewriteResponsesConfigurationEfforts(result, resolve)
+	if err != nil {
+		return body, false, err
+	}
+	return updated, changed || updatesChanged, nil
+}
+
+// Configuration updates can appear more than once in Responses input history. Apply
+// the same policy to each explicit effort, preserving every unrelated input byte.
+func rewriteResponsesConfigurationEfforts(body []byte, resolve func(string) (string, error)) ([]byte, bool, error) {
+	if !mayHaveResponsesConfigurationUpdate(body) {
+		return body, false, nil
+	}
+	input := parseRawJSONView(body).Get("input")
+	if !input.IsArray() {
+		return body, false, nil
+	}
+	var buf bytes.Buffer
+	var policyErr error
+	cursor := 0
+	input.ForEach(func(_, item gjson.Result) bool {
+		if item.Get("type").Str != responsesConfigurationUpdate {
+			return true
+		}
+		field := item.Get("reasoning.effort")
+		if !field.Exists() {
+			return true
+		}
+		if field.Type != gjson.String {
+			policyErr = errors.New("configuration update reasoning.effort must be a string")
+			return false
+		}
+		original := strings.TrimSpace(field.Str)
+		if original == "" {
+			return true
+		}
+		effective, err := resolve(original)
+		if err != nil {
+			policyErr = err
+			return false
+		}
+		if effective == original {
+			return true
+		}
+		start, end := field.Index, field.Index+len(field.Raw)
+		if start < cursor || end > len(body) || string(body[start:end]) != field.Raw {
+			policyErr = errors.New("could not locate configuration update reasoning.effort")
+			return false
+		}
+		encoded, err := json.Marshal(effective)
+		if err != nil {
+			policyErr = err
+			return false
+		}
+		buf.Write(body[cursor:start])
+		buf.Write(encoded)
+		cursor = end
+		return true
+	})
+	if policyErr != nil {
+		return body, false, policyErr
+	}
+	if cursor == 0 {
+		return body, false, nil
+	}
+	buf.Write(body[cursor:])
+	return buf.Bytes(), true, nil
 }
 
 // The optional key preference extends the original group-only policy call.

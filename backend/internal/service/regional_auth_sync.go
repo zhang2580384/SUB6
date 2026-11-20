@@ -70,7 +70,13 @@ func ExportRegionalAuth(ctx context.Context, source RegionalAuthSource, allowed 
 			return nil, errors.New("invalid regional auth source record")
 		}
 		snapshot := mapper.snapshotFromAPIKey(ctx, key)
+		if owner := key.User.UserGroupRPMOverrideGroupID; owner != 0 && (key.GroupID == nil || owner != *key.GroupID) {
+			return nil, errors.New("regional RPM policy belongs to another group")
+		}
 		snapshot.User.UserGroupRPMOverride = key.User.UserGroupRPMOverride
+		// Regional v1 readers reject unknown fields. The signed entry already binds
+		// the policy to its group, so infer ownership after validating the snapshot.
+		snapshot.User.UserGroupRPMOverrideGroupID = 0
 		// Notification/contact data is unnecessary for local authorization.
 		snapshot.User.Email = ""
 		snapshot.User.Username = ""
@@ -109,6 +115,12 @@ func decodeRegionalAuth(payload []byte) (RegionalAuthDocument, error) {
 		}
 		if (s.GroupID == nil && s.Group != nil) || (s.GroupID != nil && (*s.GroupID <= 0 || (s.Group != nil && s.Group.ID != *s.GroupID))) {
 			return doc, errors.New("invalid regional auth group")
+		}
+		if s.User.UserGroupRPMOverrideGroupID != 0 {
+			return doc, errors.New("unexpected RPM group marker in regional v1 document")
+		}
+		if s.GroupID != nil && s.Group != nil {
+			s.User.UserGroupRPMOverrideGroupID = *s.GroupID
 		}
 		if len(ip.ValidateIPPatterns(s.IPWhitelist)) > 0 || len(ip.ValidateIPPatterns(s.IPBlacklist)) > 0 {
 			return doc, errors.New("invalid regional auth IP rules")

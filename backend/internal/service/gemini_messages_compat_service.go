@@ -2241,6 +2241,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	openToolIndex := -1
 	openToolID := ""
 	openToolName := ""
+	var toolBoundary geminiToolCallBoundary
 	var seenToolJSON geminiTextDelta
 
 	reader := bufio.NewReader(resp.Body)
@@ -2308,6 +2309,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					openToolIndex = -1
 					openToolName = ""
 					seenToolJSON.reset()
+					toolBoundary = geminiToolCallBoundary{}
 				}
 				if openBlockType != "thinking" {
 					if openBlockIndex >= 0 {
@@ -2359,6 +2361,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					openToolIndex = -1
 					openToolName = ""
 					seenToolJSON.reset()
+					toolBoundary = geminiToolCallBoundary{}
 				}
 
 				delta := seenText.next(text)
@@ -2420,7 +2423,8 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 				}
 
 				// If we receive streamed tool args in pieces, keep a single tool block open and emit deltas.
-				if openToolIndex >= 0 && openToolName != name {
+				argsJSONText := geminiToolCallArgsJSON(args)
+				if openToolIndex >= 0 && toolBoundary.startsNewBlock(openToolName, seenToolJSON.seen.String(), argsJSONText, fc) {
 					writeSSE(c.Writer, "content_block_stop", map[string]any{
 						"type":  "content_block_stop",
 						"index": openToolIndex,
@@ -2428,6 +2432,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					openToolIndex = -1
 					openToolName = ""
 					seenToolJSON.reset()
+					toolBoundary = geminiToolCallBoundary{}
 				}
 
 				if openToolIndex < 0 {
@@ -2449,21 +2454,8 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					})
 				}
 
-				argsJSONText := "{}"
-				switch v := args.(type) {
-				case nil:
-					// keep default "{}"
-				case string:
-					if strings.TrimSpace(v) != "" {
-						argsJSONText = v
-					}
-				default:
-					if b, err := json.Marshal(args); err == nil && len(b) > 0 {
-						argsJSONText = string(b)
-					}
-				}
-
 				delta := seenToolJSON.next(argsJSONText)
+				toolBoundary.observe(fc)
 				if delta != "" {
 					writeSSE(c.Writer, "content_block_delta", map[string]any{
 						"type":  "content_block_delta",
@@ -3709,6 +3701,34 @@ func convertClaudeMessagesToGeminiContents(messages any, toolUseIDToName map[str
 			"role":  gRole,
 			"parts": parts,
 		})
+	}
+	// Gemini/Vertex 拒收「以 functionResponse 开头、后面还跟着其它 part」的最后一个 turn，
+	// 报错文案是误导性的 "Requests ending with a model turn are not supported."。
+	// 客户端在工具结果后紧跟一条 user 文本时（例如 ACP nudge），CC→Claude 的
+	// mergeConsecutiveMessages 会把它并进同一个 user 消息，这里再把尾部的非
+	// functionResponse part 拆成独立的一轮 user，语义顺序不变。
+	if n := len(out); n > 0 {
+		if last, ok := out[n-1].(map[string]any); ok {
+			if parts, ok := last["parts"].([]any); ok {
+				lastFR := -1
+				for i, p := range parts {
+					pm, ok := p.(map[string]any)
+					if !ok {
+						continue
+					}
+					if _, isFR := pm["functionResponse"]; isFR {
+						lastFR = i
+					}
+				}
+				if lastFR >= 0 && lastFR < len(parts)-1 {
+					last["parts"] = parts[:lastFR+1]
+					out = append(out, map[string]any{
+						"role":  "user",
+						"parts": parts[lastFR+1:],
+					})
+				}
+			}
+		}
 	}
 	return out, nil
 }

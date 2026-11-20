@@ -62,27 +62,27 @@ func RejectConflictingRequestFields() gin.HandlerFunc {
 	}
 }
 
-// writeGatewayInvalidRequest 按入口协议输出 invalid_request_error：
-// Gemini 原生（/v1beta、/antigravity/v1beta）用 Google 格式，Messages 和 System One 入口用
-// Anthropic 格式，其余用 OpenAI 格式。协议划分与 groupModelAllowlistErrorWriter
-// 相同；不复用它，是因为现有的 Anthropic / OpenAI 写入器把非 404/403 的状态写成
-// api_error / model_not_found。
+// Use the matched route pattern so an arbitrary Responses subpath cannot change
+// which protocol describes a read failure.
 func writeGatewayInvalidRequest(c *gin.Context, status int, message string) {
+	writeGatewayRequestError(c, status, message, "invalid_request_error", "invalid_request_error")
+}
+
+func writeGatewayRequestError(c *gin.Context, status int, message, openAIType, anthropicType string) {
 	path := c.FullPath()
 	if path == "" && c.Request != nil && c.Request.URL != nil {
 		path = c.Request.URL.Path
 	}
 	switch {
-	case strings.HasPrefix(path, "/v1beta") || strings.HasPrefix(path, "/antigravity/v1beta"):
+	case strings.HasPrefix(path, "/v1beta"), strings.HasPrefix(path, "/antigravity/v1beta"):
+		if status == http.StatusServiceUnavailable {
+			writeGoogleError(c, status, message, "UNAVAILABLE")
+			return
+		}
 		GoogleErrorWriter(c, status, message)
 	case strings.HasSuffix(path, "/messages"), strings.HasSuffix(path, "/messages/count_tokens"), path == "/v1/systemone":
-		c.JSON(status, gin.H{
-			"type":  "error",
-			"error": gin.H{"type": "invalid_request_error", "message": message},
-		})
+		c.JSON(status, gin.H{"type": "error", "error": gin.H{"type": anthropicType, "message": message}})
 	default:
-		c.JSON(status, gin.H{
-			"error": gin.H{"type": "invalid_request_error", "message": message},
-		})
+		c.JSON(status, gin.H{"error": gin.H{"type": openAIType, "message": message}})
 	}
 }

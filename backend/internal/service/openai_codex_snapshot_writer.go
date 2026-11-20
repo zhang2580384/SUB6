@@ -23,8 +23,17 @@ type codexWriteKey struct {
 // return a cache publication error even if the database write already committed.
 // In-memory/non-persistent adapters can retain the basic UpdateExtra contract.
 type CodexUsageSnapshotRepository interface {
-	UpdateCodexUsageSnapshot(context.Context, int64, map[string]any) (bool, error)
+	UpdateCodexUsageSnapshot(context.Context, int64, map[string]any, CodexObservationSource) (bool, error)
 }
+
+// A usage query is ordered at request start. If the clock cannot distinguish
+// two observations, a query must not replace a response already received.
+type CodexObservationSource uint8
+
+const (
+	CodexResponseObservation CodexObservationSource = iota
+	CodexQueryObservation
+)
 
 func (t *accountWriteThrottle) close() {
 	t.mu.Lock()
@@ -141,9 +150,9 @@ func codexUpdatesTime(updates map[string]any) time.Time {
 	return parsed
 }
 
-func persistCodexUsageUpdates(ctx context.Context, repo AccountRepository, id int64, updates map[string]any) (bool, error) {
+func persistCodexUsageUpdates(ctx context.Context, repo AccountRepository, id int64, updates map[string]any, source CodexObservationSource) (bool, error) {
 	if writer, ok := repo.(CodexUsageSnapshotRepository); ok {
-		return writer.UpdateCodexUsageSnapshot(ctx, id, updates)
+		return writer.UpdateCodexUsageSnapshot(ctx, id, updates, source)
 	}
 	if err := repo.UpdateExtra(ctx, id, updates); err != nil {
 		return false, err

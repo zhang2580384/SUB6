@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
+
 	"github.com/gin-gonic/gin"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
@@ -150,4 +152,25 @@ func TestGatewayReadFailureUsesMessagesProtocol(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.JSONEq(t, `{"type":"error","error":{"type":"invalid_request_error","message":"Failed to read request body"}}`, rec.Body.String())
+}
+
+func TestGatewayBodyCapacityErrorsUseMatchedProtocol(t *testing.T) {
+	const message = "Request body buffering capacity is exhausted; retry later"
+	for _, tc := range []struct{ route, url, response string }{
+		{"/v1/systemone", "/v1/systemone", `{"type":"error","error":{"type":"api_error","message":"` + message + `"}}`},
+		{"/v1/messages", "/v1/messages", `{"type":"error","error":{"type":"api_error","message":"` + message + `"}}`},
+		{"/v1/responses/*subpath", "/v1/responses/messages", `{"error":{"type":"server_error","message":"` + message + `"}}`},
+		{"/v1beta/models/*action", "/v1beta/models/example:generateContent", `{"error":{"code":503,"status":"UNAVAILABLE","message":"` + message + `"}}`},
+	} {
+		t.Run(tc.url, func(t *testing.T) {
+			router := gin.New()
+			router.POST(tc.route, RequestBodyLimit(1024, pkghttputil.NewBodyMemoryBudget(1)), RejectConflictingRequestFields(), func(*gin.Context) { t.Fatal("capacity error reached handler") })
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tc.url, bytes.NewBufferString(`{"model":"example"}`))
+			router.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+			require.Equal(t, "1", rec.Header().Get("Retry-After"))
+			require.JSONEq(t, tc.response, rec.Body.String())
+		})
+	}
 }

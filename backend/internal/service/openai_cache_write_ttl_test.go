@@ -123,6 +123,24 @@ func TestOpenAICacheWriteTTLInvalidDetailsKeepAggregate(t *testing.T) {
 	}
 }
 
+func TestOpenAICacheWriteTTLDoesNotChargeAnthropicBreakdownTwice(t *testing.T) {
+	// A translated usage can carry native details as well. The exhaustive
+	// OpenAI breakdown wins for both the customer and account-side pricing.
+	usage := OpenAIUsage{InputTokens: 105, CacheReadInputTokens: 3, CacheCreationInputTokens: 100,
+		CacheCreation30mInputTokens: 40, CacheCreation12hInputTokens: 60,
+		CacheCreation5mTokens: 10, CacheCreation1hTokens: 70}
+	tokens := usage.billingUsageTokens()
+	require.Equal(t, 2, tokens.InputTokens)
+	p := &ModelPricing{SupportsCacheBreakdown: true, CacheCreation5mPrice: 7, CacheCreation1hPrice: 9,
+		CacheCreation12hPricePerToken: float64Ptr(3)}
+	// 40 short writes at 2 and 60 long writes at 3, once.
+	require.Equal(t, 260.0, (&BillingService{}).computeCacheCreationCost(p, tokens, 2, 1))
+	stats := calculateTokenStatsCost(&ChannelModelPricing{CacheWritePrice: float64Ptr(2),
+		CacheWrite12hPrice: float64Ptr(3), CacheWrite1hPrice: float64Ptr(9)}, tokens)
+	require.NotNil(t, stats)
+	require.Equal(t, 260.0, *stats)
+}
+
 func TestOpenAICacheWriteTTLPrices(t *testing.T) {
 	service := NewBillingService(nil, nil)
 	base, err := service.GetModelPricing("gpt-6-luna")

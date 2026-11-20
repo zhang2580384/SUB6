@@ -1226,6 +1226,10 @@ func newSchedulerAccountMetaRevision() string {
 }
 
 func marshalSchedulerCacheAccount(account service.Account) ([]byte, []byte, error) {
+	// Hydration needs account configuration and group membership, not expanded
+	// group objects (also repeated in AccountGroups). Keep the caller's graph intact.
+	account.Groups = nil
+	account.AccountGroups = filterSchedulerAccountGroups(account.AccountGroups)
 	fullPayload, err := json.Marshal(account)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal account: %w", err)
@@ -1482,6 +1486,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		service.ExcelBPS403TargetGroupIDKey,
 		"openai_excel_bps_mihomo",
 		"openai_excel_bps_models",
+		"openai_passthrough_model_filter",
 		"codex_fingerprint_mode",
 		"codex_fingerprint_seed",
 		service.OpenAICodexSkipHarvestExtraKey,

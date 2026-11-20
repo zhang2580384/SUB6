@@ -130,6 +130,16 @@ jobs:
         with:
           go-version: '1.27.4'
           cache-dependency-path: backend/go.sum
+      - name: Check admin account and quota creation against PostgreSQL
+        working-directory: backend
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: sub6_test
+          PGPASSWORD: sub6-test-only
+          SUB6_ADMIN_QUOTA_TEST_POSTGRES_DSN: 'host=127.0.0.1 dbname=sub6_admin_quota_test user=sub6_test sslmode=disable'
+        run: |
+          createdb sub6_admin_quota_test
+          go test -p 2 -race -tags integration ./internal/integration/adminquota -count=1 -v -timeout=5m
       - name: Preserve pending 5xx and retained lease/ownership contracts
         working-directory: backend
         run: >-

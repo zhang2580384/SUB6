@@ -287,7 +287,7 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 				updates[openAI429WeeklyInvalidAtKey] = updates["codex_usage_updated_at"]
 			}
 			payload.schedulingUpdates = updates
-			written, writeErr := persistCodexUsageUpdates(callCtx, s.accountRepo, accountID, updates)
+			written, writeErr := persistCodexUsageUpdates(callCtx, s.accountRepo, accountID, updates, CodexQueryObservation)
 			payload.UsageCachePersisted = written && writeErr == nil
 			if writeErr != nil {
 				slog.Warn("openai_quota_usage_snapshot_failed", "account_id", accountID, "error_code", "snapshot_persistence_failed")
@@ -384,7 +384,7 @@ func (s *OpenAIQuotaService) cacheResetCreditsSnapshot(ctx context.Context, acco
 		updates = make(map[string]any, 1)
 	}
 	updates[openaiQuotaResetCreditsKey] = credits
-	if _, err := persistCodexUsageUpdates(ctx, s.accountRepo, accountID, updates); err != nil {
+	if _, err := persistCodexUsageUpdates(ctx, s.accountRepo, accountID, updates, CodexQueryObservation); err != nil {
 		return infraerrors.New(
 			http.StatusInternalServerError,
 			"OPENAI_QUOTA_CACHE_WRITE_FAILED",

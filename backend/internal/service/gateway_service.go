@@ -620,6 +620,8 @@ type ClaudeUsage struct {
 	CacheCreation5mTokens    int // 5分钟缓存创建token（来自嵌套 cache_creation 对象）
 	CacheCreation1hTokens    int // 1小时缓存创建token（来自嵌套 cache_creation 对象）
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+
+	cacheCreationInputTokensPresent bool
 }
 
 // ForwardResult 转发结果
@@ -1482,7 +1484,7 @@ func availableModelsFromAccounts(accounts []Account, groupID *int64, platform st
 	hasInitialSelection := false
 
 	for _, acc := range accounts {
-		// Passthrough routing accepts models independently of model_mapping, so a
+		// Default passthrough accepts models independently of model_mapping, so a
 		// stale mapping on a passthrough account must not narrow the public list.
 		// Treat it like an unmapped account: skip its mapping here and let
 		// supplementUnmappedOpenAIModels contribute the default set. Mappings on
@@ -1492,7 +1494,7 @@ func availableModelsFromAccounts(accounts []Account, groupID *int64, platform st
 			hasInitialSelection = true
 			hasAnyMapping = true // an empty selection is an authoritative empty catalog
 		}
-		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() && !acc.hasOAuthInitialModelSelection() {
+		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() && !acc.IsOpenAIPassthroughModelFilterEnabled() && !acc.hasOAuthInitialModelSelection() {
 			mapping = nil
 		}
 		for model := range mapping {

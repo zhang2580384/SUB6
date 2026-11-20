@@ -418,6 +418,9 @@ func (e *EasyPay) ConfirmNotification(ctx context.Context, n *payment.PaymentNot
 	if n == nil || n.Status != payment.NotificationStatusSuccess {
 		return nil
 	}
+	if !easyPayValidPaidAmount(n.Amount) {
+		return fmt.Errorf("easypay confirm: invalid notified amount")
+	}
 	result, err := e.queryOrder(ctx, n.OrderID)
 	if err != nil {
 		return fmt.Errorf("easypay confirm: %w", err)
@@ -426,7 +429,7 @@ func (e *EasyPay) ConfirmNotification(ctx context.Context, n *payment.PaymentNot
 		return fmt.Errorf("easypay confirm: upstream reports order %s as not paid", n.OrderID)
 	}
 	queriedAmount, err := strconv.ParseFloat(result.money, 64)
-	if err != nil || math.Abs(queriedAmount-n.Amount) > easypayAmountTolerance {
+	if err != nil || !easyPayValidPaidAmount(queriedAmount) || math.Abs(queriedAmount-n.Amount) > easypayAmountTolerance {
 		return fmt.Errorf("easypay confirm: amount mismatch: notified %v, upstream %q", n.Amount, result.money)
 	}
 	if result.tradeNo != "" {
@@ -436,6 +439,10 @@ func (e *EasyPay) ConfirmNotification(ctx context.Context, n *payment.PaymentNot
 		n.TradeNo = result.tradeNo
 	}
 	return nil
+}
+
+func easyPayValidPaidAmount(amount float64) bool {
+	return amount > 0 && !math.IsInf(amount, 0) && !math.IsNaN(amount)
 }
 
 func easyPayJSONScalar(raw json.RawMessage) string {

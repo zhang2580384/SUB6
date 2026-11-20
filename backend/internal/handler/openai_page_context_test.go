@@ -133,3 +133,33 @@ func TestNormalizeCodexPageContextRejectsUnrelatedOrMalformedItems(t *testing.T)
 		require.Equal(t, body, string(got))
 	}
 }
+
+func TestCodexExternalContextPreservesTextAndToolOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		convert    bool
+	}{
+		{"ide_context", "document\nline", true}, {"ide_context", " ", false}, {"browser_info", "page", true},
+		{"goal_objective", "objective", true}, {"untrusted_context", "text", true},
+		{"untrusted_content", "", true}, {"proposed_plan", " \n", true}, {"proposed_plan", "", false}, {"other", "document", false},
+	} {
+		item := pageContextItem(tc.name, tc.text)
+		body := pageContextRequest(t, item)
+		result, changed := normalizeCodexPageContext(body)
+		require.Equal(t, tc.convert, changed)
+		if tc.convert {
+			require.Equal(t, "user", gjson.GetBytes(result, "input.0.role").Str)
+			require.Equal(t, "<external_"+tc.name+">"+tc.text+"</external_"+tc.name+">", gjson.GetBytes(result, "input.0.content.0.text").Str)
+		} else {
+			require.Equal(t, body, result)
+		}
+		for _, id := range []string{"call_id", "tool_call_id"} {
+			withID := pageContextItem(tc.name, tc.text)
+			withID[id] = "fixture-call"
+			original := pageContextRequest(t, withID)
+			unchanged, converted := normalizeCodexPageContext(original)
+			require.False(t, converted)
+			require.Equal(t, original, unchanged)
+		}
+	}
+}

@@ -29,8 +29,26 @@ func (s regionalAuthSourceStub) ListRegionalAuth(context.Context, []int64) ([]Re
 func authTestRecord() RegionalAuthRecord {
 	groupID := int64(3)
 	rpm := 7
-	return RegionalAuthRecord{APIKey: &APIKey{ID: 1, UserID: 2, GroupID: &groupID, Key: "sk-regional-test-secret", Status: StatusActive, IPWhitelist: []string{"127.0.0.1"}, User: &User{ID: 2, Status: StatusActive, Role: RoleUser, AllowedGroups: []int64{3}, UserGroupRPMOverride: &rpm, UserGroupDeniedModels: []string{"forbidden-model"}, Email: "private@example.test", PasswordHash: "private-hash"}, Group: &Group{ID: 3, Status: StatusActive, Platform: PlatformOpenAI, IsExclusive: true, SubscriptionType: SubscriptionTypeStandard, ProfitControlEnabled: true, StreamOnly: true}}}
+	return RegionalAuthRecord{APIKey: &APIKey{ID: 1, UserID: 2, GroupID: &groupID, Key: "sk-regional-test-secret", Status: StatusActive, IPWhitelist: []string{"127.0.0.1"}, User: &User{ID: 2, Status: StatusActive, Role: RoleUser, AllowedGroups: []int64{3}, UserGroupRPMOverride: &rpm, UserGroupRPMOverrideGroupID: groupID, UserGroupDeniedModels: []string{"forbidden-model"}, Email: "private@example.test", PasswordHash: "private-hash"}, Group: &Group{ID: 3, Status: StatusActive, Platform: PlatformOpenAI, IsExclusive: true, SubscriptionType: SubscriptionTypeStandard, ProfitControlEnabled: true, StreamOnly: true}}}
 }
+func TestRegionalAuthV1RPMPolicyIsBoundWithoutChangingTheWireFormat(t *testing.T) {
+	record := authTestRecord()
+	allowed := []int64{record.APIKey.UserID}
+	lookup := bytes.Repeat([]byte{1}, 32)
+	build := func() ([]byte, error) {
+		return ExportRegionalAuth(t.Context(), regionalAuthSourceStub{[]RegionalAuthRecord{record}, nil}, allowed, lookup)
+	}
+	wire, err := build()
+	require.NoError(t, err)
+	require.NotContains(t, string(wire), "user_group_rpm_override_group_id")
+	doc, err := decodeRegionalAuth(wire)
+	require.NoError(t, err)
+	require.Equal(t, *record.APIKey.GroupID, doc.Entries[0].Snapshot.User.UserGroupRPMOverrideGroupID)
+	record.APIKey.User.UserGroupRPMOverrideGroupID++
+	_, err = build()
+	require.Error(t, err)
+}
+
 func TestRegionalAuthLocalReplacementRevocationAndRestore(t *testing.T) {
 	ctx := context.Background()
 	lookup := bytes.Repeat([]byte{1}, 32)
@@ -60,6 +78,7 @@ func TestRegionalAuthLocalReplacementRevocationAndRestore(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"forbidden-model"}, key.User.UserGroupDeniedModels)
 	require.Equal(t, 7, *key.User.UserGroupRPMOverride)
+	require.EqualValues(t, *key.GroupID, key.User.UserGroupRPMOverrideGroupID)
 	require.True(t, key.Group.ProfitControlEnabled)
 	require.True(t, key.Group.StreamOnly)
 	require.Equal(t, record.APIKey.ModelMapping, key.ModelMapping)
