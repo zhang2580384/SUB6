@@ -112,6 +112,7 @@ func TestOpenAIResponsesWebSocket_FirstFrameDuplicateModelKeysRejected(t *testin
 				group:                   wsAllowlistGroup(true, "gpt-5.4"),
 				ingressMode:             mode,
 				firstFrameCloseExpected: true,
+				closeReason:             "websocket request contains ambiguous fields",
 			})
 		})
 	}
@@ -126,6 +127,7 @@ func TestOpenAIResponsesWebSocket_FirstFrameCaseVariantModelKeyRejected(t *testi
 		group:                   wsAllowlistGroup(true, "gpt-5.4"),
 		ingressMode:             service.OpenAIWSIngressModePassthrough,
 		firstFrameCloseExpected: true,
+		closeReason:             "websocket request contains ambiguous fields",
 	})
 }
 
@@ -139,20 +141,22 @@ func TestOpenAIResponsesWebSocket_SubsequentTurnDuplicateModelKeysRejected(t *te
 				group:                   wsAllowlistGroup(true, "gpt-5.4"),
 				ingressMode:             mode,
 				secondTurnCloseExpected: true,
+				closeReason:             "websocket request contains ambiguous fields",
 			})
 		})
 	}
 }
 
-// 重复但同值的 model 键不误伤，连接正常完成两个 turn。
-func TestOpenAIResponsesWebSocket_DuplicateIdenticalModelKeysAllowed(t *testing.T) {
-	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
-		firstPayload:  `{"type":"response.create","model":"gpt-5.4","model":"gpt-5.4","stream":false}`,
-		secondPayload: `{"type":"response.create","model":"gpt-5.4","stream":false}`,
-		group:         wsAllowlistGroup(true, "gpt-5.4"),
-	})
-	if len(got.clientEvents) != 2 {
-		t.Fatalf("expected two completed events, got %d", len(got.clientEvents))
+// Rewriting only one of two identical keys could make them disagree downstream.
+func TestOpenAIResponsesWebSocket_DuplicateIdenticalModelKeysRejected(t *testing.T) {
+	for _, mode := range []string{service.OpenAIWSIngressModePassthrough, service.OpenAIWSIngressModeDedicated} {
+		t.Run(mode, func(t *testing.T) {
+			runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+				firstPayload: `{"type":"response.create","model":"gpt-5.4","model":"gpt-5.4","stream":false}`,
+				group:        wsAllowlistGroup(true, "gpt-5.4"), ingressMode: mode,
+				firstFrameCloseExpected: true, closeReason: "websocket request contains ambiguous fields",
+			})
+		})
 	}
 }
 

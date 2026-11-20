@@ -26,6 +26,15 @@ const (
 	maxRequestZstdWindowSize = 8 << 20
 )
 
+// BodyTooLargeMessage describes the same effective limit at every gateway read stage.
+func BodyTooLargeMessage(limit int64) string {
+	const mib = 1 << 20
+	if limit >= mib && limit%mib == 0 {
+		return fmt.Sprintf("Request body too large, limit is %dMB", limit/mib)
+	}
+	return fmt.Sprintf("Request body too large, limit is %dB", limit)
+}
+
 // PrereadBody 回填已读取完成的请求体：作为 io.ReadCloser 可被再次顺序消费
 // （multipart 流式解析），同时暴露 Bytes() 让 ReadRequestBodyWithPrealloc
 // 直接返回原始切片，避免二次分配与复制。

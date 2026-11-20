@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -362,29 +363,39 @@ func TestOAuth429WeeklyOnlySequentialCache(t *testing.T) {
 		{"infinite_weekly_usage", "x-codex-primary-used-percent", []string{"+Inf"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a := scheduling429Account()
-			initial := ParseCodexRateLimitHeaders(weekly429Headers("99", "0", false))
-			initial.UpdatedAt = time.Now().Add(-time.Minute).Format(time.RFC3339Nano)
-			a.Extra = mergeCodexUsageUpdates(a.Extra, buildCodexUsageExtraUpdates(initial, time.Now()))
-			repo := &weeklyOnlyPersistedRepo{stored: a}
-			rates := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-			h := weekly429Headers("99", "0", false)
-			h[http.CanonicalHeaderKey(tc.key)] = tc.values
-			first, err := repo.GetByID(t.Context(), a.ID)
-			require.NoError(t, err)
-			rates.HandleUpstreamError(t.Context(), first, 429, h, nil)
-			require.Empty(t, repo.ids, "invalid weekly headers must not disable on the first request")
-			reloaded, err := repo.GetByID(t.Context(), a.ID)
-			require.NoError(t, err)
-			rates.HandleUpstreamError(t.Context(), reloaded, 429, nil, nil)
-			require.Empty(t, repo.ids, "rejected weekly headers must not poison a later headerless 429 cache")
-			// A later independently valid weekly observation restores usable evidence.
-			valid := ParseCodexRateLimitHeaders(weekly429Headers("99", "0", false))
-			require.NoError(t, repo.UpdateExtra(t.Context(), a.ID, buildCodexUsageExtraUpdates(valid, time.Now())))
-			reloaded, err = repo.GetByID(t.Context(), a.ID)
-			require.NoError(t, err)
-			rates.HandleUpstreamError(t.Context(), reloaded, 429, nil, nil)
-			require.Equal(t, []bool{false}, repo.values)
+			synctest.Test(t, func(t *testing.T) {
+				a := scheduling429Account()
+				initial := ParseCodexRateLimitHeaders(weekly429Headers("99", "0", false))
+				initial.UpdatedAt = time.Now().Add(-time.Minute).Format(time.RFC3339Nano)
+				a.Extra = mergeCodexUsageUpdates(a.Extra, buildCodexUsageExtraUpdates(initial, time.Now()))
+				repo := &weeklyOnlyPersistedRepo{stored: a}
+				rates := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+				h := weekly429Headers("99", "0", false)
+				h[http.CanonicalHeaderKey(tc.key)] = tc.values
+				first, err := repo.GetByID(t.Context(), a.ID)
+				require.NoError(t, err)
+				rates.HandleUpstreamError(t.Context(), first, 429, h, nil)
+				require.Empty(t, repo.ids, "invalid weekly headers must not disable on the first request")
+				reloaded, err := repo.GetByID(t.Context(), a.ID)
+				require.NoError(t, err)
+				rates.HandleUpstreamError(t.Context(), reloaded, 429, nil, nil)
+				require.Empty(t, repo.ids, "rejected weekly headers must not poison a later headerless 429 cache")
+				// A same-tick observation has no provable order and must stay inconclusive.
+				tied := ParseCodexRateLimitHeaders(weekly429Headers("99", "0", false))
+				require.NoError(t, repo.UpdateExtra(t.Context(), a.ID, buildCodexUsageExtraUpdates(tied, time.Now())))
+				reloaded, err = repo.GetByID(t.Context(), a.ID)
+				require.NoError(t, err)
+				rates.HandleUpstreamError(t.Context(), reloaded, 429, nil, nil)
+				require.Empty(t, repo.ids)
+				// Advance the test clock to a distinct observation, even on coarse wall clocks.
+				time.Sleep(time.Nanosecond)
+				valid := ParseCodexRateLimitHeaders(weekly429Headers("99", "0", false))
+				require.NoError(t, repo.UpdateExtra(t.Context(), a.ID, buildCodexUsageExtraUpdates(valid, time.Now())))
+				reloaded, err = repo.GetByID(t.Context(), a.ID)
+				require.NoError(t, err)
+				rates.HandleUpstreamError(t.Context(), reloaded, 429, nil, nil)
+				require.Equal(t, []bool{false}, repo.values)
+			})
 		})
 	}
 }

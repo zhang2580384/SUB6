@@ -107,6 +107,7 @@ func (s *APIKeyService) apiKeyWithGroup(ctx context.Context, key *APIKey, group 
 	id := group.ID
 	copyKey.GroupID, copyKey.Group = &id, group
 	copyUser.UserGroupRPMOverride = nil
+	copyUser.UserGroupRPMOverrideGroupID = 0
 	copyUser.UserGroupDeniedModels = nil
 	if s.userGroupRateRepo != nil {
 		var err error
@@ -114,6 +115,7 @@ func (s *APIKeyService) apiKeyWithGroup(ctx context.Context, key *APIKey, group 
 		if err != nil {
 			return nil, err
 		}
+		copyUser.UserGroupRPMOverrideGroupID = id
 		if err := s.loadUserGroupDeniedModels(ctx, &copyKey); err != nil {
 			return nil, err
 		}

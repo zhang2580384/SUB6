@@ -30,14 +30,14 @@ type issue578Repo struct {
 	maxActive int
 }
 
-func (r *issue578Repo) UpdateCodexUsageSnapshot(ctx context.Context, id int64, updates map[string]any) (bool, error) {
+func (r *issue578Repo) UpdateCodexUsageSnapshot(ctx context.Context, id int64, updates map[string]any, source CodexObservationSource) (bool, error) {
 	r.casMu.Lock()
 	defer r.casMu.Unlock()
 	r.mu.Lock()
 	current, _ := time.Parse(time.RFC3339Nano, fmt.Sprint(r.accounts[id].Extra["codex_usage_updated_at"]))
 	r.mu.Unlock()
 	observed, _ := time.Parse(time.RFC3339Nano, fmt.Sprint(updates["codex_usage_updated_at"]))
-	if observed.Before(current) {
+	if observed.Before(current) || (observed.Equal(current) && source == CodexQueryObservation) {
 		display := make(map[string]any)
 		for key, value := range updates {
 			if key != "codex_usage_updated_at" && key != "codex_usage_field_versions" && !strings.HasPrefix(key, "codex_5h_") && !strings.HasPrefix(key, "codex_7d_") && !strings.HasPrefix(key, "codex_primary_") && !strings.HasPrefix(key, "codex_secondary_") {

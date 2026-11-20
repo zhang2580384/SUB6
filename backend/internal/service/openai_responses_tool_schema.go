@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,7 +83,7 @@ func sanitizeOpenAIResponsesToolSchemaPatterns(body []byte) ([]byte, bool, error
 // oneOf/anyOf. Other missing types and nested property schemas are left
 // unchanged.
 func sanitizeOpenAIResponsesToolParameterTypes(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
+	if !openAIResponsesBodyMayNeedToolParameterRepair(body) {
 		return body, false, nil
 	}
 	return sanitizeOpenAIResponsesToolSchemas(body, openAIResponsesToolSchemaOptions{
@@ -92,16 +93,33 @@ func sanitizeOpenAIResponsesToolParameterTypes(body []byte) ([]byte, bool, error
 	})
 }
 
-func openAIResponsesBodyMayContainRegexLookaround(body []byte) bool {
-	// An opening parenthesis may be literal or encoded as JSON's canonical
-	// Unicode escape. Other lookaround characters may themselves be escaped, so
-	// the full decoded pattern is checked only after scoped parsing.
-	return bytes.Contains(body, []byte("(")) || bytes.Contains(body, []byte(`\u0028`))
+// A repair needs a literal null or one of the two (possibly escaped) ASCII union keywords.
+func openAIResponsesBodyMayNeedToolParameterRepair(body []byte) bool {
+	return bytes.Contains(body, []byte("null")) || bytes.Contains(body, []byte("oneOf")) ||
+		bytes.Contains(body, []byte("anyOf")) || bytes.Contains(body, []byte(`\u00`))
 }
 
-func hasRegexLookaround(pattern string) bool {
-	return strings.Contains(pattern, "(?=") || strings.Contains(pattern, "(?!") ||
-		strings.Contains(pattern, "(?<=") || strings.Contains(pattern, "(?<!")
+// Either character of the lookaround prefix may have been spelled as a JSON escape.
+func openAIResponsesBodyMayContainRegexLookaround(body []byte) bool {
+	return bytes.Contains(body, []byte("(?")) || bytes.Contains(body, []byte(`\u0028`)) ||
+		bytes.Contains(body, []byte(`\u003f`)) || bytes.Contains(body, []byte(`\u003F`))
+}
+
+// Preserve SUB6's existing lookaround rule. Check unescaped strings in place.
+func openAIResponsesJSONPatternHasLookaround(raw []byte) bool {
+	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
+		return false
+	}
+	inner := raw[1 : len(raw)-1]
+	if bytes.IndexByte(inner, '\\') >= 0 {
+		decoded, ok := decodeOpenAIResponsesJSONStringValue(raw)
+		if !ok {
+			return false
+		}
+		inner = []byte(decoded)
+	}
+	return bytes.Contains(inner, []byte("(?=")) || bytes.Contains(inner, []byte("(?!")) ||
+		bytes.Contains(inner, []byte("(?<=")) || bytes.Contains(inner, []byte("(?<!"))
 }
 
 type openAIResponsesToolSchemaOptions struct {
@@ -163,9 +181,6 @@ func sanitizeOpenAIResponsesToolSchemas(
 	if p.pos != len(body) {
 		return nil, false, fmt.Errorf("sanitize OpenAI Responses tool schemas: trailing data at byte %d", p.pos)
 	}
-	if !json.Valid(body) {
-		return nil, false, fmt.Errorf("sanitize OpenAI Responses tool schemas: invalid JSON")
-	}
 	if len(p.edits) == 0 {
 		return body, false, nil
 	}
@@ -201,7 +216,9 @@ func (p *openAIResponsesToolSchemaParser) parseValue(
 		case "additional_tools":
 			context = openAIResponsesToolSchemaToolCarrier
 		default:
-			context = openAIResponsesToolSchemaSkip
+			// The type probe already validated and consumed this non-tool item.
+			p.pos = probe.pos
+			return nil
 		}
 	}
 	switch p.body[p.pos] {
@@ -247,7 +264,7 @@ func (p *openAIResponsesToolSchemaParser) parseObject(
 		if err != nil {
 			return err
 		}
-		key := p.body[keyStart:keyEnd]
+		key := newOpenAIResponsesJSONKey(p.body[keyStart:keyEnd])
 		p.skipWhitespace()
 		if !p.consume(':') {
 			return p.syntaxError("expected colon")
@@ -263,19 +280,19 @@ func (p *openAIResponsesToolSchemaParser) parseObject(
 		p.skipWhitespace()
 
 		deleteMember := false
-		if context == openAIResponsesToolSchemaTypeProbe && openAIResponsesJSONStringEquals(key, "type") {
+		if context == openAIResponsesToolSchemaTypeProbe && key.is("type") {
 			if value, ok := decodeOpenAIResponsesJSONStringValue(p.body[valueStart:valueEnd]); ok {
 				p.probeType = strings.TrimSpace(value)
 			}
 		}
 		if (context == openAIResponsesToolSchemaTool || context == openAIResponsesToolSchemaFunction) &&
-			openAIResponsesJSONStringEquals(key, "parameters") {
+			key.is("parameters") {
 			parameterCount++
 			parameterValueStart = valueStart
 			parameterValueEnd = valueEnd
 		}
-		if context == openAIResponsesToolSchema && openAIResponsesJSONStringEquals(key, "pattern") && p.options.removeLookaroundPatterns {
-			if pattern, ok := decodeOpenAIResponsesJSONStringValue(p.body[valueStart:valueEnd]); ok && hasRegexLookaround(pattern) {
+		if context == openAIResponsesToolSchema && key.is("pattern") && p.options.removeLookaroundPatterns {
+			if openAIResponsesJSONPatternHasLookaround(p.body[valueStart:valueEnd]) {
 				deleteMember = true
 			}
 		}
@@ -284,11 +301,11 @@ func (p *openAIResponsesToolSchemaParser) parseObject(
 		// "required" is the semantic equivalent of an empty one, so dropping the
 		// member preserves the client's intent while satisfying strict validators.
 		if context == openAIResponsesToolSchema && p.options.dropNullRequired &&
-			openAIResponsesJSONStringEquals(key, "required") &&
+			key.is("required") &&
 			bytes.Equal(p.body[valueStart:valueEnd], []byte("null")) {
 			deleteMember = true
 		}
-		if context == openAIResponsesToolSchema && schemaRoot && openAIResponsesJSONStringEquals(key, "type") {
+		if context == openAIResponsesToolSchema && schemaRoot && key.is("type") {
 			// Duplicate JSON keys have parser-dependent effective values. Repair a
 			// root type only when it is unique rather than choosing a winner and
 			// potentially changing the client's effective schema.
@@ -453,50 +470,93 @@ func (p *openAIResponsesToolSchemaParser) parseArray(
 	}
 }
 
+// openAIResponsesJSONKey is one object member name, prepared for repeated
+// comparison. parseObject tests the same key against a dozen candidate names,
+// so the escape question is answered once here instead of rescanning the span
+// on every comparison.
+type openAIResponsesJSONKey struct {
+	raw   []byte
+	inner []byte
+	plain bool
+}
+
+func newOpenAIResponsesJSONKey(raw []byte) openAIResponsesJSONKey {
+	key := openAIResponsesJSONKey{raw: raw}
+	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
+		return key
+	}
+	key.inner = raw[1 : len(raw)-1]
+	key.plain = bytes.IndexByte(key.inner, '\\') < 0
+	return key
+}
+
+// is reports whether the member name equals want. A key carrying an escape
+// decodes to fewer bytes than it occupies, so an escape-free span can be
+// compared in place; only escaped spellings need to be decoded.
+func (k openAIResponsesJSONKey) is(want string) bool {
+	if k.inner == nil {
+		return false
+	}
+	if k.plain {
+		return len(k.inner) == len(want) && string(k.inner) == want
+	}
+	decoded, err := decodeOpenAIResponsesJSONString(k.raw)
+	return err == nil && decoded == want
+}
+
+func (k openAIResponsesJSONKey) isAny(candidates ...string) bool {
+	for _, candidate := range candidates {
+		if k.is(candidate) {
+			return true
+		}
+	}
+	return false
+}
+
 func openAIResponsesToolSchemaChildContext(
-	context openAIResponsesToolSchemaContext, key []byte,
+	context openAIResponsesToolSchemaContext, key openAIResponsesJSONKey,
 ) (openAIResponsesToolSchemaContext, bool) {
 	switch context {
 	case openAIResponsesToolSchemaDocument:
 		switch {
-		case openAIResponsesJSONStringEquals(key, "tools"):
+		case key.is("tools"):
 			return openAIResponsesToolSchemaTools, false
-		case openAIResponsesJSONStringEquals(key, "input"):
+		case key.is("input"):
 			return openAIResponsesToolSchemaInput, false
 		}
 	case openAIResponsesToolSchemaTool:
 		switch {
 		// Anthropic Messages carries the same JSON Schema under input_schema, so
 		// /v1/messages tools must reach the sanitizer too.
-		case openAIResponsesJSONStringMatchesAny(key, "parameters", "input_schema"):
+		case key.isAny("parameters", "input_schema"):
 			return openAIResponsesToolSchema, true
-		case openAIResponsesJSONStringEquals(key, "function"):
+		case key.is("function"):
 			return openAIResponsesToolSchemaFunction, false
-		case openAIResponsesJSONStringEquals(key, "tools"):
+		case key.is("tools"):
 			return openAIResponsesToolSchemaTools, false
 		}
 	case openAIResponsesToolSchemaToolCarrier:
-		if openAIResponsesJSONStringEquals(key, "tools") {
+		if key.is("tools") {
 			return openAIResponsesToolSchemaTools, false
 		}
 	case openAIResponsesToolSchemaFunction:
 		switch {
-		case openAIResponsesJSONStringEquals(key, "parameters"):
+		case key.is("parameters"):
 			return openAIResponsesToolSchema, true
-		case openAIResponsesJSONStringEquals(key, "tools"):
+		case key.is("tools"):
 			return openAIResponsesToolSchemaTools, false
 		}
 	case openAIResponsesToolSchema:
 		switch {
-		case openAIResponsesJSONStringMatchesAny(key,
+		case key.isAny(
 			"additionalProperties", "additionalItems", "contains", "not", "if", "then", "else",
 			"propertyNames", "unevaluatedProperties", "unevaluatedItems", "contentSchema"):
 			return openAIResponsesToolSchema, false
-		case openAIResponsesJSONStringEquals(key, "items"):
+		case key.is("items"):
 			return openAIResponsesToolSchemaOrArray, false
-		case openAIResponsesJSONStringMatchesAny(key, "anyOf", "oneOf", "allOf", "prefixItems"):
+		case key.isAny("anyOf", "oneOf", "allOf", "prefixItems"):
 			return openAIResponsesToolSchemaArray, false
-		case openAIResponsesJSONStringMatchesAny(key,
+		case key.isAny(
 			"properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"):
 			return openAIResponsesToolSchemaMap, false
 		}
@@ -512,14 +572,14 @@ func (p *openAIResponsesToolSchemaParser) parseString() (int, int, error) {
 	}
 	start := p.pos
 	p.pos++
-	const special = "\"\\\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
-	for p.pos < len(p.body) {
-		next := bytes.IndexAny(p.body[p.pos:], special)
-		if next < 0 {
-			p.pos = len(p.body)
-			break
+	for {
+		// Skip the plain run in word-sized steps: string payloads dominate large
+		// request bodies, and a byte-at-a-time walk here was the bulk of the
+		// cost of the whole sanitizer.
+		p.pos += openAIResponsesJSONPlainStringRun(p.body[p.pos:])
+		if p.pos >= len(p.body) {
+			return 0, 0, p.syntaxError("unterminated string")
 		}
-		p.pos += next
 		switch p.body[p.pos] {
 		case '"':
 			p.pos++
@@ -540,17 +600,51 @@ func (p *openAIResponsesToolSchemaParser) parseString() (int, int, error) {
 					}
 				}
 				p.pos += 5
-				continue
 			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
 				p.pos++
 			default:
 				return 0, 0, p.syntaxError("invalid string escape")
 			}
 		default:
+			// Everything else that ends the plain run is a control byte.
 			return 0, 0, p.syntaxError("control character in string")
 		}
 	}
-	return 0, 0, p.syntaxError("unterminated string")
+}
+
+const (
+	openAIResponsesSWARByteOnes = 0x0101010101010101
+	openAIResponsesSWARHighBits = 0x8080808080808080
+)
+
+// openAIResponsesJSONWordHasZeroByte reports whether any byte of word is 0x00.
+func openAIResponsesJSONWordHasZeroByte(word uint64) bool {
+	return (word-openAIResponsesSWARByteOnes)&^word&openAIResponsesSWARHighBits != 0
+}
+
+// openAIResponsesJSONPlainStringRun returns the length of the leading run of
+// bytes in bulk that can be copied through a JSON string verbatim: no closing
+// quote, no escape backslash and no control byte. Those three are exactly the
+// bytes parseString has to stop at.
+func openAIResponsesJSONPlainStringRun(bulk []byte) int {
+	offset := 0
+	for ; offset+8 <= len(bulk); offset += 8 {
+		word := binary.LittleEndian.Uint64(bulk[offset:])
+		// '"' and '\\' are found by zero-byte detection on the XOR, which flags
+		// a whole word at once; (value & 0xE0) == 0 means value < 0x20.
+		if openAIResponsesJSONWordHasZeroByte(word^0x2222222222222222) ||
+			openAIResponsesJSONWordHasZeroByte(word^0x5c5c5c5c5c5c5c5c) ||
+			openAIResponsesJSONWordHasZeroByte(word&0xe0e0e0e0e0e0e0e0) {
+			break
+		}
+	}
+	for ; offset < len(bulk); offset++ {
+		value := bulk[offset]
+		if value == '"' || value == '\\' || value < 0x20 {
+			break
+		}
+	}
+	return offset
 }
 
 func isOpenAIResponsesJSONHexDigit(value byte) bool {
@@ -650,26 +744,6 @@ func decodeOpenAIResponsesJSONString(raw []byte) (string, error) {
 		return "", err
 	}
 	return decoded, nil
-}
-
-func openAIResponsesJSONStringEquals(raw []byte, want string) bool {
-	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
-		return false
-	}
-	if !bytes.Contains(raw, []byte{'\\'}) {
-		return bytes.Equal(raw[1:len(raw)-1], []byte(want))
-	}
-	decoded, err := decodeOpenAIResponsesJSONString(raw)
-	return err == nil && decoded == want
-}
-
-func openAIResponsesJSONStringMatchesAny(raw []byte, candidates ...string) bool {
-	for _, candidate := range candidates {
-		if openAIResponsesJSONStringEquals(raw, candidate) {
-			return true
-		}
-	}
-	return false
 }
 
 func decodeOpenAIResponsesJSONStringValue(raw []byte) (string, bool) {

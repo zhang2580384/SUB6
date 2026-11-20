@@ -179,7 +179,7 @@ func TestAdminService_CreateUser_DoesNotReturnPartialSuccessFromEmailIdentityRes
 		nextID:    55,
 		ensureErr: fmt.Errorf("unexpected email resync"),
 	}
-	svc := &adminServiceImpl{userRepo: repo}
+	svc := &adminServiceImpl{userRepo: repo, settingService: emptyUserQuotaSettings()}
 
 	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
 		Email:    "admin-created@example.com",

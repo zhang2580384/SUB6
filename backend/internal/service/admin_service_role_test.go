@@ -27,7 +27,7 @@ func TestAdminService_CreateUser_WithAdminRole(t *testing.T) {
 
 func TestAdminService_CreateUser_DefaultsToUserRole(t *testing.T) {
 	repo := &userRepoStub{nextID: 31}
-	svc := &adminServiceImpl{userRepo: repo}
+	svc := &adminServiceImpl{userRepo: repo, settingService: emptyUserQuotaSettings()}
 
 	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
 		Email:    "plain@test.com",

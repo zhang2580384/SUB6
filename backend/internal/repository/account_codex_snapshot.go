@@ -53,9 +53,9 @@ func preserveCommittedCodexUsage(incoming, current map[string]any) map[string]an
 // gateway processes and independent repository instances share the same fence.
 // Display caches are independent: an old usage observation can still refresh
 // credits without rewriting its old windows.
-func (r *accountRepository) UpdateCodexUsageSnapshot(ctx context.Context, id int64, updates map[string]any) (bool, error) {
+func (r *accountRepository) UpdateCodexUsageSnapshot(ctx context.Context, id int64, updates map[string]any, source service.CodexObservationSource) (bool, error) {
 	if scoped := r.accountTransactionScope(ctx); scoped != r {
-		return scoped.UpdateCodexUsageSnapshot(ctx, id, updates)
+		return scoped.UpdateCodexUsageSnapshot(ctx, id, updates, source)
 	}
 	window, display := make(map[string]any), make(map[string]any)
 	for k, v := range stripCodexFingerprintSeedFromExtraUpdate(updates) {
@@ -122,18 +122,22 @@ func (r *accountRepository) UpdateCodexUsageSnapshot(ctx context.Context, id int
    COALESCE(a.extra->'codex_usage_field_versions','{}'::jsonb) ||
    COALESCE(jsonb_object_agg(incoming.key, $3::jsonb->incoming.key),'{}'::jsonb))
  FROM jsonb_each($2::jsonb) AS incoming
- WHERE (CASE WHEN COALESCE(a.extra->'codex_usage_field_versions'->>incoming.key,
+ CROSS JOIN LATERAL (SELECT CASE WHEN COALESCE(a.extra->'codex_usage_field_versions'->>incoming.key,
    a.extra->'codex_usage_field_versions'->>'_legacy', a.extra->>'codex_usage_observed_at_ns','0') ~ '^[0-9]{1,19}$'
  THEN COALESCE(a.extra->'codex_usage_field_versions'->>incoming.key,
    a.extra->'codex_usage_field_versions'->>'_legacy', a.extra->>'codex_usage_observed_at_ns','0')::numeric
- ELSE 0 END) <= ($3::jsonb->>incoming.key)::numeric
+ ELSE 0 END AS version) stored
+ WHERE stored.version < ($3::jsonb->>incoming.key)::numeric
+    OR (stored.version = ($3::jsonb->>incoming.key)::numeric AND
+        (NOT $7::boolean OR NOT (a.extra ? incoming.key) OR a.extra->incoming.key = incoming.value))
  ) || CASE WHEN (CASE WHEN a.extra->>'codex_usage_observed_at_ns' ~ '^[0-9]{1,19}$'
  THEN (a.extra->>'codex_usage_observed_at_ns')::numeric ELSE 0 END) <= $4::numeric
  THEN $5::jsonb ELSE '{}'::jsonb END,
  updated_at=NOW()
  WHERE id=$6 AND deleted_at IS NULL
- RETURNING extra->'codex_usage_field_versions' @> $3::jsonb`,
-		string(displayJSON), string(windowJSON), string(versionsJSON), version, string(metadataJSON), id)
+ RETURNING (extra->'codex_usage_field_versions' @> $3::jsonb) AND NOT EXISTS (
+ SELECT 1 FROM jsonb_each($2::jsonb) want WHERE extra->want.key IS DISTINCT FROM want.value)`,
+		string(displayJSON), string(windowJSON), string(versionsJSON), version, string(metadataJSON), id, source == service.CodexQueryObservation)
 	if err != nil {
 		return false, err
 	}

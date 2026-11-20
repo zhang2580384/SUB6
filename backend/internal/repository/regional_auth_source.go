@@ -66,6 +66,7 @@ func (r *regionalAuthSource) ListRegionalAuth(ctx context.Context, allowed []int
 			if err != nil {
 				return nil, err
 			}
+			key.User.UserGroupRPMOverrideGroupID = *key.GroupID
 			if key.Group.IsSubscriptionType() {
 				var grant service.RegionalAuthSubscription
 				err := r.sql.QueryRowContext(ctx, `SELECT starts_at, expires_at FROM user_subscriptions WHERE user_id=$1 AND group_id=$2 AND status='active' AND deleted_at IS NULL AND starts_at <= $3 AND expires_at > $3`, key.UserID, *key.GroupID, now).Scan(&grant.StartsAt, &grant.ExpiresAt)

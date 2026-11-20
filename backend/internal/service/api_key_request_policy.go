@@ -96,6 +96,10 @@ func ApplyAPIKeyOpenAIReasoningEffortPolicy(body []byte, forced, maxEffort strin
 			}
 		}
 	}
+	updated, _, err = rewriteResponsesConfigurationEfforts(updated, func(string) (string, error) { return forced, nil })
+	if err != nil {
+		return body, false, err
+	}
 	if capped, changed, capErr := ApplyOpenAIReasoningEffortPolicy(updated, maxEffort, nil, overLimit, requestModels...); capErr != nil {
 		return body, false, capErr
 	} else if changed {

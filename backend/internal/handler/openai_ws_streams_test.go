@@ -851,10 +851,28 @@ func TestOpenAIWSStreamHTTPBridgePrewarmInvalid(t *testing.T) {
 			defer up.Close()
 			h := streamIsolationHarness(t, up.URL, service.OpenAIWSIngressModeHTTPBridge, nil)
 			frame := []byte(`{"type":"response.create","model":"gpt-5.1","stream_id":"warm","generate":false,` + extra + `}`)
+			// A single malformed generate value is a lane error. A repeated key is
+			// ambiguous before the physical connection can select a lane.
+			if name == "nonboolean" {
+				frame = []byte(`{"type":"response.create","model":"gpt-5.1","stream_id":"warm",` + extra + `}`)
+			}
 			streamIsolationSend(t, h.clientConn, frame)
-			reject := streamIsolationRead(t, h.clientConn)
-			require.Equal(t, "error", gjson.GetBytes(reject, "type").Str)
-			require.Equal(t, "warm", gjson.GetBytes(reject, "stream_id").Str)
+			if name == "duplicate" {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				_, _, err := h.clientConn.Read(ctx)
+				var closed coderws.CloseError
+				require.ErrorAs(t, err, &closed)
+				require.Equal(t, coderws.StatusPolicyViolation, closed.Code)
+				require.Equal(t, "websocket request contains ambiguous fields", closed.Reason)
+			} else {
+				reject := streamIsolationRead(t, h.clientConn)
+				require.Equal(t, "error", gjson.GetBytes(reject, "type").Str)
+				require.Equal(t, "warm", gjson.GetBytes(reject, "stream_id").Str)
+				if name == "nonboolean" {
+					require.Equal(t, "invalid_generate", gjson.GetBytes(reject, "error.code").Str)
+				}
+			}
 			require.Zero(t, calls.Load())
 			select {
 			case <-h.usageLogs:
@@ -863,4 +881,17 @@ func TestOpenAIWSStreamHTTPBridgePrewarmInvalid(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStreamIsolationValidatesOriginalFrames(t *testing.T) {
+	var forwarded atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { forwarded.Add(1); w.WriteHeader(http.StatusNoContent) }))
+	defer upstream.Close()
+	h := streamIsolationHarness(t, upstream.URL, service.OpenAIWSIngressModeHTTPBridge, nil)
+	streamIsolationSend(t, h.clientConn, []byte(`{"type":"session.update","session":{"label":1,"label":1}}`))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _, err := h.clientConn.Read(ctx)
+	require.Equal(t, coderws.StatusPolicyViolation, coderws.CloseStatus(err))
+	require.Zero(t, forwarded.Load())
 }

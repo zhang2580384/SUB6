@@ -505,6 +505,9 @@ func (t *openAICodexTicket) valid(now time.Time, targetLen int) bool {
 	if t == nil {
 		return false
 	}
+	if t.Acquisition == "reuse" || (t.SourceAccountID != 0 && t.SourceAccountID != t.AccountID) {
+		return false
+	}
 	if t.Length == 780 {
 		if !t.ProbeVerified {
 			return false
@@ -562,6 +565,9 @@ func ticketIdentity(account *Account) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(identity)))
 }
 func ticketIdentityMatches(account *Account, ticket *openAICodexTicket) bool {
+	if ticket == nil || account == nil || ticket.Acquisition == "reuse" || (ticket.SourceAccountID != 0 && ticket.SourceAccountID != account.ID) {
+		return false
+	}
 	if account != nil && account.AuthConnectionID != "" {
 		return ticket != nil && ticket.Identity != "" && ticket.Identity == ticketIdentity(account)
 	}

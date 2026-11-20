@@ -19,7 +19,7 @@ func (s *SettingService) GetAstraRouting(ctx context.Context) (config.AstraRouti
 		if s.cfg == nil {
 			return config.AstraRoutingSettings{}, nil
 		}
-		return config.AstraRoutingSettings{CookiePool: s.cfg.Gateway.CodexGatewayPin, WSSession: s.cfg.Gateway.CodexWSAnchor}, nil
+		return (config.AstraRoutingSettings{CookiePool: s.cfg.Gateway.CodexGatewayPin, WSSession: s.cfg.Gateway.CodexWSAnchor}).AccountIsolated(), nil
 	}
 	if err != nil {
 		return config.AstraRoutingSettings{}, err
@@ -28,12 +28,16 @@ func (s *SettingService) GetAstraRouting(ctx context.Context) (config.AstraRouti
 	if err = json.Unmarshal([]byte(value), &result); err != nil {
 		return result, fmt.Errorf("invalid Astra routing settings")
 	}
+	result = result.AccountIsolated()
 	return result, result.Validate()
 }
 
 // SetAstraRouting prepares account dependencies atomically before publishing
 // the new configuration. A failed save never starts model requests.
 func (s *SettingService) SetAstraRouting(ctx context.Context, value config.AstraRoutingSettings) (config.AstraRoutingSettings, error) {
+	if value.CookiePool.Enabled || value.WSSession.Enabled {
+		return value, errors.New("shared account route settings are unavailable")
+	}
 	var err error
 	value, err = config.ResolveAstraDependencies(value)
 	if err != nil {

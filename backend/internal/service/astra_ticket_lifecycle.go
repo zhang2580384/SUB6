@@ -6,9 +6,6 @@ import (
 	"net/http"
 	"slices"
 	"time"
-
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/google/uuid"
 )
 
 // AstraTicketLifecycle joins gateway reuse to the account ticket store. It is
@@ -102,91 +99,9 @@ func (s *OpenAIGatewayService) PrepareStoredAstraSources(ctx context.Context) er
 	return errors.New("no_qualified_source_route")
 }
 
-// tryBorrowStoredAstraTicket runs at most one donor candidate. The caller owns
-// the harvest lock and request budget; failure may fall back to self collection.
-func (s *OpenAIGatewayService) tryBorrowStoredAstraTicket(ctx context.Context, account *Account, model string, timeout time.Duration, reserve func() bool) (bool, codexHarvestProbeResult) {
-	var result codexHarvestProbeResult
-	if !s.UnifiedAstraTicketsEnabled(ctx) || model != OpenAICodexStateProbeDefaultModel ||
-		!slices.Contains(s.cfg.AstraRouting(ctx).CookiePool.TargetAccountIDs, account.ID) {
-		return false, result
-	}
-	controls, configured := s.harvestControls(ctx)
-	if controls.Transport != "" && controls.Transport != "sse" {
-		return false, result // SSE admission never qualifies a WebSocket ticket.
-	}
-	settings := s.cfg.AstraRouting(ctx)
-	donor, seed := s.storedAstraDonor(ctx, account.ID)
-	if seed == nil {
-		return false, result
-	}
-	if !s.waitHarvestPace(ctx, controls, configured) {
-		result.Kind = "cancelled"
-		return true, result
-	}
-	result.Kind = "account_error"
-	if !astraTicketAccountEligible(ctx, account) || s.codexTicketChatHeld(account.ID) {
-		return true, result
-	}
-	proxy, release, err := s.pinStoredCodexTicketEgress(ctx, seed, "")
-	if err != nil || proxy == "" {
-		release()
-		result.Kind = "network_error"
-		return true, result
-	}
-	defer release()
-	token, _, err := s.GetAccessToken(ctx, account)
-	if err != nil || token == "" {
-		return true, result
-	}
-	identity := ticketIdentity(account)
-	admitted := func() bool {
-		if ctx.Err() != nil || !seed.valid(time.Now(), 780) || !s.UnifiedAstraTicketsEnabled(ctx) ||
-			!config.AstraRouteSettingsEqual(settings, s.cfg.AstraRouting(ctx)) || s.codexTicketChatHeld(account.ID) {
-			return false
-		}
-		fresh, e := s.accountRepo.GetByID(ctx, account.ID)
-		return e == nil && astraTicketAccountEligible(ctx, fresh) && ticketIdentity(fresh) == identity && (reserve == nil || reserve())
-	}
-	session := uuid.NewString()
-	ctx = context.WithValue(ctx, codex780SeedContextKey{}, codex780Seed{state: seed.State, cookies: seed.HarvestCookies})
-	ctx = context.WithValue(ctx, codexMintEdgeContextKey{}, seed.EdgeIP)
-	result = s.executeCodexHarvestProbe(ctx, account, token, model, proxy, timeout, admitted, session)
-	recordCodexHarvestProbe(account, model, result.Kind, seed.HarvestNodeName, safeCodexHarvestError(result.Err), result.Status, len(result.State), result.Shape.Blocks, 780, 33, result.ProbeVerified)
-	if result.Kind != "success" {
-		return true, result
-	}
-	fresh, err := s.accountRepo.GetByID(ctx, account.ID)
-	if ctx.Err() != nil || err != nil || !astraTicketAccountEligible(ctx, fresh) || ticketIdentity(fresh) != identity ||
-		!s.UnifiedAstraTicketsEnabled(ctx) || !config.AstraRouteSettingsEqual(settings, s.cfg.AstraRouting(ctx)) {
-		result.Kind = "cancelled"
-		return true, result
-	}
-	ticket := codexHarvestTicket(fresh, model, result, s.openAICodexTicketConfig(), 2)
-	ticket.HarvestProxyURL, ticket.HarvestNodeID = seed.HarvestProxyURL, seed.HarvestNodeID
-	ticket.HarvestNodeName, ticket.HarvestNodeProvider = seed.HarvestNodeName, seed.HarvestNodeProvider
-	ticket.HarvestSessionID = session
-	ticket.Acquisition, ticket.SourceAccountID = "reuse", donor.ID
-	if err = s.storeOpenAICodexTicket(ctx, fresh, ticket); err != nil {
-		// The legacy store retains memory on a database error. Reuse must not
-		// publish a new ready target until the complete bundle is persisted.
-		s.openaiCodexTicketStateMu.Lock()
-		if current, ok := s.openaiCodexTickets.Load(openAICodexTicketKey(fresh.ID, model)); ok {
-			if value, ok := current.(*openAICodexTicket); ok {
-				copy := *value
-				if copy.State == ticket.State {
-					copy.Revoked = true
-				} else if copy.Standby != nil && copy.Standby.State == ticket.State {
-					copy.Standby = nil
-				}
-				s.openaiCodexTickets.Store(openAICodexTicketKey(fresh.ID, model), &copy)
-			}
-		}
-		s.openaiCodexTicketStateMu.Unlock()
-		result.Kind = "persist_failed"
-		return true, result
-	}
-	s.openaiCodexTicketProbeCooldown.Delete(openAICodexTicketKey(fresh.ID, model))
-	return true, result
+func (s *OpenAIGatewayService) tryBorrowStoredAstraTicket(context.Context, *Account, string, time.Duration, func() bool) (bool, codexHarvestProbeResult) {
+	// Session material is never borrowed from another upstream account.
+	return false, codexHarvestProbeResult{}
 }
 
 func (s *OpenAIGatewayService) acquireStoredAstraTarget(ctx context.Context, id int64, protocol string) (*Account, *openAICodexTicket, error) {

@@ -10,7 +10,7 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// Codex Desktop injects Companion Page context as agent function_call_output
+// Codex clients inject page, IDE and plan context as agent function_call_output
 // items without a corresponding model call. Preserve their text as user context
 // before ordinary tool-output validation, including when replaying tool history.
 // Unrecognized outputs and items carrying a call identity remain untouched.
@@ -39,7 +39,7 @@ func normalizeCodexPageContext(body []byte) ([]byte, bool) {
 			"role": "user",
 			"content": []any{map[string]any{
 				"type": "input_text",
-				"text": "<external_" + item.Get("name").String() + ">\n" + item.Get("output").String() + "\n</external_" + item.Get("name").String() + ">",
+				"text": codexExternalContextText(item),
 			}},
 		})
 		if err != nil {
@@ -61,6 +61,14 @@ func normalizeCodexPageContext(body []byte) ([]byte, bool) {
 	return normalized, true
 }
 
+func codexExternalContextText(item gjson.Result) string {
+	name, output := item.Get("name").Str, item.Get("output").Str
+	if strings.HasPrefix(name, "codex_apps_") {
+		output = "\n" + output + "\n"
+	}
+	return "<external_" + name + ">" + output + "</external_" + name + ">"
+}
+
 func isCodexPageContext(item gjson.Result) bool {
 	if item.Get("type").String() != "function_call_output" || item.Get("namespace").String() != "agent" {
 		return false
@@ -76,7 +84,14 @@ func isCodexPageContext(item gjson.Result) bool {
 		return false
 	}
 	name := item.Get("name").String()
-	if name == "codex_apps_open_page" {
+	switch name {
+	case "browser_info", "goal_objective", "untrusted_context", "ide_context":
+		return strings.TrimSpace(output.Str) != ""
+	case "untrusted_content":
+		return true // An unnamed context source can contain an empty string.
+	case "proposed_plan":
+		return output.Str != "" // Chunk boundaries can leave only whitespace.
+	case "codex_apps_open_page":
 		return validCodexPageSnapshot(output.String())
 	}
 	const prefix = "codex_apps_selected_page_part_"

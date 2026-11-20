@@ -27,10 +27,23 @@ func (c *Config) AstraRouting(ctx context.Context) AstraRoutingSettings {
 		return AstraRoutingSettings{}
 	}
 	if loader := c.astraRoutingLoader.Load(); loader != nil {
-		return loader.load(ctx)
+		return loader.load(ctx).AccountIsolated()
 	}
-	return AstraRoutingSettings{CookiePool: c.Gateway.CodexGatewayPin, WSSession: c.Gateway.CodexWSAnchor}
+	return (AstraRoutingSettings{CookiePool: c.Gateway.CodexGatewayPin, WSSession: c.Gateway.CodexWSAnchor}).AccountIsolated()
 }
+
+// AccountIsolated makes stored legacy settings inert without rewriting the store.
+// The experimental WS anchor depends on the shared route pool. Ordinary WS does not.
+func (s AstraRoutingSettings) AccountIsolated() AstraRoutingSettings {
+	if s.CookiePool.Enabled || s.WSSession.Enabled {
+		s.CookiePool = CodexGatewayPinConfig{}
+		s.WSSession = CodexWSAnchorConfig{}
+		s.AccountScheduling = false
+		s.TicketPoolScheduling = false
+	}
+	return s
+}
+
 func (s AstraRoutingSettings) Validate() error {
 	switch s.SchedulingMode {
 	case "", "account", "model", "groups":

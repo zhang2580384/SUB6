@@ -154,16 +154,56 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	if err := user.SetPassword(input.Password); err != nil {
 		return nil, err
 	}
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	if err := s.createUserWithDefaultQuotas(ctx, user); err != nil {
 		return nil, err
 	}
-	// 创建管理员属权限敏感操作，落审计日志（含操作者），便于事后追溯。
-	if user.Role == RoleAdmin {
-		logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d",
-			input.ActorAdminID, user.ID)
-	}
-	s.assignDefaultSubscriptions(ctx, user.ID)
+	AfterAccountCommit(ctx, func(committed context.Context) {
+		if user.Role == RoleAdmin {
+			logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d", input.ActorAdminID, user.ID)
+		}
+		s.assignDefaultSubscriptions(committed, user.ID)
+	})
 	return user, nil
+}
+
+func (s *adminServiceImpl) createUserWithDefaultQuotas(ctx context.Context, user *User) error {
+	if user.Role != RoleUser {
+		return s.userRepo.Create(ctx, user)
+	}
+	quotas, err := s.settingService.adminUserQuotaDefaults(ctx)
+	if err != nil {
+		return err
+	}
+	if len(quotas) == 0 {
+		return s.userRepo.Create(ctx, user)
+	}
+	if s.userPlatformQuotaRepo == nil {
+		return errors.New("default platform quota repository unavailable")
+	}
+	create := func(txCtx context.Context) error {
+		if err := s.userRepo.Create(txCtx, user); err != nil {
+			return err
+		}
+		if err := snapshotUserPlatformQuotaDefaults(txCtx, s.userPlatformQuotaRepo, user.ID, quotas); err != nil {
+			return fmt.Errorf("initialize default platform quotas: %w", err)
+		}
+		return nil
+	}
+	if dbent.TxFromContext(ctx) != nil {
+		return create(ctx)
+	}
+	if s.entClient == nil {
+		return errors.New("default platform quota transaction unavailable")
+	}
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := create(dbent.NewTxContext(ctx, tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ensureNotLastAdmin 降级管理员前确认系统中仍存在其他管理员，防止零 admin 锁死。

@@ -1095,7 +1095,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			normalized = stripped
 			logOpenAIWSModeInfo("ingress_ws_codex_spark_image_tool_stripped account_id=%d", account.ID)
 		}
-		imageIntent := IsImageGenerationIntentForPlatform(openAIResponsesEndpoint, originalModel, normalized, account.Platform)
+		// normalized 由 parseClientPayload 中已通过 gjson.ValidBytes 校验的字节派生，
+		// 后续改写只走 sjson 或 decode→json.Marshal，合法性保持，因此跳过重复校验。
+		imageIntent := IsImageGenerationIntentForPlatformValidated(openAIResponsesEndpoint, originalModel, normalized, account.Platform)
 		if imageIntent && !imageGenerationAllowed {
 			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, ImageGenerationPermissionMessage(), nil)
 		}
@@ -1612,6 +1614,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			if bridgeErr != nil && isOpenAIWSSessionPreempted(ctx) {
 				return errOpenAIWSSessionPreempted
+			}
+			if result != nil {
+				// Use the original turn, before policy rewriting and replay of earlier HTTP input.
+				result.RequestedReasoningEffort = currentBridgePayload.requestedReasoningEffort
 			}
 			if bridgeErr != nil && ctx.Err() != nil {
 				bridgeErr = clientReader.closeForControl(ctx)

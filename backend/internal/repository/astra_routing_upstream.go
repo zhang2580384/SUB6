@@ -8,7 +8,6 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -78,64 +77,11 @@ func (s *astraRoutingUpstream) Do(r *http.Request, p string, a int64, n int) (*h
 	return s.DoWithTLS(r, p, a, n, nil)
 }
 func (s *astraRoutingUpstream) DoWithTLS(r *http.Request, p string, a int64, n int, f *tlsfingerprint.Profile) (*http.Response, error) {
-	if r != nil && service.IsBoundAstraTicketRequest(r.Context()) {
-		return s.delegate.DoWithTLS(r, p, a, n, f)
-	}
-	if r != nil && !service.IsOpenAICodexStateProbeRequest(r.Context()) && codexGatewayPinRequest(r) {
-		if s.unifiedTickets(r.Context()) {
-			settings := s.cfg.AstraRouting(r.Context())
-			if slices.Contains(settings.CookiePool.TargetAccountIDs, a) && codexGatewayPinAstra(r) {
-				borrowed := r.Clone(r.Context())
-				proxy, release, err := s.tickets.ApplyStoredAstraTarget(r.Context(), borrowed.Header, a, "sse")
-				if err != nil {
-					if release != nil {
-						release()
-					}
-					if r.Context().Err() != nil {
-						return nil, r.Context().Err()
-					}
-					return s.delegate.DoWithTLS(r, p, a, n, f)
-				}
-				r = astraFreshRequest(borrowed.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context())))
-				r.Close = true
-				resp, err := s.delegate.DoWithTLS(r, proxy, a, n, f)
-				if resp != nil {
-					resp.Request = r
-				}
-				return attachAstraLease(resp, err, release)
-			}
-			return s.delegate.DoWithTLS(r, p, a, n, f)
-		}
-		if pool := s.current(r.Context()); pool != nil {
-			if slices.Contains(pool.config.TargetAccountIDs, a) && codexGatewayPinAstra(r) {
-				cookie, _, effectiveProxy, release, err := s.targetRoute(r, p, a, n, f)
-				if err != nil {
-					return nil, err
-				}
-				if cookie == nil {
-					release()
-					return s.delegate.DoWithTLS(r, p, a, n, f)
-				}
-				r = r.Clone(service.WithHTTPUpstreamRedirectsDisabled(r.Context()))
-				replaceCodexGatewayCookie(r, cookie)
-				if pool.config.RotateNodes {
-					r = astraFreshRequest(r)
-				}
-				resp, err := s.delegate.DoWithTLS(r, effectiveProxy, a, n, f)
-				return attachAstraLease(resp, err, release)
-			}
-			return pool.DoWithTLS(r, p, a, n, f)
-		}
-	}
+	// Forward the original account-bound request. Legacy route pools may not
+	// substitute a different account's route, cookies, session or egress.
 	return s.delegate.DoWithTLS(r, p, a, n, f)
 }
 func (s *astraRoutingUpstream) CodexGatewayPinWSHeader(a int64) (string, error) {
-	if pool := s.current(context.Background()); pool != nil {
-		value, err := pool.CodexGatewayPinWSHeader(a)
-		if err == nil {
-			return value, nil
-		}
-	}
 	return "", nil
 }
 

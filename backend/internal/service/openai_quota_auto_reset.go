@@ -624,7 +624,7 @@ func buildOpenAIAutoResetUsageUpdates(usage *OpenAIQuotaUsage, now time.Time) ma
 func (s *OpenAIQuotaAutoResetService) persistFreshUsage(ctx context.Context, accountID int64, usage *OpenAIQuotaUsage, now time.Time) error {
 	updates := buildOpenAIAutoResetUsageUpdates(usage, now)
 	if len(updates) > 0 {
-		if _, err := persistCodexUsageUpdates(ctx, s.accountRepo, accountID, updates); err != nil {
+		if _, err := persistCodexUsageUpdates(ctx, s.accountRepo, accountID, updates, CodexResponseObservation); err != nil {
 			return err
 		}
 	}

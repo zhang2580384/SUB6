@@ -95,6 +95,12 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		upstreamMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+		if resp.StatusCode == http.StatusForbidden && !isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
+			// A tool permission denial is final for this request, including provider fallback transports.
+			// Do not reschedule it on a different account or mark the account unhealthy.
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"type": "permission_denied", "message": "Search is unavailable for this account."}})
+			return nil, nil
+		}
 		if s.shouldFailoverOpenAIUpstreamResponse(account, resp.StatusCode, upstreamMessage, respBody) ||
 			isOpenAIAlphaSearchEndpointUnsupported(account, resp.StatusCode) {
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
@@ -104,7 +110,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 			// 漏过 PAT 类型判断。这里仍允许本次请求换号，但不修改任何账号状态；
 			// 真正的凭据失效由普通 Responses 请求或 whoami 校验判定。
 			shouldDisable := false
-			if shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(resp.StatusCode) {
+			if shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(resp.StatusCode, upstreamMessage, respBody) {
 				shouldDisable = s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
 			}
 			retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
@@ -179,11 +185,17 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		upstreamMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+		if resp.StatusCode == http.StatusForbidden && !isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
+			// A tool permission denial is final for this request, including provider fallback transports.
+			// Do not reschedule it on a different account or mark the account unhealthy.
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"type": "permission_denied", "message": "Search is unavailable for this account."}})
+			return nil, nil
+		}
 		if s.shouldFailoverOpenAIUpstreamResponse(account, resp.StatusCode, upstreamMessage, respBody) {
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 			// 仍按 alpha/search 工具请求处理：PAT 的工具链路失败不能直接永久置错。
 			shouldDisable := false
-			if shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(resp.StatusCode) {
+			if shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(resp.StatusCode, upstreamMessage, respBody) {
 				shouldDisable = s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
 			}
 			retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
@@ -546,13 +558,16 @@ func isOpenAIAlphaSearchEndpointUnsupported(account *Account, statusCode int) bo
 	return statusCode == http.StatusNotFound || statusCode == http.StatusMethodNotAllowed
 }
 
-func shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(statusCode int) bool {
+func shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(statusCode int, upstreamMessage string, responseBody []byte) bool {
 	switch statusCode {
 	case http.StatusUnauthorized, http.StatusNotFound, http.StatusMethodNotAllowed:
 		// 401：工具端点的 access enforcement 不代表凭据全局失效；
 		// 404/405：端点不存在只说明该上游不支持独立搜索，账号本身健康。
 		// 两类都只换号，不写账号错误状态。
 		return false
+	case http.StatusForbidden:
+		// Only an explicit account or workspace restriction warrants changing account health.
+		return isOpenAIHTTPUpstreamAccessStateError(statusCode, upstreamMessage, responseBody)
 	default:
 		return true
 	}

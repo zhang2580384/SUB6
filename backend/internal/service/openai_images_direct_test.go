@@ -111,15 +111,48 @@ func TestCodexDirectImagesHTTPErrorFallbacksOnlyWhenEndpointUnavailable(t *testi
 	}
 }
 
-func TestCodexDirectImagesStreamRejectsPlainJSON(t *testing.T) {
+func TestCodexDirectImagesStreamRejectsJSONWithoutImage(t *testing.T) {
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw","stream":true}`)
 	c, _ := newOpenAIImagesTestContext(t, body)
-	svc := newOpenAIImagesTestService(&httpUpstreamRecorder{resp: openAIImagesJSONResponse()})
+	resp := openAIImagesJSONResponse()
+	resp.Body = io.NopCloser(strings.NewReader(`{"data":[],"usage":{"input_tokens":10,"output_tokens":20}}`))
+	svc := newOpenAIImagesTestService(&httpUpstreamRecorder{resp: resp})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	result, err := svc.ForwardImages(context.Background(), c, directImagesTestAccount(), body, parsed, "")
-	require.Error(t, err, "未收到 SSE 完成事件，不能把未转发的 JSON 当作成功")
+	require.Error(t, err, "a JSON response with usage but no deliverable image is not a completed generation")
 	require.Nil(t, result)
+}
+
+// The live endpoint pretty-prints its JSON; the usage copied into the
+// completed event must not split the SSE data line.
+func TestCodexDirectImagesStreamKeepsPrettyPrintedUsageOnOneLine(t *testing.T) {
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw","stream":true}`)
+	c, rec := newOpenAIImagesTestContext(t, body)
+	resp := openAIImagesJSONResponse()
+	resp.Body = io.NopCloser(strings.NewReader("{\n  \"created\": 1710000000,\n  \"data\": [\n    {\n      \"b64_json\": \"aGVsbG8=\"\n    }\n  ],\n  \"usage\": {\n    \"input_tokens\": 10,\n    \"output_tokens\": 20\n  }\n}\n"))
+	svc := newOpenAIImagesTestService(&httpUpstreamRecorder{resp: resp})
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	result, err := svc.ForwardImages(context.Background(), c, directImagesTestAccount(), body, parsed, "")
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, result.ImageCount)
+	require.Equal(t, 10, result.Usage.InputTokens)
+	require.Equal(t, 20, result.Usage.ImageOutputTokens)
+	require.Equal(t, 1, strings.Count(rec.Body.String(), "data: "))
+	out := strings.TrimRight(rec.Body.String(), "\n")
+	var data string
+	for _, line := range strings.Split(out, "\n") {
+		require.True(t, line == "" || strings.HasPrefix(line, "event: ") || strings.HasPrefix(line, "data: "), "SSE line split mid-payload: %q", line)
+		if strings.HasPrefix(line, "data: ") {
+			data = strings.TrimPrefix(line, "data: ")
+		}
+	}
+	require.True(t, gjson.Valid(data), "data line is not complete JSON: %q", data)
+	require.Equal(t, "aGVsbG8=", gjson.Get(data, "b64_json").String())
+	require.Equal(t, int64(20), gjson.Get(data, "usage.output_tokens").Int())
 }
 
 func TestCodexDirectImagesMultipleOutputs(t *testing.T) {

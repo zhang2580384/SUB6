@@ -17,11 +17,11 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+var errAccountRouteIsolation = errors.New("route state must belong to the requesting account")
+
 var errCodexGatewayPinUnavailable = errors.New("codex gateway pin: no qualified source route; run an Astra HTTP test on a source account first")
 
-// This private experiment runs after ticket/identity header assembly and also
-// covers account tests. Only __oailb is shared; credentials and turn state stay
-// owned by the selected account. All routes are process-local and bounded.
+// Historical configuration may still deserialize a pool. Its target must never receive another account's route.
 type codexGatewayPinUpstream struct {
 	rotationCache         *astraRotationCache
 	nodeCursor            int
@@ -65,22 +65,7 @@ func (s *codexGatewayPinUpstream) DoWithTLS(req *http.Request, proxy string, acc
 	}
 	req = req.Clone(service.WithHTTPUpstreamRedirectsDisabled(req.Context()))
 	if target {
-		cookie, sourceID := s.currentCookie(req.URL.Path, time.Now())
-		if cookie == nil {
-			slog.Info("codex_gateway_pin_unavailable", "target_account_id", accountID)
-			return nil, errCodexGatewayPinUnavailable
-		}
-		if s.config.IPAffinity {
-			s.mu.Lock()
-			route, exists := s.routes[sourceID]
-			s.mu.Unlock()
-			if !exists || route.cookie.Value != cookie.Value || !time.Now().Before(route.expires) {
-				return nil, errCodexGatewayPinUnavailable
-			}
-			proxy = route.proxy
-		}
-		replaceCodexGatewayCookie(req, cookie)
-		slog.Info("codex_gateway_pin_applied", "source_account_id", sourceID, "target_account_id", accountID)
+		return nil, errAccountRouteIsolation
 	}
 	egress, _ := req.Context().Value(astraSourceEgressKey{}).(astraSourceEgress)
 	if source && egress.node.ID != "" {
@@ -427,9 +412,5 @@ func (s *codexGatewayPinUpstream) CodexGatewayPinWSHeader(accountID int64) (stri
 	if !s.config.Enabled || !slices.Contains(s.config.TargetAccountIDs, accountID) {
 		return "", nil
 	}
-	cookie, _ := s.currentCookie("/backend-api/codex/responses", time.Now())
-	if cookie == nil {
-		return "", errCodexGatewayPinUnavailable
-	}
-	return cookie.Value, nil
+	return "", errAccountRouteIsolation
 }
