@@ -466,3 +466,14 @@ func TestCompositeLiveRouteDispatchesBySessionModelNotTopLevelAlias(t *testing.T
 
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
+
+func TestCompositeRouteReadLimitUsesMessagesProtocol(t *testing.T) {
+	router := gin.New()
+	router.POST("/v1/messages", servermiddleware.RequestBodyLimit(16), func(c *gin.Context) {
+		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{Platform: service.PlatformComposite}})
+	}, compositeTargetPlatformMiddleware(nil), func(*gin.Context) { t.Fatal("oversize request forwarded") })
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(strings.Repeat("x", 17))))
+	require.Equal(t, 413, rec.Code)
+	require.JSONEq(t, `{"type":"error","error":{"type":"invalid_request_error","message":"Request body too large, limit is 16B"}}`, rec.Body.String())
+}

@@ -1,13 +1,11 @@
 package middleware
 
 import (
-	"errors"
 	"fmt"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"net/http"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -147,20 +145,8 @@ func groupModelAllowlistModelsFromBody(c *gin.Context) ([]string, bool) {
 // readAdmissionRequestBody 供准入中间件读取请求体：读完用 PrereadBody 回填，后续 handler
 // 零拷贝重读。读取失败按合成中间件的方式返回 400/413 并 Abort（第二个返回值为 false）。
 func readAdmissionRequestBody(c *gin.Context) ([]byte, bool) {
-	body, err := httputil.ReadRequestBodyWithPrealloc(c.Request)
-	if err != nil {
-		if RejectRequestBodyReadError(c, err) {
-			return nil, false
-		}
-		status := http.StatusBadRequest
-		message := "Failed to read request body"
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			status = http.StatusRequestEntityTooLarge
-			message = "Request body is too large"
-		}
-		c.JSON(status, gin.H{"error": gin.H{"type": "invalid_request_error", "message": message}})
-		c.Abort()
+	body, ok := ReadGatewayRequestBody(c)
+	if !ok {
 		return nil, false
 	}
 	requestmodel.ResetRequestBody(c.Request, body)

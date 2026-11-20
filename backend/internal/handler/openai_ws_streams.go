@@ -17,6 +17,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -124,6 +125,12 @@ func (h *OpenAIGatewayHandler) serveOpenAIWSStreams(c *gin.Context, conn *coderw
 	for {
 		if kind != coderws.MessageText && kind != coderws.MessageBinary || !gjson.ValidBytes(body) {
 			_ = conn.Close(coderws.StatusPolicyViolation, "invalid websocket JSON payload")
+			return
+		}
+		// All first, subsequent and control frames pass here before stream selection or rewriting.
+		if _, ambiguous := requestmodel.ConflictingField("application/json", body); ambiguous {
+			middleware.MarkIngressRejected(c, middleware.IngressRejectConflictingRequestFields)
+			_ = conn.Close(coderws.StatusPolicyViolation, "websocket request contains ambiguous fields")
 			return
 		}
 		if err := r.route(kind, body, arrived); err != nil {

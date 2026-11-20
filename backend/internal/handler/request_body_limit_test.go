@@ -43,3 +43,9 @@ func TestRequestBodyLimitTooLarge(t *testing.T) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, recorder.Code)
 	require.Contains(t, recorder.Body.String(), buildBodyTooLargeMessage(limit))
 }
+
+func TestRequestBodyLimitMessageReportsExactBytes(t *testing.T) {
+	for limit, want := range map[int64]string{16: "16B", 2 << 20: "2MB", 1<<20 + 1: "1048577B"} {
+		require.Equal(t, "Request body too large, limit is "+want, buildBodyTooLargeMessage(limit))
+	}
+}
