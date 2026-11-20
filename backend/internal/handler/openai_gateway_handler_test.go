@@ -3478,6 +3478,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		}
 		require.Contains(t, closeErr.Reason, reason)
 		require.Empty(t, upstreamPayloadCh, "rejected first turn must not reach upstream")
+		if tc.closeReason == "websocket request contains ambiguous fields" {
+			require.Empty(t, usageRepo.created, "a rejected first turn must not create usage")
+		}
 		_ = clientConn.CloseNow()
 		return openAIResponsesWSUsageLogResult{}
 	}
@@ -3565,6 +3568,16 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				upstreamPayloadCh <- frame
 			}
 			require.Equal(t, turnCount-1, reachedTurns, "rejected turn must not reach upstream")
+			if tc.closeReason == "websocket request contains ambiguous fields" {
+				select {
+				case usage := <-usageRepo.created:
+					require.NotNil(t, usage)
+					require.Equal(t, gjson.GetBytes(clientEvents[0], "response.id").String(), usage.RequestID)
+				case <-time.After(3 * time.Second):
+					t.Fatal("the completed first turn did not settle")
+				}
+				require.Empty(t, usageRepo.created, "the refused second turn must not create usage")
+			}
 			_ = clientConn.CloseNow()
 			return openAIResponsesWSUsageLogResult{}
 		}
