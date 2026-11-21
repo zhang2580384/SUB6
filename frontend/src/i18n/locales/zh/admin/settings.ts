@@ -1494,6 +1494,10 @@ export default {
         title: '使用记录',
         description: '与终端用户可见的用量及失败请求记录相关的设置。',
       },
+      userTraffic: {
+        label: '记录请求流量',
+        description: '关闭后停止采集新请求的上传和下载字节数，并隐藏用户端和管理端的流量记录。保留历史数据，Token 计费不变。',
+      },
       user_error_view: {
         label: '允许用户查看自己的错误请求',
         description: '开启后，用户可在用量页查看自己失败请求的精简信息（不含内部/上游错误细节）。需运维监控开启才有数据。',

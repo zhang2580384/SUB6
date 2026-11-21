@@ -709,6 +709,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
+	updates[SettingKeyUserTrafficEnabled] = strconv.FormatBool(settings.UserTrafficEnabled)
 	updates[SettingKeyUsageShowLongContextBadge] = strconv.FormatBool(settings.UsageShowLongContextBadge)
 	updates[SettingKeyUsageShowCacheRate] = strconv.FormatBool(settings.UsageShowCacheRate)
 	updates[SettingKeyUsageShowCacheRateToUsers] = strconv.FormatBool(settings.UsageShowCacheRateToUsers)
@@ -881,6 +882,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		return
 	}
 
+	s.userTrafficCache.Store(&userTrafficSnapshot{enabled: settings.UserTrafficEnabled, expires: time.Now().Add(userTrafficTTL)})
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
 	versionBoundsSF.Forget("version_bounds")
 	versionBoundsCache.Store(&cachedVersionBounds{

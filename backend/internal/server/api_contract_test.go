@@ -660,6 +660,7 @@ func TestAPIContracts(t *testing.T) {
 			setup: func(t *testing.T, deps *contractDeps) {
 				t.Helper()
 				deps.settingRepo.SetAll(map[string]string{
+					service.SettingKeyUserTrafficEnabled:               "false",
 					service.SettingKeyRegistrationEnabled:              "true",
 					service.SettingKeyEmailVerifyEnabled:               "false",
 					service.SettingKeyRegistrationEmailSuffixWhitelist: "[]",
@@ -1103,6 +1104,7 @@ func TestAPIContracts(t *testing.T) {
 					"usage_show_long_context_badge": true,
 					"usage_show_cache_rate": true,
 					"usage_show_cache_rate_to_users": false,
+					"user_traffic_enabled": false,
 					"usage_show_upstream_response_model_to_users": false
 				}
 			}`,
@@ -1518,6 +1520,7 @@ func TestAPIContracts(t *testing.T) {
 					"usage_show_long_context_badge": true,
 					"usage_show_cache_rate": true,
 					"usage_show_cache_rate_to_users": false,
+					"user_traffic_enabled": true,
 					"usage_show_upstream_response_model_to_users": false
 				}
 			}`,

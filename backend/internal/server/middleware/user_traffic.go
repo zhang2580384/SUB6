@@ -30,13 +30,13 @@ func finishTrafficAfterRecovery(c *gin.Context) {
 
 // UserTraffic must precede auth/body pre-reading on gateway routes. Only a
 // successfully authenticated identity is attributed, including later failures.
-func UserTraffic(recorder TrafficRecorder) gin.HandlerFunc {
+func UserTraffic(recorder TrafficRecorder, enabled func() bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Only the external ingress meters a serverless forwarded request. This
 		// flag is set by verified HMAC/replay-protected ingress, never a header.
 		path := c.FullPath()
 		live := strings.Contains(path, "/live") || path == "/backend-api/codex/realtime/calls" || path == "/backend-api/codex/:call_id"
-		if recorder == nil || c.GetString("serverless_verified_ip") != "" || live {
+		if recorder == nil || c.GetString("serverless_verified_ip") != "" || live || !enabled() {
 			c.Next()
 			return
 		}

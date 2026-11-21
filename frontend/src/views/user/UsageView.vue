@@ -174,7 +174,7 @@
         <button v-if="errorViewEnabled" class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
           {{ t('usage.tabs.errors') }}
         </button>
-        <button class="tab" :class="{ 'tab-active': activeTab === 'traffic' }" @click="activeTab = 'traffic'">{{ t('traffic.title') }}</button>
+        <button v-if="trafficEnabled" class="tab" :class="{ 'tab-active': activeTab === 'traffic' }" @click="activeTab = 'traffic'">{{ t('traffic.title') }}</button>
       </div>
 
       <template v-if="activeTab === 'usage'">
@@ -215,7 +215,7 @@
         @update:pageSize="onErrorPageSize"
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
-      <TrafficPanel v-if="activeTab === 'traffic'" :api-key-options="apiKeyOptions" class="card" />
+      <TrafficPanel v-if="trafficEnabled && activeTab === 'traffic'" :api-key-options="apiKeyOptions" class="card" />
     </div>
   </AppLayout>
 
@@ -364,6 +364,8 @@ const groupDistributionMetric = ref<DistributionMetric>('tokens')
 const endpointDistributionMetric = ref<DistributionMetric>('tokens')
 const endpointDistributionSource = ref<EndpointSource>('inbound')
 const activeTab = ref<'usage' | 'errors' | 'traffic'>('usage')
+const trafficEnabled = computed(() => appStore.cachedPublicSettings?.user_traffic_enabled !== false)
+watch(trafficEnabled, enabled => { if (!enabled && activeTab.value === 'traffic') activeTab.value = 'usage' })
 const errorViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_user_view_error_requests ?? false)
 const includeCacheRate = computed(() => showUsageCacheRate(appStore.cachedPublicSettings, 'user'))
 const includeUpstreamResponseModel = computed(() => showUpstreamResponseModelToUsers(appStore.cachedPublicSettings))

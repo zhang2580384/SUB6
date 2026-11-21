@@ -140,6 +140,7 @@ func ProvideRouter(
 			log.Printf("Traffic statistics disabled: %v", err)
 		} else {
 			lifecycle.onDrain = append(lifecycle.onDrain, stop)
+			lifecycle.onDrain = append(lifecycle.onDrain, settingService.StartUserTrafficRefresh())
 		}
 	}
 	r.GET("/internal/serverless/probe", manager.ProbeHandler)

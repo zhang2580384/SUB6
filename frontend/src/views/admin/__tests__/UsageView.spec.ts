@@ -295,6 +295,19 @@ describe('admin UsageView route filters', () => {
     wrapper.unmount()
   })
 
+  it('returns admins to usage when traffic is disabled', async () => {
+    const settings = useAppStore().cachedPublicSettings as Record<string, unknown>
+    const wrapper = mountRouteFilteredUsageView()
+    try {
+      const vm = wrapper.vm as any
+      expect(vm.detailTabs.some((tab: {key: string}) => tab.key === 'traffic')).toBe(true)
+      vm.activeTab = 'traffic'
+      settings.user_traffic_enabled = false; await flushPromises()
+      expect(vm.activeTab).toBe('usage')
+      expect(vm.detailTabs.some((tab: {key: string}) => tab.key === 'traffic')).toBe(false)
+    } finally { wrapper.unmount(); delete settings.user_traffic_enabled }
+  })
+
   it('gives the trend tooltip the range and granularity its trend was loaded for, and the server zone once settings load', async () => {
     // Public settings arrive after the trend.
     const settings = useAppStore().cachedPublicSettings as Record<string, unknown>

@@ -834,6 +834,9 @@ const AdminAPIKeyPrefix = "admin-"
 // their own failed requests on the usage page. Default false (opt-in).
 const SettingKeyAllowUserViewErrorRequests = "allow_user_view_error_requests"
 
+// SettingKeyUserTrafficEnabled gates auxiliary byte metering and its reports.
+const SettingKeyUserTrafficEnabled = "user_traffic_enabled"
+
 // SettingKeyUsageShowLongContextBadge controls whether the long-context
 // billing "x2" badge is shown next to the cost in usage tables. Default
 // true (opt-out).
