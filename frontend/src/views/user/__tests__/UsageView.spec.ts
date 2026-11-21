@@ -259,6 +259,15 @@ describe('user UsageView', () => {
     }
   })
 
+  it('keeps ordinary usage visible and never mounts traffic when capture is disabled', async () => {
+    appStoreState.cachedPublicSettings = { user_traffic_enabled: false }
+    const wrapper = mountUsageView(); await flushPromises()
+    expect(wrapper.findAll('button').some(b => b.text() === 'traffic.title')).toBe(false)
+    expect(wrapper.findComponent(TrafficPanel).exists()).toBe(false)
+    expect(wrapper.findComponent(UsageTable).exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('passes the same own API key choices to traffic and usage details', async () => {
     const wrapper = mountUsageView(); await flushPromises()
     const usageOptions = wrapper.findAllComponents(Select).find(select =>

@@ -427,6 +427,7 @@ type UpdateSettingsRequest struct {
 	AuthSourceDingTalkPlatformQuotas map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_dingtalk_platform_quotas"`
 
 	AllowUserViewErrorRequests            *bool   `json:"allow_user_view_error_requests"`
+	UserTrafficEnabled                    *bool   `json:"user_traffic_enabled"`
 	UsageShowLongContextBadge             *bool   `json:"usage_show_long_context_badge"`
 	UsageShowCacheRate                    *bool   `json:"usage_show_cache_rate"`
 	UsageShowCacheRateToUsers             *bool   `json:"usage_show_cache_rate_to_users"`
@@ -1955,6 +1956,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AllowUserViewErrorRequests
 		}(),
+		UserTrafficEnabled: func() bool {
+			if req.UserTrafficEnabled != nil {
+				return *req.UserTrafficEnabled
+			}
+			return previousSettings.UserTrafficEnabled
+		}(),
 		UsageShowLongContextBadge: func() bool {
 			if req.UsageShowLongContextBadge != nil {
 				return *req.UsageShowLongContextBadge
@@ -2912,6 +2919,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CyberSessionIdentityStrictEnabled:     updatedSettings.CyberSessionIdentityStrictEnabled,
 		AccountSchedulingThresholds:           updatedSettings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:            updatedSettings.AllowUserViewErrorRequests,
+		UserTrafficEnabled:                    updatedSettings.UserTrafficEnabled,
 		UsageShowLongContextBadge:             updatedSettings.UsageShowLongContextBadge,
 		UsageShowCacheRate:                    updatedSettings.UsageShowCacheRate,
 		UsageShowCacheRateToUsers:             updatedSettings.UsageShowCacheRateToUsers,
