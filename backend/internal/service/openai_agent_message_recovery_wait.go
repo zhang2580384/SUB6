@@ -33,6 +33,12 @@ func (s *defaultOpenAIAccountScheduler) checkOpenAIAgentRecoveryCooldown(ctx con
 	if account.OverloadUntil != nil && account.OverloadUntil.After(now) && account.OverloadUntil.After(retryAt) {
 		retryAt, reason = *account.OverloadUntil, "owner_overloaded"
 	}
+	// A transient upstream failure can park just this account and mapped model
+	// without setting either of the persisted account-level deadlines.
+	model := canonicalOpenAIAccountSchedulingModel(account, req.RequestedModel)
+	if until := s.service.getOpenAIAccountModelTransientState().blockedUntil(account.ID, model, now); until.After(retryAt) {
+		retryAt, reason = until, "owner_overloaded"
+	}
 	if retryAt.IsZero() {
 		return nil
 	}

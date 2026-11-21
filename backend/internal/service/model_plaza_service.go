@@ -436,8 +436,12 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 	if cached, ok := memo[modelName]; ok {
 		return cached
 	}
+	officialModel := modelName
+	if strings.EqualFold(strings.TrimSpace(modelName), "deepseek-pro") {
+		officialModel = "deepseek-v4-pro"
+	}
 	var result *PlazaOfficialPricing
-	if mp, err := s.billingService.GetModelPricing(modelName); err == nil && mp != nil {
+	if mp, err := s.billingService.GetModelPricing(officialModel); err == nil && mp != nil {
 		result = &PlazaOfficialPricing{
 			InputPrice:      nonZeroPtr(mp.InputPricePerToken),
 			OutputPrice:     nonZeroPtr(mp.OutputPricePerToken),
@@ -450,7 +454,7 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 		}
 		result.CacheWrite12hPrice = mp.CacheCreation12hPricePerToken
 		if s.resolver != nil {
-			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: modelName})
+			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: officialModel})
 			if schedErr == nil && sched != nil && len(sched.Tiers) > 1 {
 				result.Intervals = plazaIntervalsFromTiers(sched.Tiers)
 			}
