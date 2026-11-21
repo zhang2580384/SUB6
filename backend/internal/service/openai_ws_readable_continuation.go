@@ -82,9 +82,17 @@ func openAIReadableRecoveryUser(c *gin.Context, keyID int64) int64 {
 // A new provider conversation may reuse completed results, never unfinished
 // tool work. Reject duplicate, orphan or unknown-status tool records.
 func openAIWSCompletedToolInputs(body []byte) bool {
+	return openAIWSCompletedToolInputsWithHost(body, nil)
+}
+
+func openAIWSCompletedToolInputsWithHost(body []byte, historicalHost func(gjson.Result) bool) bool {
 	calls, results := map[string]string{}, map[string]string{}
-	for _, item := range gjson.GetBytes(body, "input").Array() {
+	items := gjson.GetBytes(body, "input").Array()
+	for i, item := range items {
 		kind, id := item.Get("type").String(), item.Get("call_id").String()
+		if kind == "function_call_output" && i+1 < len(items) && strings.TrimSpace(id) == "" && historicalHost != nil && historicalHost(item) {
+			continue
+		}
 		switch kind {
 		case "function_call", "custom_tool_call", "function_call_output", "custom_tool_call_output":
 			if id == "" || (item.Get("status").Exists() && item.Get("status").String() != "completed") {

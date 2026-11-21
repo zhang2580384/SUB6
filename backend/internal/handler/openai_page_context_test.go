@@ -79,8 +79,7 @@ func TestNormalizeCodexPageContextMixedBootstrap(t *testing.T) {
 		body := pageContextRequest(t, pageContextItem("codex_apps_open_page", `{"page_id":null}`), item)
 		got, changed := normalizeCodexPageContext(body)
 		require.True(t, changed)
-		got, _ = normalizeCodexAutomationBootstrap(got)
-		got, _ = normalizeCodexDelegationBootstrap(got)
+		got, _ = normalizeCodexCurrentHostTurn(got)
 		require.False(t, service.ValidateFunctionCallOutputContextBytes(got).HasFunctionCallOutput)
 	}
 }

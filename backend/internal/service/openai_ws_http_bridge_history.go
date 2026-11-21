@@ -56,15 +56,16 @@ func openAIWSBridgeHistoryScopeFor(c *gin.Context, source []byte, model string) 
 // Owned exclusively by one serial bridge loop. A response on another socket,
 // even one sharing a session ID, cannot supply this proof or these bytes.
 type openAIWSHTTPBridgeHistory struct {
-	service      *OpenAIGatewayService
-	scope        openAIWSBridgeHistoryScope
-	route        [32]byte
-	response     string
-	expires      time.Time
-	items        []json.RawMessage
-	charge       int64
-	unavailable  string
-	hasDecorated bool
+	service        *OpenAIGatewayService
+	historicalHost func(gjson.Result) bool
+	scope          openAIWSBridgeHistoryScope
+	route          [32]byte
+	response       string
+	expires        time.Time
+	items          []json.RawMessage
+	charge         int64
+	unavailable    string
+	hasDecorated   bool
 }
 
 type openAIWSBridgeHistoryTurnKey struct{}
@@ -145,10 +146,14 @@ func openAIWSBridgeHistoryAccount(account *Account) bool {
 // Opaque reasoning, references and unfamiliar item/content kinds remain on the
 // existing protected route and never receive a pointer-removal exemption.
 func openAIWSBridgeHistoryItemsSafe(items []json.RawMessage, output bool) bool {
+	return openAIWSBridgeHistoryItemsSafeWithHost(items, output, nil)
+}
+
+func openAIWSBridgeHistoryItemsSafeWithHost(items []json.RawMessage, output bool, historicalHost func(gjson.Result) bool) bool {
 	if len(items) > openAIWSBridgeHistoryMaxItems || openAIWSRawItemsContainNonPortableContext(items) {
 		return false
 	}
-	for _, raw := range items {
+	for i, raw := range items {
 		if !utf8.Valid(raw) || !openAIEncryptedJSONUnambiguous(raw) {
 			return false
 		}
@@ -210,6 +215,9 @@ func openAIWSBridgeHistoryItemsSafe(items []json.RawMessage, output bool) bool {
 				return false
 			}
 		case "function_call_output", "custom_tool_call_output":
+			if !output && i+1 < len(items) && historicalHost != nil && strings.TrimSpace(item.Get("call_id").String()) == "" && historicalHost(item) {
+				continue
+			}
 			if output || item.Get("call_id").Type != gjson.String || item.Get("call_id").String() == "" || !openAIWSBridgeHistoryToolResultSafe(item) {
 				return false
 			}
@@ -358,7 +366,7 @@ func (h *openAIWSHTTPBridgeHistory) prepare(c *gin.Context, account *Account, so
 		if scope != h.scope || !openAIWSBridgeHistoryAccount(account) {
 			return nil, openAIAgentRecoveryError("route_changed")
 		}
-		if !openAIWSBridgeHistoryItemsSafe(input, false) {
+		if !openAIWSBridgeHistoryItemsSafeWithHost(input, false, h.historicalHost) {
 			return nil, openAIAgentRecoveryError("bridge_history_unsupported")
 		}
 		if openAIWSBridgeHistoryHasPrefix(input, h.items) {
@@ -375,7 +383,7 @@ func (h *openAIWSHTTPBridgeHistory) prepare(c *gin.Context, account *Account, so
 		if len(t.input) > openAIWSBridgeHistoryMaxItems {
 			return nil, openAIAgentRecoveryError("bridge_history_limit")
 		}
-		if !openAIWSBridgeHistoryItemsSafe(t.input, false) {
+		if !openAIWSBridgeHistoryItemsSafeWithHost(t.input, false, h.historicalHost) {
 			return nil, openAIAgentRecoveryError("bridge_history_unsupported")
 		}
 		if openAIWSBridgeHistorySize(t.input) > openAIWSBridgeHistoryMaxBytes {
@@ -387,7 +395,7 @@ func (h *openAIWSHTTPBridgeHistory) prepare(c *gin.Context, account *Account, so
 		if setErr != nil {
 			return nil, setErr
 		}
-		if !openAIWSCompletedToolInputs(rebuilt) {
+		if !openAIWSCompletedToolInputsWithHost(rebuilt, h.historicalHost) {
 			return nil, openAIAgentRecoveryError("bridge_history_unsupported")
 		}
 		rebuilt, setErr = sjson.DeleteBytes(rebuilt, "previous_response_id")
@@ -404,7 +412,7 @@ func (h *openAIWSHTTPBridgeHistory) prepare(c *gin.Context, account *Account, so
 		}
 		t.payload, t.rebuilt = rebuilt, true
 	}
-	if !openAIWSBridgeHistoryItemsSafe(input, false) {
+	if !openAIWSBridgeHistoryItemsSafeWithHost(input, false, h.historicalHost) {
 		t.invalidate("bridge_history_unsupported")
 	}
 	if len(input) > openAIWSBridgeHistoryMaxItems || openAIWSBridgeHistorySize(input) > openAIWSBridgeHistoryMaxBytes {
@@ -655,7 +663,7 @@ func (t *openAIWSBridgeHistoryTurn) commit(ctx context.Context, success bool) {
 	}
 	defer t.close()
 	h := t.history
-	if !success || ctx.Err() != nil || !t.sent || !t.completed || t.unsafe || !openAIWSBridgeHistoryItemsSafe(t.input, false) {
+	if !success || ctx.Err() != nil || !t.sent || !t.completed || t.unsafe || !openAIWSBridgeHistoryItemsSafeWithHost(t.input, false, h.historicalHost) {
 		reason := t.unavailable
 		if reason == "" {
 			reason = "bridge_delivery_unconfirmed"

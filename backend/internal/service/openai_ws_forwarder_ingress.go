@@ -1367,6 +1367,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		var bridgeAccountFailoverInput []json.RawMessage
 		bridgeAccountFailoverInputExists := false
 		bridgeHistory := newOpenAIWSHTTPBridgeHistory(s, c, account, smartStateful)
+		if bridgeHistory != nil && hooks != nil {
+			bridgeHistory.historicalHost = hooks.IsHistoricalHostEvent
+		}
 		defer bridgeHistory.close()
 		generation := 0
 		for turn := 1; ; turn++ {
@@ -1480,6 +1483,17 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			if smartStrict && currentBridgePayload.previousResponseID != "" && currentBridgePayload.previousResponseID != smartSession.LastResponse {
 				return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "continuation does not belong to this HTTP session", nil)
+			}
+			// Project the current event before recording readable history. Retain
+			// the original client frame for all owner, route and wire checks.
+			if bridgeHistory != nil && hooks != nil && hooks.NormalizeHTTPBridgeHostTurn != nil {
+				source := currentBridgePayload.clientPayloadRaw
+				if projected, changed := hooks.NormalizeHTTPBridgeHostTurn(source, currentBridgePayload.payloadRaw); changed && !agentRecovery.readablePrepared() &&
+					len(openAIAgentRecoveryItemDigests(source)) == 0 && !gjson.GetBytes(source, "conversation").Exists() &&
+					!isOpenAIResponsesLiteWebSocketPayload(source) && !account.IsExcelBPSEnabledForModel(currentBridgePayload.originalModel) && !account.IsPrismBrowserEnabledForModel(currentBridgePayload.originalModel) {
+					currentBridgePayload.payloadRaw = projected
+					currentBridgePayload.payloadBytes = len(projected)
+				}
 			}
 			bridgePayloadRaw := currentBridgePayload.payloadRaw
 			bridgePayloadBytes := currentBridgePayload.payloadBytes

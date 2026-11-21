@@ -211,8 +211,8 @@ func TestNormalizeCodexPageContextCoexistsWithBootstrapMessages(t *testing.T) {
 		item      string
 		normalize func([]byte) ([]byte, bool)
 	}{
-		{`{"type":"function_call_output","namespace":"codex_app","name":"send_message_to_thread","output":` + mustJSON(t, delegationEnvelope) + `}`, normalizeCodexDelegationBootstrap},
-		{`{"type":"function_call_output","namespace":"codex_app","name":"automation_update","output":"<heartbeat><automation_id>test</automation_id></heartbeat>"}`, normalizeCodexAutomationBootstrap},
+		{`{"type":"function_call_output","namespace":"codex_app","name":"send_message_to_thread","output":` + mustJSON(t, delegationEnvelope) + `}`, normalizeCodexCurrentHostTurn},
+		{`{"type":"function_call_output","namespace":"codex_app","name":"automation_update","output":"<heartbeat><automation_id>test</automation_id></heartbeat>"}`, normalizeCodexCurrentHostTurn},
 	} {
 		got, changed := normalizeCodexPageContext([]byte(`{"input":[` + codexPageContextInput + `,` + bootstrap.item + `]}`))
 		require.True(t, changed)
