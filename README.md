@@ -32,7 +32,7 @@ pnpm --dir frontend run build
 cd backend
 go mod download
 go mod verify
-CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.Version=0.1.14 -X main.BuildType=source' -o sub6 ./cmd/server
+CGO_ENABLED=0 go build -tags embed -trimpath -ldflags='-s -w -X main.BuildType=source' -o sub6 ./cmd/server
 ./sub6
 ```
 
