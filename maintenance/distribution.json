@@ -1,5 +1,5 @@
 {
-  "version": "0.1.16",
+  "version": "0.1.17",
   "target": "linux/amd64",
   "upstream_version": "2.21.3",
   "upstream_commit": "aa8e596e6d6f3e4648d6beba73b39b240dd5357a",
@@ -7,5 +7,5 @@
   "controller_protocol": 2,
   "deployment_probe_protocol": 1,
   "online_migration_plan": "usage-platform-v1",
-  "upgrade_guide": "maintenance/UPGRADE-v0.1.16.md"
+  "upgrade_guide": "maintenance/UPGRADE-v0.1.17.md"
 }
