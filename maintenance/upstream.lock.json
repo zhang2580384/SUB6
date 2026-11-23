@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "distribution": "SUB6",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "upstream": {
     "url": "https://github.com/ranxi2001/sub2api.git",
     "branch": "production",
@@ -12,10 +12,10 @@
     "latest_release": "v2.21.3",
     "release_commit": "aa8e596e6d6f3e4648d6beba73b39b240dd5357a",
     "release_tag_object": "1dbf88d3b796d520ff06db1eac911d0cf6822609",
-    "production_observed": "8dedf05db37c870265e04327defb9e96e7787603",
-    "latest_observed_release": "v2.24.1",
-    "latest_observed_commit": "0755d5ef037f64d203828d0edcc513764b69e1d2",
-    "latest_observed_tag_object": "396c53dea4c0fc31e4f14a207c84ee864c9e7428"
+    "production_observed": "919d111c7f7594de292a32cde53e0785a9fd3bb5",
+    "latest_observed_release": "v2.24.2",
+    "latest_observed_commit": "991cd30e2910d5eeb6ab55f6b7fc93e9a494e1a6",
+    "latest_observed_tag_object": "ac3fff057e208dc5f32d3f37c8803c743599fe47"
   },
   "review": {
     "date": "2026-11-15",
@@ -33,10 +33,10 @@
     "container_images": true,
     "managed_upgrade_mode": "protocol-2 reviewed plan; exact final build-info and successful preflight required",
     "container_distribution": "release docker-save archive; no registry push",
-    "source_target": "v0.1.17",
+    "source_target": "v0.1.18",
     "last_verified_release_before_preparation": {
-      "tag": "v0.1.16",
-      "commit": "ee407da001f2c6aeb85682f60a6a5c430899851f"
+      "tag": "v0.1.17",
+      "commit": "a7debe2a80a39a9f2fdd51d173c9d6a90e8abacb"
     },
     "release_evidence": "Use the matching formal release and build-info.json to identify published assets."
   },
@@ -62,6 +62,25 @@
     ]
   },
   "release_update": {
+    "version": "0.1.18",
+    "base": "a7debe2a80a39a9f2fdd51d173c9d6a90e8abacb",
+    "report": "UPGRADE-v0.1.18.md",
+    "review_date": "2026-11-23",
+    "ranxi_selected_merge_commits": {
+      "1013": "7d84e32316181968c2634b49c4187667b7b5b65c",
+      "1014": "36909316aee2d0b71ac505a986aad62a0707801a",
+      "1015": "a03d4a6e10145ffe4ba5c1af113aea8dc95315d6",
+      "1016": "05946a9cd81dd04e5d73052a41165fc259e163b7",
+      "1019": "5f5cd28531ce72584e7e4171c1d90e0a41c858dd",
+      "1020": "7f8eec5a36897c92045e97132abf94030d15a6d6"
+    },
+    "new_migrations": 0,
+    "new_dependencies": 0,
+    "original_author_release": "v0.2.24",
+    "original_author_commit": "5c2982a81b46e2142d0143d2f83c1ce9c4da1d24",
+    "scope": "Selected request processing improvements. The observed Ranxi release and production ranges have not been merged wholesale."
+  },
+  "previous_release_update": {
     "version": "0.1.17",
     "base": "ee407da001f2c6aeb85682f60a6a5c430899851f",
     "report": "UPGRADE-v0.1.17.md",
@@ -77,23 +96,5 @@
     "original_author_release": "v0.2.24",
     "original_author_commit": "5c2982a81b46e2142d0143d2f83c1ce9c4da1d24",
     "scope": "Selected backports on the existing distribution baseline. The whole observed upstream branch is held for separate review."
-  },
-  "previous_release_update": {
-    "version": "0.1.10",
-    "base": "60f23641079c0e7a6d672cc3faaa64b3ca9c9c5e",
-    "report": "2026-11-17-ws-http-bridge-history.md",
-    "new_upstream_commits": 0,
-    "new_migrations": 0,
-    "new_dependencies": 0,
-    "production_deployed": false,
-    "excluded_observation": {
-      "date": "2026-11-17",
-      "production": "8750ec1956be7c8de327e384c884bb737f943017",
-      "latest_release": "v2.21.6",
-      "release_commit": "321f11c1a4d23302961c223ac030fd09e3f9e6e8",
-      "release_tag_object": "ac02d5278ced687d920b01ea6eec4227b5b1cf02",
-      "disposition": "observed only; no additional upstream source qualified, executed or integrated",
-      "observed_at_utc": "2026-11-17T13:51:31.061476+00:00"
-    }
   }
 }

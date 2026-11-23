@@ -96,12 +96,29 @@ func sanitizeOpenAIResponsesToolParameterTypes(body []byte) ([]byte, bool, error
 // A repair needs a literal null or one of the two (possibly escaped) ASCII union keywords.
 func openAIResponsesBodyMayNeedToolParameterRepair(body []byte) bool {
 	return bytes.Contains(body, []byte("null")) || bytes.Contains(body, []byte("oneOf")) ||
-		bytes.Contains(body, []byte("anyOf")) || bytes.Contains(body, []byte(`\u00`))
+		bytes.Contains(body, []byte("anyOf")) || openAIResponsesContainsUnicode00Prefix(body)
+}
+
+func openAIResponsesContainsUnicode00Prefix(body []byte) bool {
+	slash := bytes.IndexByte(body, '\\')
+	if slash < 0 {
+		return false
+	}
+	body = body[slash:]
+	// In "\u00" the first zero is two bytes after the start of the match.
+	zero := bytes.IndexByte(body, '0')
+	return zero >= 0 && bytes.Contains(body[max(0, zero-2):], []byte(`\u00`))
 }
 
 // Either character of the lookaround prefix may have been spelled as a JSON escape.
 func openAIResponsesBodyMayContainRegexLookaround(body []byte) bool {
-	return bytes.Contains(body, []byte("(?")) || bytes.Contains(body, []byte(`\u0028`)) ||
+	if bytes.Contains(body, []byte("(?")) {
+		return true
+	}
+	if !openAIResponsesContainsUnicode00Prefix(body) {
+		return false
+	}
+	return bytes.Contains(body, []byte(`\u0028`)) ||
 		bytes.Contains(body, []byte(`\u003f`)) || bytes.Contains(body, []byte(`\u003F`))
 }
 
