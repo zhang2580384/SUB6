@@ -286,6 +286,14 @@ export default {
         }
       },
       upstreamBilling: {
+        autoSyncGroup: '自动同步上游分组名称与备注',
+        autoSyncGroupHint: '成功探测后，上游提供的名称和描述会覆盖本地名称与备注。账号倍率由单独的开关控制。',
+        syncGroup: '同步上游分组名称与备注',
+        saveGroup: '同步并保存上游分组名称与备注',
+        groupCredentials: '请填写上游地址和 API Key。更换地址或代理后需重新输入密钥。',
+        groupUnavailable: '上游没有返回可同步的分组名称或描述。',
+        groupFailed: '同步上游分组信息失败',
+        groupSynced: '账号名称与备注已同步',
         newAPI: {
           upstreamVerificationFailed: "无法完成上游查询。请检查站点是否可访问、用户 ID 和访问令牌是否有效，以及令牌是否允许查询钱包和完整令牌列表。",
           keyNotOwned: "该账号的 API Key 未出现在此用户的令牌列表中。",
@@ -1325,7 +1333,12 @@ export default {
         blockedName: '该请求头不允许覆写（认证头与连接控制头由系统管理）',
         duplicateName: '存在重复的请求头名称（匹配不区分大小写）',
         invalidValue: '请求头值不合法（不允许控制字符，长度不超过 8192）',
-        tooManyEntries: '请求头覆写条目过多（最多 64 条）'
+        tooManyEntries: '请求头覆写条目过多（最多 64 条）',
+        removeRow: '删除请求头行',
+        previewLabel: '预览：',
+        variablesTitle: '身份变量',
+        variablesHint: '在值中插入变量，可向此上游上报已认证的 API Key 身份。',
+        variablesUnavailable: '身份变量仅适用于 API Key 账号的已认证用户请求。'
       },
       grokModelDiagnostics: {
         title: '模型目录诊断',

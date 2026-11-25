@@ -449,6 +449,14 @@ export default {
         }
       },
       upstreamBilling: {
+        autoSyncGroup: 'Auto-sync upstream group name and notes',
+        autoSyncGroupHint: 'A successful probe replaces the local name and notes with any text the upstream provides. Account rate sync is controlled separately.',
+        syncGroup: 'Sync upstream group name and notes',
+        saveGroup: 'Sync and save upstream group name and notes',
+        groupCredentials: 'Enter the upstream URL and API key. Re-enter the key after changing the URL or proxy.',
+        groupUnavailable: 'The upstream returned no group name or description to sync.',
+        groupFailed: 'Failed to sync upstream group details',
+        groupSynced: 'Account name and notes synced',
         newAPI: {
           upstreamVerificationFailed: "The upstream query could not be completed. Check site connectivity, the user ID, and the access token, including permission to read the wallet and complete token inventory.",
           keyNotOwned: "This account API key was not found in this user token inventory.",
@@ -1224,7 +1232,12 @@ export default {
         blockedName: 'This header cannot be overridden (auth and connection-control headers are managed by the system)',
         duplicateName: 'Duplicate header name (matching is case-insensitive)',
         invalidValue: 'Invalid header value (control characters are not allowed; max length 8192)',
-        tooManyEntries: 'Too many header override entries (max 64)'
+        tooManyEntries: 'Too many header override entries (max 64)',
+        removeRow: 'Remove header row',
+        previewLabel: 'Preview:',
+        variablesTitle: 'Identity variables',
+        variablesHint: 'Insert a variable into the value to report the authenticated API key identity to this upstream.',
+        variablesUnavailable: 'Identity variables are available only for API-key accounts on authenticated user requests.'
       },
       grokModelDiagnostics: {
         title: 'Model catalog diagnostics',

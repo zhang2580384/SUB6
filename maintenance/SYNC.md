@@ -11,9 +11,10 @@ snapshot for each public release is recorded by full commit and tree ID in
 1. Acquire an exclusive local maintenance lock outside public source (for example
    in `.git/sub6-maintenance`). If any merge/rebase or another run is active,
    inspect and report it without starting a competing mutation.
-2. Fetch upstream source into a separate local mirror, without executing hooks,
-   dependencies, installers or new workflows. Resolve production, main and
-   official release tags to exact full SHAs; verify ancestry and record the range.
+2. Fetch the original author's `Wei-Shaw/sub2api` source into a separate local
+   mirror, without executing hooks, dependencies, installers or new workflows.
+   Resolve `main` and official release tags to exact full SHAs; verify ancestry
+   and record the range. The Ranxi fork is not the default update source.
 3. Materialize three separate trees: the previous exact upstream snapshot from
    the lock (`base`), the current clean SUB6 release (`ours`), and the newly
    reviewed upstream snapshot (`theirs`). For a raw-source export use

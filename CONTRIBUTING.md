@@ -1,8 +1,8 @@
 # 贡献指南
 
-本指南适用于 [ranxi2001/sub2api](https://github.com/ranxi2001/sub2api)。欢迎提交可复现的 Bug、功能建议、文档修正、测试和代码改进。中文或英文均可，保留错误消息、字段名和命令的原文。
+本指南适用于 [zhang2580384/SUB6](https://github.com/zhang2580384/SUB6)，这是一个保留 SUB6 品牌和定制功能的独立发行版。欢迎提交可复现的 Bug、功能建议、文档修正、测试和代码改进。中文或英文均可，保留错误消息、字段名和命令的原文。
 
-本 fork 以 `production` 为默认开发和 PR 目标分支，按需引入 [Wei-Shaw/sub2api](https://github.com/zhang2580384/SUB6) 的更新。提交前核实仓库与 base 分支，避免把 PR 发到上游 `main`。运维 CLI、监控及生产部署脚本属于 [sub2api-operate](https://github.com/ranxi2001/sub2api-operate)，应用源码改动提交到本仓库。
+SUB6 的默认开发和 PR 目标分支为 `main`。上游同步以原作者 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api) 的 `main` 和正式 Release 为准；Ranxi fork 不作为默认更新源。提交前核实仓库和 base 分支：SUB6 专属改动提交到本仓库；若要贡献回原作者项目，请另行遵循该项目的贡献流程。运维 CLI、监控及生产部署脚本不属于本应用仓库。
 
 ## Agent 使用建议与披露
 
@@ -20,7 +20,7 @@
 
 ## 选择合适的入口
 
-从 [Issue 选择页](https://github.com/ranxi2001/sub2api/issues/new/choose) 选择表单：
+从 [SUB6 Issue 页面](https://github.com/zhang2580384/SUB6/issues/new/choose) 选择表单：
 
 | 类型 | 适用情况 | 重点提供 |
 | --- | --- | --- |
@@ -154,11 +154,11 @@ Fork 本仓库后，下面示例中的 `origin` 是自己的 fork，`project` �
 
 ```bash
 # 将 YOUR_GITHUB_LOGIN 替换为自己的 GitHub 用户名。
-git clone https://github.com/YOUR_GITHUB_LOGIN/sub2api.git
-cd sub2api
-git remote add project https://github.com/ranxi2001/sub2api.git
-git fetch project production
-git switch -c fix/describe-the-change project/production
+git clone https://github.com/YOUR_GITHUB_LOGIN/SUB6.git
+cd SUB6
+git remote add project https://github.com/zhang2580384/SUB6.git
+git fetch project main
+git switch -c fix/describe-the-change project/main
 ```
 
 每个 PR 聚焦一个问题。说明请求路径、账号类型、配置默认值、兼容性和用户可见变化。协议、调度、计费、权限、重试和数据库改动需要对应的边界验证；不要顺手调整无关行为或格式。

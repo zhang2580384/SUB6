@@ -17,6 +17,12 @@ func (s *OpenAIGatewayService) writeOpenAIContextLimitError(resp *http.Response,
 		return false
 	}
 	message := extractOpenAISSEErrorMessage(payload)
+	if passthrough {
+		// The context-limit fast path runs before the generic passthrough error
+		// writer. Apply the same credential and upstream-host redaction here so
+		// deterministic 400s cannot bypass the client-facing error boundary.
+		message = sanitizeOpenAIPassthroughClientErrorText(account, message)
+	}
 	if !isOpenAIContextWindowError(message, payload) {
 		return false
 	}
@@ -50,12 +56,23 @@ func (s *OpenAIGatewayService) writeOpenAIContextLimitError(resp *http.Response,
 		}
 		status, errorType, message, _ = applyErrorPassthroughRule(c, PlatformOpenAI, ruleStatus, payload, status, errorType, message)
 	}
-	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+	if passthrough {
+		writeOpenAIPassthroughErrorHeaders(c.Writer.Header(), resp.Header)
+	} else {
+		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+	}
 	c.Header("Content-Type", "application/json; charset=utf-8")
 	MarkResponseCommitted(c)
 	errorPayload := gin.H{"type": errorType, "code": code, "message": message}
 	for _, path := range []string{"response.error.param", "error.param"} {
-		if param := strings.TrimSpace(gjson.GetBytes(payload, path).String()); param != "" {
+		value := gjson.GetBytes(payload, path)
+		param := ""
+		if passthrough {
+			param = openAIPassthroughClientErrorField(account, value)
+		} else {
+			param = strings.TrimSpace(value.String())
+		}
+		if param != "" {
 			errorPayload["param"] = param
 			break
 		}

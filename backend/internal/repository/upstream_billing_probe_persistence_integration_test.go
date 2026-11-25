@@ -713,3 +713,36 @@ func TestProbePreservesManualCostWhenAutoSyncDisabledDuringProbe(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1.0, synced.CostMultiplier())
 }
+
+func TestProbeGroupWriteHonorsDisableDuringRequest(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	repo := newAccountRepositoryWithSQL(tx.Client(), tx, nil)
+	rate, notes := 0.25, "local notes"
+	account := &service.Account{
+		Name: "local", Notes: &notes, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+		Status: service.StatusActive, Credentials: map[string]any{"api_key": "test-key"}, RateMultiplier: &rate,
+		Extra: map[string]any{service.UpstreamBillingProbeEnabledExtraKey: true, service.UpstreamBillingGroupSyncEnabledExtraKey: true},
+	}
+	require.NoError(t, repo.Create(ctx, account))
+	loaded, err := repo.GetByID(ctx, account.ID)
+	require.NoError(t, err)
+	group := service.BillingGroupInfo{Name: "Pro"}
+	snapshot := &service.UpstreamBillingProbeSnapshot{Status: service.UpstreamBillingProbeStatusOK}
+	require.NoError(t, repo.UpdateUpstreamBillingProbeSnapshot(ctx, loaded, snapshot, nil, group))
+	inFlight, err := repo.GetByID(ctx, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Pro", inFlight.Name)
+	require.Equal(t, notes, *inFlight.Notes)
+	require.Equal(t, rate, *inFlight.RateMultiplier)
+
+	disabled := false
+	require.NoError(t, repo.UpdateWithAccountBillingSettings(ctx, loaded, service.AccountBillingSettingsUpdate{GroupSyncEnabled: &disabled}))
+	group.Name, group.Description = "too late", "too late"
+	require.NoError(t, repo.UpdateUpstreamBillingProbeSnapshot(ctx, inFlight, snapshot, nil, group))
+	after, err := repo.GetByID(ctx, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Pro", after.Name)
+	require.Equal(t, notes, *after.Notes)
+	require.Equal(t, false, after.Extra[service.UpstreamBillingGroupSyncEnabledExtraKey])
+}

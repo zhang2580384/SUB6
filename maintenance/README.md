@@ -1,6 +1,6 @@
 # SUB6 upstream maintenance
 
-SUB6 maintains its own branding, release process and custom gateway behavior while selectively integrating reviewed changes from [Ranxi Sub2API](https://github.com/ranxi2001/sub2api).
+SUB6 maintains its own branding, release process and custom gateway behavior while selectively integrating reviewed changes from the original [Wei-Shaw Sub2API](https://github.com/Wei-Shaw/sub2api). The Ranxi fork is not the default synchronization source.
 
 This directory records public-safe synchronization and validation results. Reports must identify exact upstream and SUB6 commit hashes, the reviewed range, security-sensitive changes, included or excluded commits, regression/build results and remaining concerns. Do not include production settings, customer information or raw operational logs.
 

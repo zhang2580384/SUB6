@@ -112,11 +112,34 @@ func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType
 	writeOpenAICompactSSEFailureMessageParam(c, statusCode, errType, message, "")
 }
 
+// writeOpenAICompactSSEFailureWithCode 保留结构化 error.code，同时按既有约定
+// 使用 upstream_error 作为 Ops 分类。容量降载码必须重写为可重试的 server_error。
+func writeOpenAICompactSSEFailureWithCode(c *gin.Context, statusCode int, code, message string) {
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "":
+		code = "upstream_error"
+	case "server_is_overloaded", "slow_down":
+		code = openAICapacityShedRetryableClientCode
+	}
+	writeOpenAICompactSSEFailureEvent(c, statusCode, "upstream_error", code, message, "")
+}
+
 func writeOpenAICompactSSEFailureMessageParam(c *gin.Context, statusCode int, errType, message, param string) {
+	writeOpenAICompactSSEFailureEvent(c, statusCode, errType, errType, message, param)
+}
+
+func writeOpenAICompactSSEFailureEvent(c *gin.Context, statusCode int, opsErrType, code, message, param string) {
 	if c == nil {
 		return
 	}
-	MarkOpsStreamError(c, errType, message, statusCode)
+	MarkOpsStreamError(c, opsErrType, message, statusCode)
+	errorBody := map[string]any{
+		"code":    code,
+		"message": message,
+	}
+	if param != "" {
+		errorBody["param"] = param
+	}
 	payload, err := json.Marshal(map[string]any{
 		"type":            "response.failed",
 		"sequence_number": 0,
@@ -128,16 +151,7 @@ func writeOpenAICompactSSEFailureMessageParam(c *gin.Context, statusCode int, er
 			"created_at": time.Now().Unix(),
 			"status":     "failed",
 			"output":     []any{},
-			"error": func() map[string]any {
-				errorBody := map[string]any{
-					"code":    errType,
-					"message": message,
-				}
-				if param != "" {
-					errorBody["param"] = param
-				}
-				return errorBody
-			}(),
+			"error":      errorBody,
 		},
 	})
 	if err != nil {

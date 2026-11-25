@@ -115,6 +115,7 @@ func (r *upstreamBillingProbeAccountRepo) UpdateUpstreamBillingProbeSnapshot(
 	expected *Account,
 	snapshot *UpstreamBillingProbeSnapshot,
 	rateMultiplier *float64,
+	group BillingGroupInfo,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -129,6 +130,16 @@ func (r *upstreamBillingProbeAccountRepo) UpdateUpstreamBillingProbeSnapshot(
 	if isUpstreamBillingProbeAccount(account) && account.CostMultiplierAutoSyncEnabled() {
 		if cost, ok := snapshot.CostMultiplierToSync(); ok {
 			account.Extra[AccountCostMultiplierExtraKey] = cost
+		}
+	}
+	if groupSync, _ := account.Extra[UpstreamBillingGroupSyncEnabledExtraKey].(bool); groupSync &&
+		upstreamBillingProbeEnabled(account) && snapshot.Status == UpstreamBillingProbeStatusOK {
+		if group.Name != "" {
+			account.Name = group.Name
+		}
+		if group.Description != "" {
+			note := group.Description
+			account.Notes = &note
 		}
 	}
 	if snapshot.Status == UpstreamBillingProbeStatusOK &&

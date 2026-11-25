@@ -6,7 +6,7 @@ SUB6 is an independently maintained distribution based on Sub2API. Preserve the 
 
 ## Upstream synchronization
 
-- Track `https://github.com/ranxi2001/sub2api.git`, its `production` branch and official releases. Resolve and record exact commit hashes each run; branch names and release labels alone are insufficient evidence.
+- Track the original author's `https://github.com/Wei-Shaw/sub2api.git`, its `main` branch and official releases. Do not use the Ranxi fork's `production` branch or releases as the default update source. Resolve and record exact commit hashes each run; branch names and release labels alone are insufficient evidence.
 - Review changes before merging or running new code, package hooks, installers or CI workflows. Fetching source is allowed. Do not pipe remote scripts into a shell.
 - Inspect authentication and authorization, payment callbacks, signature validation, replay protection, amount/currency checks, order ownership, recharge crediting, balance changes, billing and administrative privileges. Also inspect credential handling, outbound destinations, update/install paths, dependencies, lockfiles, plugins, migrations, CI permissions and executable assets.
 - Quarantine suspicious changes and document the concrete evidence. Do not infer maliciousness from a keyword alone or claim a scan proves absence of malicious code.

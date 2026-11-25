@@ -104,7 +104,10 @@ type openAIWSHandshakeCompatibilityKey struct {
 	threadID            string
 	clientRequestID     string
 	codexWindowID       string
-	proxyURL            string
+	// reportedIdentity is derived from account headers that use identity variables.
+	// A pooled connection has immutable handshake headers, so it must not be reused across users.
+	reportedIdentity string
+	proxyURL         string
 }
 
 type openAIWSConnLease struct {
@@ -2493,8 +2496,9 @@ func normalizeOpenAIWSBetaFeatures(headers http.Header) string {
 
 func normalizeOpenAIWSHandshakeCompatibility(account *Account, headers http.Header) openAIWSHandshakeCompatibilityKey {
 	key := openAIWSHandshakeCompatibilityKey{
-		betaFeatures:    normalizeOpenAIWSBetaFeatures(headers),
-		timezoneHeaders: [3]string{headers.Get("Oai-Client-Timezone"), headers.Get("X-Openai-Timezone"), headers.Get("X-Timezone")},
+		betaFeatures:     normalizeOpenAIWSBetaFeatures(headers),
+		timezoneHeaders:  [3]string{headers.Get("Oai-Client-Timezone"), headers.Get("X-Openai-Timezone"), headers.Get("X-Timezone")},
+		reportedIdentity: account.headerOverrideReportedIdentity(headers),
 	}
 	mode := activeCodexFingerprintMode(account)
 	if mode == codexFingerprintOff {

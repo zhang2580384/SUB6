@@ -96,5 +96,23 @@
     "original_author_release": "v0.2.24",
     "original_author_commit": "5c2982a81b46e2142d0143d2f83c1ce9c4da1d24",
     "scope": "Selected backports on the existing distribution baseline. The whole observed upstream branch is held for separate review."
+  },
+  "candidate": {
+    "version": "0.1.19",
+    "state": "review candidate; Linux CI pending; not merged to main or formally released",
+    "base_public_commit": "fb1401969363dcda35ec2e1d87cddcdc18f1c39b",
+    "upstream_repository": "https://github.com/Wei-Shaw/sub2api.git",
+    "upstream_branch": "main",
+    "source_base_release": "v0.2.24",
+    "source_base_commit": "5c2982a81b46e2142d0143d2f83c1ce9c4da1d24",
+    "source_release": "v0.2.25",
+    "source_release_tag_object": "8fab111f92447a3edbcdf67a517e45b6a3cc4d31",
+    "source_release_commit": "348997267d756eab5729bb6b78a275a15d18796a",
+    "source_release_tree": "5f702a4870654083d8ef85362f4918f63e56a382",
+    "main_observed_commit": "0f6671457132425d1b84f3d80536b53e02942424",
+    "main_observed_tree": "f5d238645fb386e4cf4d7d0b71c74e44e9d767a0",
+    "reviewed_commits": 15,
+    "reviewed_paths": 91,
+    "report": "2026-11-26-weishaw-v0.2.25-review.md"
   }
 }
