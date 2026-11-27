@@ -293,6 +293,109 @@ func TestQufuQueryUsesMerchantOrderNumber(t *testing.T) {
 	require.Equal(t, "merchant-order", paymentOrderQueryReference(order, paymentFulfillmentTestProvider{key: payment.TypeQufu}))
 }
 
+func TestQufuIPv6CompatibilityPreservesOriginalOrderAddress(t *testing.T) {
+	for _, tc := range []struct{ method, channel string }{{payment.TypeAlipay, "10"}, {payment.TypeWxpay, "11"}} {
+		t.Run(tc.method, func(t *testing.T) {
+			ctx := context.Background()
+			const originalIP = "2001:db8:1234:5678::abcd"
+			// Independent test vector for the documented compatibility mapping.
+			// The synthetic address is only for the legacy gateway wire field.
+			const gatewayIP = "254.55.132.37"
+			const secret = "0123456789abcdef0123456789abcdef"
+			digest := func(text string) string {
+				sum := md5.Sum([]byte(text))
+				return hex.EncodeToString(sum[:])
+			}
+			createdRequests, queriedRequests := make(chan url.Values, 1), make(chan url.Values, 1)
+			gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.URL.Path != "/pay/gateway" || r.ParseForm() != nil {
+					t.Error("invalid compatibility gateway request")
+					http.Error(w, "invalid request", http.StatusBadRequest)
+					return
+				}
+				f := r.PostForm
+				var canonical string
+				var response map[string]string
+				switch f.Get("service") {
+				case "api.trade.order.pay":
+					canonical = fmt.Sprintf("mchId=%s&version=%s&service=%s&timestamp=%s&charset=%s&orderNo=%s&channelType=%s&orderAmount=%s&orderSubject=%s&notifyUrl=%s&frontUrl=%s&terminalIp=%s&shareTag=%s&shareFundList=%s&attach=%s&format=%s&signType=%s&key=%s", f.Get("mchId"), f.Get("version"), f.Get("service"), f.Get("timestamp"), f.Get("charset"), f.Get("orderNo"), f.Get("channelType"), f.Get("orderAmount"), f.Get("orderSubject"), f.Get("notifyUrl"), f.Get("frontUrl"), f.Get("terminalIp"), f.Get("shareTag"), f.Get("shareFundList"), f.Get("attach"), f.Get("format"), f.Get("signType"), secret)
+					if f.Get("terminalIp") != gatewayIP || f.Get("channelType") != tc.channel || f.Get("orderAmount") != "88.00" || f.Get("shareTag") != "1" || f.Get("shareFundList") != "" {
+						t.Error("gateway did not receive the expected compatible IP, channel, cents or sharing policy")
+						http.Error(w, "incorrect fields", http.StatusBadRequest)
+						return
+					}
+					createdRequests <- f
+					response = map[string]string{"mchId": "test-merchant", "version": "1.0", "charset": "UTF-8", "channelType": tc.channel, "orderNo": f.Get("orderNo"), "tradeNo": "ipv6-compatible-trade", "payData": "https://checkout.example.com/pay/ipv6", "signType": "MD5"}
+					response["sign"] = digest(fmt.Sprintf("mchId=test-merchant&version=1.0&charset=UTF-8&channelType=%s&orderNo=%s&tradeNo=ipv6-compatible-trade&payData=https://checkout.example.com/pay/ipv6&signType=MD5&key=%s", tc.channel, f.Get("orderNo"), secret))
+				case "api.trade.order.query":
+					canonical = fmt.Sprintf("mchId=%s&version=%s&service=%s&timestamp=%s&charset=%s&orderNo=%s&signType=%s&key=%s", f.Get("mchId"), f.Get("version"), f.Get("service"), f.Get("timestamp"), f.Get("charset"), f.Get("orderNo"), f.Get("signType"), secret)
+					queriedRequests <- f
+					response = map[string]string{"mchId": "test-merchant", "version": "1.0", "charset": "UTF-8", "channelType": tc.channel, "orderNo": f.Get("orderNo"), "tradeNo": "ipv6-compatible-trade", "orderAmount": "88.00", "orderStatus": "1", "shareTag": "1", "shareFundList": "", "signType": "MD5"}
+					response["sign"] = digest(fmt.Sprintf("mchId=test-merchant&version=1.0&charset=UTF-8&channelType=%s&orderNo=%s&tradeNo=ipv6-compatible-trade&orderAmount=88.00&orderStatus=1&shareTag=1&shareFundList=&signType=MD5&key=%s", tc.channel, f.Get("orderNo"), secret))
+				default:
+					t.Error("unexpected compatibility gateway service")
+					http.Error(w, "invalid service", http.StatusBadRequest)
+					return
+				}
+				if f.Get("sign") != digest(canonical) {
+					t.Error("gateway rejected signature over the final compatibility address")
+					http.Error(w, "invalid signature", http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if err := json.NewEncoder(w).Encode(map[string]any{"code": "000000", "msg": "Success", "data": response}); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer gateway.Close()
+			client := newPaymentConfigServiceTestClient(t)
+			settings := &paymentFulfillmentSettingRepoStub{values: map[string]string{
+				SettingPaymentEnabled: "true", SettingEnabledPaymentTypes: payment.TypeQufu,
+				SettingPaymentVisibleMethodAlipaySource: VisibleMethodSourceQufuAlipay,
+				SettingPaymentVisibleMethodWxpaySource:  VisibleMethodSourceQufuWechat,
+			}}
+			configService := NewPaymentConfigService(client, settings, nil)
+			config := qufuServiceTestConfig()
+			config["apiBase"], config["ipv6Compatibility"] = gateway.URL+"/pay/gateway", "pseudo_ipv4"
+			instance, err := configService.CreateProviderInstance(ctx, CreateProviderInstanceRequest{
+				ProviderKey: payment.TypeQufu, Name: "IPv6 compatible gateway", Config: config,
+				SupportedTypes: []string{payment.TypeAlipay, payment.TypeWxpay}, Enabled: true,
+			})
+			require.NoError(t, err)
+			user, err := client.User.Create().SetEmail("ipv6-" + tc.method + "@example.invalid").SetUsername("ipv6-" + tc.method).SetPasswordHash("test-only").Save(ctx)
+			require.NoError(t, err)
+			svc := &PaymentService{entClient: client, configService: configService,
+				loadBalancer: payment.NewDefaultLoadBalancer(client, nil), registry: payment.NewRegistry(),
+				userRepo: &mockUserRepo{getByIDUser: &User{ID: user.ID, Email: user.Email, Username: user.Username, Status: StatusActive}},
+			}
+			req := CreateOrderRequest{UserID: user.ID, Amount: 88, PaymentType: tc.method, OrderType: payment.OrderTypeBalance,
+				ClientIP: originalIP, SrcHost: "merchant.example.com", ReturnURL: "https://merchant.example.com/payment/result"}
+			result, err := svc.CreateOrder(ctx, req)
+			require.NoError(t, err)
+			require.Equal(t, originalIP, req.ClientIP, "compatibility must not rewrite the caller's original address")
+			created := <-createdRequests
+			require.Equal(t, result.OutTradeNo, created.Get("orderNo"))
+			require.Equal(t, gatewayIP, created.Get("terminalIp"))
+			order, err := client.PaymentOrder.Get(ctx, result.OrderID)
+			require.NoError(t, err)
+			require.Equal(t, originalIP, order.ClientIP, "order audit data must retain the real IPv6")
+			require.Equal(t, OrderStatusPending, order.Status)
+			require.Nil(t, order.PaidAt)
+			require.Equal(t, "ipv6-compatible-trade", order.PaymentTradeNo)
+			require.Equal(t, strconv.FormatInt(instance.ID, 10), *order.ProviderInstanceID)
+			originalProvider, err := svc.GetWebhookProvider(ctx, payment.TypeQufu, result.OutTradeNo)
+			require.NoError(t, err)
+			queried, err := originalProvider.QueryOrder(ctx, result.OutTradeNo)
+			require.NoError(t, err)
+			require.Equal(t, payment.ProviderStatusPending, queried.Status)
+			require.Equal(t, 88.0, queried.Amount)
+			require.Equal(t, order.PaymentTradeNo, queried.TradeNo)
+			require.Equal(t, tc.channel, queried.Metadata["channel_type"])
+			require.Equal(t, result.OutTradeNo, (<-queriedRequests).Get("orderNo"))
+		})
+	}
+}
+
 // This gateway uses the published wire strings independently of the provider's
 // unexported signing helpers, and drives the same provider/config/order layers
 // as the real application without contacting a payment network.

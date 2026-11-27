@@ -205,6 +205,11 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
       hintKey: 'admin.settings.payment.qufuChannelHint',
       options: [{ value: '11', label: '11 · QR' }, { value: '21', label: '21 · H5' }],
     },
+    {
+      key: 'ipv6Compatibility', label: '', sensitive: false, defaultValue: 'native',
+      hintKey: 'admin.settings.payment.qufuIPv6CompatibilityHint',
+      options: [{ value: 'native', label: 'IPv6' }, { value: 'pseudo_ipv4', label: 'IPv6 → IPv4' }],
+    },
   ],
   wxpay: [
     { key: 'appId', label: 'App ID', sensitive: false },

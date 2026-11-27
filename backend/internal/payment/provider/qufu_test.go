@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -91,7 +92,7 @@ func TestQufuSignatureUsesDocumentOrderAndRawUTF8(t *testing.T) {
 func TestQufuConfigValidationAndAutomaticSharing(t *testing.T) {
 	for _, base := range []string{"https://gateway.example", "https://gateway.example/", "https://gateway.example/pay/gateway/"} {
 		q := qufuTestProvider(t, base)
-		if q.config["apiBase"] != "https://gateway.example/pay/gateway" || q.config["alipayChannel"] != "10" || q.config["wxpayChannel"] != "11" {
+		if q.config["apiBase"] != "https://gateway.example/pay/gateway" || q.config["alipayChannel"] != "10" || q.config["wxpayChannel"] != "11" || q.config["ipv6Compatibility"] != "native" {
 			t.Fatalf("unexpected normalized configuration: %s", q.config["apiBase"])
 		}
 	}
@@ -107,6 +108,7 @@ func TestQufuConfigValidationAndAutomaticSharing(t *testing.T) {
 		"short key":           {"merchantKey": "short"},
 		"invalid merchant":    {"mchId": "mch&x=1"},
 		"invalid channel":     {"alipayChannel": "30"},
+		"invalid IPv6 mode":   {"ipv6Compatibility": "random_ipv4"},
 		"no sharing":          {"shareTag": "0"},
 		"external receivers":  {"shareFundList": "receiver:1.00"},
 	} {
@@ -117,6 +119,140 @@ func TestQufuConfigValidationAndAutomaticSharing(t *testing.T) {
 			}
 			if _, err := NewQufu("test", config); err == nil {
 				t.Fatal("expected invalid configuration to be rejected")
+			}
+		})
+	}
+}
+
+func TestQufuTerminalIPCompatibility(t *testing.T) {
+	for _, tc := range []struct {
+		name, mode, address, want string
+	}{
+		{"default native IPv6", "", "2001:0DB8::1", "2001:0DB8::1"},
+		{"explicit native IPv6", "native", "2001:db8::1", "2001:db8::1"},
+		{"native IPv4", "native", "192.0.2.1", "192.0.2.1"},
+		{"compatible IPv4", "pseudo_ipv4", " 192.0.2.1 ", "192.0.2.1"},
+		{"mapped IPv4", "pseudo_ipv4", "::ffff:192.0.2.1", "192.0.2.1"},
+		// These fixed vectors were computed independently from the specified
+		// domain prefix and the sixteen network-order IPv6 bytes.
+		{"compatible IPv6", "pseudo_ipv4", "2001:db8::1", "254.151.60.138"},
+		{"equivalent expanded IPv6", "pseudo_ipv4", "2001:0db8:0:0:0:0:0:1", "254.151.60.138"},
+		{"different IPv6", "pseudo_ipv4", "2001:db8::2", "252.234.219.170"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := qufuTestConfig("https://gateway.example")
+			config["ipv6Compatibility"] = tc.mode
+			q, err := NewQufu("test", config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				got, err := q.terminalIP(tc.address)
+				if err != nil || got != tc.want {
+					t.Fatalf("unexpected terminal IP: %q, %v", got, err)
+				}
+				if tc.mode == "pseudo_ipv4" && net.ParseIP(strings.TrimSpace(tc.address)).To4() == nil {
+					parsed := net.ParseIP(got).To4()
+					if parsed == nil || parsed[0] < 240 || got == "255.255.255.255" {
+						t.Fatal("synthetic compatibility address must stay within reserved Class E")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestQufuCreateSignsCompatibleIPWithoutChangingOriginalRequest(t *testing.T) {
+	for _, method := range []string{payment.TypeAlipay, payment.TypeWxpay} {
+		t.Run(method, func(t *testing.T) {
+			channel := "10"
+			if method == payment.TypeWxpay {
+				channel = "11"
+			}
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				if err := r.ParseForm(); err != nil {
+					t.Error(err)
+				}
+				if r.PostForm.Get("terminalIp") != "254.151.60.138" {
+					t.Error("gateway must receive the synthetic compatibility address")
+				}
+				canonical := "mchId=merchant-test&version=1.0&service=api.trade.order.pay&timestamp=20261127153000&charset=UTF-8&orderNo=order-001&channelType=" + channel + "&orderAmount=12.34&orderSubject=SUB6 充值 & x=1+2&notifyUrl=https://merchant.example/api/notify&frontUrl=&terminalIp=254.151.60.138&shareTag=1&shareFundList=&attach=&format=0&signType=MD5&key=" + qufuTestKey
+				sum := md5.Sum([]byte(canonical))
+				if r.PostForm.Get("sign") != hex.EncodeToString(sum[:]) {
+					t.Error("signature must cover the exact address sent to the gateway")
+				}
+				response := qufuTestCreateData()
+				response["channelType"] = channel
+				qufuTestWriteResponse(w, response, qufuCreateResponseFields)
+			}))
+			defer server.Close()
+			q := qufuTestProvider(t, server.URL)
+			q.config["ipv6Compatibility"] = "pseudo_ipv4"
+			req := qufuTestRequest()
+			req.ClientIP, req.PaymentType = "2001:db8::1", method
+			original := req
+			if _, err := q.CreatePayment(context.Background(), req); err != nil {
+				t.Fatal(err)
+			}
+			if req.ClientIP != original.ClientIP || req.PaymentType != original.PaymentType || calls.Load() != 1 {
+				t.Fatal("compatibility must not alter the caller's real address or retry a successful create")
+			}
+		})
+	}
+}
+
+func TestQufuInvalidTerminalIPNeverReachesGateway(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		qufuTestWriteResponse(w, qufuTestCreateData(), qufuCreateResponseFields)
+	}))
+	defer server.Close()
+	q := qufuTestProvider(t, server.URL)
+	q.config["ipv6Compatibility"] = "pseudo_ipv4"
+	for _, value := range []string{"", "unknown", "2001:db8::1%eth0", "192.0.2.1, 198.51.100.2", "2001:db8::1&sign=other", "[2001:db8::1]:443"} {
+		req := qufuTestRequest()
+		req.ClientIP = value
+		if _, err := q.CreatePayment(context.Background(), req); err == nil {
+			t.Fatal("invalid caller IP must be rejected")
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatal("invalid terminal IP reached the gateway")
+	}
+}
+
+func TestQufuGatewayRejectionExposesOnlyRestrictedCode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		code any
+		want string
+	}{
+		{"IP rejection", "400005", "qufu gateway rejected request (code 400005): check payer IP and IPv6 compatibility configuration"},
+		{"other rejection", "400001", "qufu gateway rejected request (code 400001)"},
+		{"malicious code", "400005\n" + qufuTestKey, "qufu gateway rejected request"},
+		{"non-ASCII digits", "４００００５", "qufu gateway rejected request"},
+		{"numeric code", 400005, "qufu gateway rejected request"},
+		{"null code", nil, "qufu gateway rejected request"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				_ = json.NewEncoder(w).Encode(map[string]any{"code": tc.code, "msg": "gateway-message-sentinel merchantKey=" + qufuTestKey, "data": map[string]string{"merchantKey": qufuTestKey}})
+			}))
+			defer server.Close()
+			q := qufuTestProvider(t, server.URL)
+			req := qufuTestRequest()
+			req.ClientIP = "2001:db8::1"
+			_, err := q.CreatePayment(context.Background(), req)
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("unexpected restricted gateway error: %v", err)
+			}
+			if strings.Contains(err.Error(), qufuTestKey) || strings.Contains(err.Error(), "gateway-message-sentinel") || calls.Load() != 1 {
+				t.Fatal("gateway rejection must not leak payloads or automatically retry")
 			}
 		})
 	}

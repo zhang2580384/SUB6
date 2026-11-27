@@ -941,6 +941,8 @@ export default {
         qufuHint: '付款后由趣付自动分账至商户已绑定的分账户。SUB6 邀请返利仍为独立的站内额度，不重复向邀请人分账。当前接口不支持在线退款。',
         qufuApiBaseHint: '填写趣付商户后台提供的网关地址，支持服务域名或完整的 /pay/gateway 地址。',
         qufuChannelHint: '仅选择趣付后台已开通的通道；扫码与 H5 通道需分别开通。',
+        field_ipv6Compatibility: 'IPv6 兼容方式',
+        qufuIPv6CompatibilityHint: '默认保留原始 IPv6。网关拒绝 IPv6 时可选择 IPv6 → IPv4，仅向趣付发送按原地址生成的合成兼容地址；订单和安全记录保留真实 IPv6。合成地址不能用于真实定位或身份判断，平台风控如何处理需另行核对。',
         field_merchantKey: '商户通信密钥',
         field_alipayChannel: '支付宝通道',
         field_wxpayChannel: '微信通道',

@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -90,6 +92,12 @@ func NewQufu(_ string, config map[string]string) (*Qufu, error) {
 	}
 	if cfg["wxpayChannel"] != "11" && cfg["wxpayChannel"] != "21" {
 		return nil, fmt.Errorf("qufu wxpayChannel must be 11 or 21")
+	}
+	if cfg["ipv6Compatibility"] == "" {
+		cfg["ipv6Compatibility"] = "native"
+	}
+	if cfg["ipv6Compatibility"] != "native" && cfg["ipv6Compatibility"] != "pseudo_ipv4" {
+		return nil, fmt.Errorf("qufu ipv6Compatibility must be native or pseudo_ipv4")
 	}
 	if cfg["shareTag"] != "" && cfg["shareTag"] != "1" || cfg["shareFundList"] != "" {
 		return nil, fmt.Errorf("qufu supports automatic sharing to the merchant bound account only")
@@ -188,6 +196,30 @@ func (q *Qufu) channel(paymentType string) (string, error) {
 	}
 }
 
+// terminalIP changes only the value sent to an explicitly configured legacy
+// gateway. The caller's real address remains unchanged for order and security
+// records. Class E addresses are synthetic compatibility values, never identity
+// or geolocation evidence; the 28-bit mapping can have collisions.
+func (q *Qufu) terminalIP(address string) (string, error) {
+	address = strings.TrimSpace(address)
+	parsed := net.ParseIP(address)
+	if parsed == nil {
+		return "", fmt.Errorf("qufu requires a valid payer IP address")
+	}
+	if ipv4 := parsed.To4(); ipv4 != nil {
+		return ipv4.String(), nil
+	}
+	if q.config["ipv6Compatibility"] != "pseudo_ipv4" {
+		return address, nil
+	}
+	digest := sha256.Sum256(append([]byte("SUB6/qufu/ipv6-terminal/v1\x00"), parsed.To16()...))
+	value := uint32(0xf0000000) | (binary.BigEndian.Uint32(digest[:4]) & 0x0fffffff)
+	if value == 0xffffffff {
+		value-- // Do not use the limited broadcast address.
+	}
+	return net.IPv4(byte(value>>24), byte(value>>16), byte(value>>8), byte(value)).String(), nil
+}
+
 func (q *Qufu) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
 	if !qufuIdentifier(req.OrderID) {
 		return nil, fmt.Errorf("qufu invalid merchant order ID")
@@ -199,8 +231,9 @@ func (q *Qufu) CreatePayment(ctx context.Context, req payment.CreatePaymentReque
 	if err != nil {
 		return nil, err
 	}
-	if net.ParseIP(strings.TrimSpace(req.ClientIP)) == nil {
-		return nil, fmt.Errorf("qufu requires a valid payer IP address")
+	terminalIP, err := q.terminalIP(req.ClientIP)
+	if err != nil {
+		return nil, err
 	}
 	if len(req.Subject) > 2048 {
 		return nil, fmt.Errorf("qufu order subject is too long")
@@ -222,7 +255,7 @@ func (q *Qufu) CreatePayment(ctx context.Context, req payment.CreatePaymentReque
 		}
 	}
 	fields := q.baseFields("api.trade.order.pay", req.OrderID)
-	for key, value := range map[string]string{"channelType": channel, "orderAmount": req.Amount, "orderSubject": req.Subject, "notifyUrl": notifyURL, "frontUrl": returnURL, "terminalIp": strings.TrimSpace(req.ClientIP), "shareTag": "1", "shareFundList": "", "attach": "", "format": "0"} {
+	for key, value := range map[string]string{"channelType": channel, "orderAmount": req.Amount, "orderSubject": req.Subject, "notifyUrl": notifyURL, "frontUrl": returnURL, "terminalIp": terminalIP, "shareTag": "1", "shareFundList": "", "attach": "", "format": "0"} {
 		fields[key] = value
 	}
 	fields["sign"] = qufuSign(fields, qufuCreateFields, q.config["merchantKey"])
@@ -476,7 +509,18 @@ func (q *Qufu) post(ctx context.Context, fields map[string]string) (map[string]s
 		return nil, err
 	}
 	var code string
-	if err := json.Unmarshal(envelope["code"], &code); err != nil || code != "000000" {
+	if err := json.Unmarshal(envelope["code"], &code); err != nil {
+		return nil, fmt.Errorf("qufu gateway rejected request")
+	}
+	if code != "000000" {
+		// Only the documented six-digit code is safe diagnostic data. Never
+		// propagate gateway messages or payloads: they can echo credentials.
+		if len(code) == 6 && strings.IndexFunc(code, func(r rune) bool { return r < '0' || r > '9' }) == -1 {
+			if code == "400005" {
+				return nil, fmt.Errorf("qufu gateway rejected request (code 400005): check payer IP and IPv6 compatibility configuration")
+			}
+			return nil, fmt.Errorf("qufu gateway rejected request (code %s)", code)
+		}
 		return nil, fmt.Errorf("qufu gateway rejected request")
 	}
 	data, err := qufuJSONObject(envelope["data"])

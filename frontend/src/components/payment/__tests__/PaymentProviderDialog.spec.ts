@@ -239,7 +239,7 @@ describe('PaymentProviderDialog callback URLs', () => {
       provider_key: 'qufu', supported_types: ['alipay', 'wxpay'], refund_enabled: false, allow_user_refund: false,
     })
     expect(payload.config).toMatchObject({
-      merchantKey: 'example-signing-key-for-tests', alipayChannel: '10', wxpayChannel: '11',
+      merchantKey: 'example-signing-key-for-tests', alipayChannel: '10', wxpayChannel: '11', ipv6Compatibility: 'native',
       notifyUrl: window.location.origin + '/api/v1/payment/webhook/qufu', returnUrl: window.location.origin + '/payment/result',
     })
   })
@@ -260,6 +260,34 @@ describe('PaymentProviderDialog callback URLs', () => {
     const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
     expect(payload).toMatchObject({ refund_enabled: false, allow_user_refund: false })
     expect(payload.config).not.toHaveProperty('merchantKey')
+  })
+
+  it.each([undefined, 'native', 'pseudo_ipv4'])('loads and explicitly changes Qufu IPv6 compatibility from %s', async (storedMode) => {
+    const provider = providerFactory({
+      provider_key: 'qufu', name: 'Qufu', supported_types: ['alipay', 'wxpay'],
+      config: {
+        apiBase: 'https://gateway.example.com', mchId: 'example-merchant',
+        ...(storedMode === undefined ? {} : { ipv6Compatibility: storedMode }),
+      },
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (value: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    const selector = wrapper.findAllComponents({ name: 'Select' }).find(select =>
+      select.props('options').some((option: { value: string }) => option.value === 'pseudo_ipv4'),
+    )
+    expect(selector, 'IPv6 compatibility selector').toBeDefined()
+    expect(selector!.props('modelValue')).toBe(storedMode ?? 'native')
+    await wrapper.get('#provider-form').trigger('submit')
+    const unchanged = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(unchanged.config.ipv6Compatibility).toBe(storedMode ?? 'native')
+    const changedMode = storedMode === 'pseudo_ipv4' ? 'native' : 'pseudo_ipv4'
+    selector!.vm.$emit('update:modelValue', changedMode)
+    await wrapper.get('#provider-form').trigger('submit')
+    const changed = wrapper.emitted('save')?.[1]?.[0] as { config: Record<string, string> }
+    expect(changed.config.ipv6Compatibility).toBe(changedMode)
+    expect(changed.config).not.toHaveProperty('merchantKey')
+    wrapper.unmount()
   })
 
   it('defaults to built-in collection and saves without gateway credentials', async () => {

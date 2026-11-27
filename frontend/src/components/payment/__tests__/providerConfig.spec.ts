@@ -33,6 +33,14 @@ describe('Qufu merchant configuration', () => {
     })
   })
 
+  it('keeps IPv6 compatibility explicit and preserves the original address by default', () => {
+    expect(findField('qufu', 'ipv6Compatibility')).toMatchObject({
+      defaultValue: 'native', sensitive: false,
+      hintKey: 'admin.settings.payment.qufuIPv6CompatibilityHint',
+      options: [{ value: 'native', label: 'IPv6' }, { value: 'pseudo_ipv4', label: 'IPv6 → IPv4' }],
+    })
+  })
+
   it('does not offer refunds or editable partner split rules unsupported by this integration', () => {
     expect(providerSupportsRefunds('qufu')).toBe(false)
     expect(providerSupportsRefunds('alipay')).toBe(true)

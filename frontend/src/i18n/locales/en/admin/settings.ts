@@ -946,6 +946,8 @@ export default {
         qufuHint: 'Qufu automatically splits payments to the merchant’s bound account. SUB6 referral rewards remain separate site credits; inviters do not receive a second cash split. This API does not support online refunds.',
         qufuApiBaseHint: 'Enter the gateway address from the Qufu merchant portal: a service origin or the full /pay/gateway URL.',
         qufuChannelHint: 'Select only channels enabled in Qufu. QR and H5 channels require separate activation.',
+        field_ipv6Compatibility: 'IPv6 compatibility',
+        qufuIPv6CompatibilityHint: 'Keep the original IPv6 address by default. If the gateway rejects IPv6, select IPv6 → IPv4 to send Qufu a synthetic compatibility address derived from it. Orders and security records keep the real IPv6 address. The synthetic address cannot establish location or identity; confirm how the platform uses it for risk checks.',
         field_merchantKey: 'Merchant signing key',
         field_alipayChannel: 'Alipay channel',
         field_wxpayChannel: 'WeChat Pay channel',
