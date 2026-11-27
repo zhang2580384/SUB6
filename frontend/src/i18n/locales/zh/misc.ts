@@ -372,6 +372,7 @@ export default {
       bsc: { bnb: 'BNB (BSC)' },
       ton: { gram: 'TON (TON)' },
       easypay: '易支付',
+      qufu: '趣付分账',
       alipay: '支付宝',
       wxpay: '微信支付',
       stripe: 'Stripe',

@@ -5,6 +5,7 @@ import NewFeatureBadge from '@/components/common/NewFeatureBadge.vue'
 import PaymentProviderList from '@/components/payment/PaymentProviderList.vue'
 import PaymentProviderDialog from '@/components/payment/PaymentProviderDialog.vue'
 import ProviderCard from '@/components/payment/ProviderCard.vue'
+import ToggleSwitch from '@/components/payment/ToggleSwitch.vue'
 import { NEW_FEATURE_NOTICES } from '@/constants/newFeatureNotices'
 import { useNewFeatureNoticeStore } from '@/stores/newFeatureNotices'
 import type { ProviderInstance } from '@/types/payment'
@@ -22,6 +23,13 @@ const provider: ProviderInstance = {
 
 describe('provider fee summaries and notices', () => {
   beforeEach(() => localStorage.clear())
+
+  it('hides unsupported Qufu refund controls even for stale enabled refund flags', () => {
+    const wrapper = mount(ProviderCard, {
+      props: { provider: { ...provider, provider_key: 'qufu', refund_enabled: true, allow_user_refund: true }, enabled: true, availableTypes: [] },
+    })
+    expect(wrapper.findAllComponents(ToggleSwitch).map(toggle => toggle.props('label'))).toEqual(['common.enabled'])
+  })
 
   it('distinguishes inherited rates, explicit zero, and method overrides on cards', async () => {
     const wrapper = mount(ProviderCard, { props: { provider, enabled: true, availableTypes: [], globalFeeRate: 2.5 } })

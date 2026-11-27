@@ -1586,14 +1586,21 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(showSuccess).toHaveBeenCalled();
   });
 
-  it("does not render legacy visible payment method controls", async () => {
+  it("shows explicit payment sources without switching to a newly available provider", async () => {
     const wrapper = mountView();
 
     await flushPromises();
     await openPaymentTab(wrapper);
 
-    expect(wrapper.text()).not.toContain("可见方式");
-    expect(wrapper.text()).not.toContain("支付来源");
+    expect(wrapper.text()).toContain("支付来源");
+    const alipaySource = wrapper.get('[data-testid="payment-visible-alipay-source"]');
+    expect((alipaySource.element as HTMLSelectElement).value).toBe('official_alipay');
+    expect(alipaySource.find('option[value="qufu_alipay"]').exists()).toBe(true);
+    const wxpaySource = wrapper.get('[data-testid="payment-visible-wxpay-source"]');
+    expect((wxpaySource.element as HTMLSelectElement).value).toBe('');
+    expect(wxpaySource.find('option[value="qufu_wxpay"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="payment-visible-alipay-enabled"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="payment-visible-wxpay-enabled"]').exists()).toBe(false);
   });
 
   it("loads and saves the registration IP limit independently of login protection", async () => {
@@ -2041,7 +2048,7 @@ describe("admin SettingsView payment visible method controls", () => {
     }
   });
 
-  it("does not submit legacy visible payment method settings", async () => {
+  it("preserves normalized payment source settings when saving unrelated settings", async () => {
     const wrapper = mountView();
 
     await flushPromises();
@@ -2051,10 +2058,47 @@ describe("admin SettingsView payment visible method controls", () => {
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
     const payload = updateSettings.mock.calls[0]?.[0];
-    expect(payload).not.toHaveProperty("payment_visible_method_alipay_source");
-    expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
-    expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
-    expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+    expect(payload).toMatchObject({
+      payment_visible_method_alipay_source: 'official_alipay',
+      payment_visible_method_wxpay_source: '',
+    });
+    expect(payload).not.toHaveProperty('payment_visible_method_alipay_enabled');
+    expect(payload).not.toHaveProperty('payment_visible_method_wxpay_enabled');
+  });
+
+  it("saves Qufu only after an explicit source selection and retains the other method's source", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      payment_visible_method_alipay_source: 'official_alipay',
+      payment_visible_method_wxpay_source: 'easypay_wxpay',
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    await wrapper.get('[data-testid="payment-visible-alipay-source"]').setValue('qufu_alipay');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({
+      payment_visible_method_alipay_source: 'qufu_alipay',
+      payment_visible_method_wxpay_source: 'easypay_wxpay',
+    }));
+  });
+
+  it("allows enabling Qufu alongside an official provider without changing the chosen source", async () => {
+    const official = {
+      id: 71, provider_key: 'alipay', name: 'Official', config: {}, supported_types: ['alipay'],
+      enabled: true, payment_mode: '', refund_enabled: false, allow_user_refund: false, limits: '', sort_order: 0,
+    };
+    const qufu = { ...official, id: 72, provider_key: 'qufu', name: 'Qufu', supported_types: ['alipay', 'wxpay'], enabled: false };
+    getProviders.mockResolvedValue({ data: [official, qufu] });
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    wrapper.findComponent(PaymentProviderList).vm.$emit('toggleField', qufu, 'enabled');
+    await flushPromises();
+    expect(updateProvider).toHaveBeenCalledWith(72, { enabled: true });
+    expect((wrapper.get('[data-testid="payment-visible-alipay-source"]').element as HTMLSelectElement).value).toBe('official_alipay');
+    expect(showError).not.toHaveBeenCalled();
   });
 
   it("submits the admin recharge affiliate rebate setting", async () => {

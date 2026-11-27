@@ -127,16 +127,32 @@ func expectedNotificationProviderKeyForOrder(registry *payment.Registry, order *
 }
 
 func validateProviderSnapshotMetadata(order *dbent.PaymentOrder, providerKey string, metadata map[string]string) error {
-	if order == nil || len(metadata) == 0 {
+	if order == nil || (len(metadata) == 0 && providerKey != payment.TypeQufu) {
 		return nil
 	}
 
 	snapshot := psOrderProviderSnapshot(order)
 	if snapshot == nil {
+		if providerKey == payment.TypeQufu {
+			return fmt.Errorf("qufu order is missing its merchant snapshot")
+		}
 		return nil
 	}
 
 	switch strings.TrimSpace(providerKey) {
+	case payment.TypeQufu:
+		if snapshot.MerchantID == "" || metadata["mch_id"] != snapshot.MerchantID {
+			return fmt.Errorf("qufu merchant mismatch")
+		}
+		if metadata["order_no"] != order.OutTradeNo || metadata["currency"] != payment.DefaultPaymentCurrency {
+			return fmt.Errorf("qufu order or currency mismatch")
+		}
+		if channel := psSnapshotStringValue(order.ProviderSnapshot["channel_type"]); channel == "" || metadata["channel_type"] != channel {
+			return fmt.Errorf("qufu payment channel mismatch")
+		}
+		if metadata["share_tag"] != "1" || metadata["share_fund_list"] != "" {
+			return fmt.Errorf("qufu automatic split policy mismatch")
+		}
 	case payment.TypeBEpusdt:
 		if metadata["currency"] != snapshot.Currency {
 			return fmt.Errorf("bepusdt currency mismatch")

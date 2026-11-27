@@ -32,8 +32,8 @@
       <!-- Toggles + Payment mode + Supported types (single row) -->
       <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
         <ToggleSwitch :label="t('common.enabled')" :checked="form.enabled" @toggle="form.enabled = !form.enabled" />
-        <ToggleSwitch v-if="form.provider_key !== 'bepusdt'" :label="t('admin.settings.payment.refundEnabled')" :checked="form.refund_enabled" @toggle="form.refund_enabled = !form.refund_enabled; if (!form.refund_enabled) form.allow_user_refund = false" />
-        <ToggleSwitch v-if="form.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="form.allow_user_refund" @toggle="form.allow_user_refund = !form.allow_user_refund" />
+        <ToggleSwitch v-if="supportsRefunds" :label="t('admin.settings.payment.refundEnabled')" :checked="form.refund_enabled" @toggle="form.refund_enabled = !form.refund_enabled; if (!form.refund_enabled) form.allow_user_refund = false" />
+        <ToggleSwitch v-if="supportsRefunds && form.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="form.allow_user_refund" @toggle="form.allow_user_refund = !form.allow_user_refund" />
         <div v-if="supportsPaymentMode" class="flex items-center gap-2">
           <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.settings.payment.paymentMode') }}</span>
           <div class="flex gap-1.5">
@@ -132,6 +132,10 @@
       </div>
 
 
+      <p v-if="form.provider_key === 'qufu'" class="text-xs leading-relaxed text-gray-500 dark:text-gray-400" data-testid="qufu-split-hint">
+        {{ t('admin.settings.payment.qufuHint') }}
+      </p>
+
       <!-- Config fields -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-700">
         <div class="mb-3 flex items-center gap-2">
@@ -179,11 +183,12 @@
               <span v-else class="text-red-500"> *</span>
             </label>
             <textarea
-              v-if="field.sensitive && field.key.toLowerCase().includes('key') && field.key !== 'pkey'"
+              v-if="field.sensitive && field.key.toLowerCase().includes('key') && !['pkey', 'merchantKey'].includes(field.key)"
               v-model="config[field.key]"
               rows="3"
               class="input font-mono text-xs"
               autocomplete="new-password"
+              :data-testid="`provider-config-${field.key}`"
               data-1p-ignore
               data-lpignore="true"
               data-bwignore="true"
@@ -193,6 +198,7 @@
             <div v-else-if="field.sensitive" class="relative">
               <input
                 :type="visibleFields[field.key] ? 'text' : 'password'"
+                :data-testid="`provider-config-${field.key}`"
                 v-model="config[field.key]"
                 class="input pr-10"
                 autocomplete="new-password"
@@ -216,13 +222,15 @@
               v-model="config[field.key]"
               :options="field.options"
               :searchable="field.options.length > 5"
+              :data-testid="`provider-config-${field.key}`"
             />
             <input
               v-else
               type="text"
               v-model="config[field.key]"
+              :data-testid="`provider-config-${field.key}`"
               class="input"
-              :placeholder="field.defaultValue || ''"
+              :placeholder="field.placeholder || field.defaultValue || ''"
             />
             <p v-if="field.hintKey" class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               {{ t(field.hintKey) }}
@@ -240,7 +248,7 @@
             </div>
           </div>
           <div v-if="callbackPaths.returnUrl">
-            <label class="input-label">{{ t('admin.settings.payment.field_returnUrl') }} <span class="text-red-500">*</span></label>
+            <label class="input-label">{{ t('admin.settings.payment.field_returnUrl') }} <span v-if="form.provider_key === 'qufu'" class="text-xs text-gray-400">({{ t('common.optional') }})</span><span v-else class="text-red-500">*</span></label>
             <div class="flex">
               <input v-model="returnBaseUrl" type="text" class="input min-w-0 flex-1 !rounded-r-none !border-r-0" :placeholder="defaultBaseUrl" />
               <span class="inline-flex items-center whitespace-nowrap rounded-r-lg border border-gray-300 bg-gray-50 px-3 text-xs text-gray-500 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-400">{{ callbackPaths.returnUrl }}</span>
@@ -379,6 +387,7 @@ import {
   extractBaseUrl,
   parseEasyPayCustomMethods,
   serializeEasyPayCustomMethods,
+  providerSupportsRefunds,
 } from './providerConfig'
 
 /** Default payment_mode per provider key — "" means "no preference, use
@@ -525,6 +534,7 @@ const providerWebhookHint = computed(() =>
 const callbackPaths = computed(() => PROVIDER_CALLBACK_PATHS[form.provider_key] || null)
 
 const supportsPaymentMode = computed(() => providerSupportsPaymentMode(form.provider_key))
+const supportsRefunds = computed(() => providerSupportsRefunds(form.provider_key))
 
 const paymentModeOptions = computed(() => {
   if (form.provider_key === 'alipay') {
@@ -682,7 +692,7 @@ function removeEasyPayCustomMethod(index: number) {
 }
 
 function onKeyChange() {
-  if (form.provider_key === 'bepusdt') {
+  if (!providerSupportsRefunds(form.provider_key)) {
     form.refund_enabled = false
     form.allow_user_refund = false
   }
@@ -848,8 +858,8 @@ function handleSave() {
     supported_types: form.supported_types,
     enabled: form.enabled,
     payment_mode: supportsPaymentMode.value ? form.payment_mode : '',
-    refund_enabled: form.refund_enabled,
-    allow_user_refund: form.refund_enabled ? form.allow_user_refund : false,
+    refund_enabled: supportsRefunds.value && form.refund_enabled,
+    allow_user_refund: supportsRefunds.value && form.refund_enabled ? form.allow_user_refund : false,
     fee_rate: feeRate,
     method_fee_rates: methodFeeRates,
     config: filteredConfig,
@@ -939,8 +949,8 @@ function loadProvider(provider: ProviderInstance) {
   form.payment_mode = isValidPaymentMode(provider.provider_key, provider.payment_mode || '')
     ? (provider.payment_mode || '')
     : defaultPaymentMode(provider.provider_key)
-  form.refund_enabled = provider.refund_enabled
-  form.allow_user_refund = provider.allow_user_refund
+  form.refund_enabled = providerSupportsRefunds(provider.provider_key) && provider.refund_enabled
+  form.allow_user_refund = form.refund_enabled && provider.allow_user_refund
   clearConfig()
   feeMode.value = provider.fee_rate == null ? 'inherit' : 'custom'
   feeRateInput.value = String(provider.fee_rate ?? 0)

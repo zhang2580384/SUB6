@@ -110,6 +110,47 @@ describe('PaymentResultView', () => {
     vi.useRealTimers()
   })
 
+  it('resolves a Qufu browser return using the merchant order reference and persisted state', async () => {
+    routeState.query = {
+      orderNo: 'sub6-qufu-42', orderAmount: '9999.00', channelType: '11', orderStatus: '3',
+    }
+    verifyOrder.mockResolvedValue({ data: orderFactory('COMPLETED') })
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(verifyOrder).toHaveBeenCalledWith('sub6-qufu-42')
+    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('88.00')
+    expect(wrapper.text()).not.toContain('9999.00')
+    expect(refreshUser).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('does not accept a forged Qufu success return when the stored order is pending', async () => {
+    routeState.query = { orderNo: 'sub6-qufu-pending', orderStatus: '2', orderAmount: '1.00', channelType: '10' }
+    verifyOrder.mockResolvedValue({ data: orderFactory('PENDING') })
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(verifyOrder).toHaveBeenCalledWith('sub6-qufu-pending')
+    expect(wrapper.text()).toContain('payment.result.processing')
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    expect(refreshUser).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps an unverifiable Qufu return unsuccessful without displaying its claimed amount', async () => {
+    routeState.query = { orderNo: 'sub6-qufu-unknown', orderStatus: '2', orderAmount: '9999.00', channelType: '10' }
+    verifyOrder.mockRejectedValue(new Error('unauthorized'))
+    verifyOrderPublic.mockRejectedValue(new Error('not found'))
+    const wrapper = mount(PaymentResultView, { global: { stubs: { OrderStatusBadge: true } } })
+    await flushPromises()
+    expect(verifyOrderPublic).toHaveBeenCalledWith('sub6-qufu-unknown')
+    expect(wrapper.text()).toContain('sub6-qufu-unknown')
+    expect(wrapper.text()).not.toContain('9999.00')
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    expect(refreshUser).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('renders a pending state instead of a failure state when the restored order is still pending', async () => {
     routeState.query = {
       resume_token: 'resume-42',

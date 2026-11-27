@@ -6,12 +6,47 @@ import {
   isBuiltInWxpayMethod,
   parseEasyPayCustomMethods,
   serializeEasyPayCustomMethods,
+  PROVIDER_CALLBACK_PATHS,
+  getDefaultSupportedTypes,
+  providerSupportsRefunds,
 } from '@/components/payment/providerConfig'
 
 function findField(providerKey: string, key: string) {
   const fields = PROVIDER_CONFIG_FIELDS[providerKey] || []
   return fields.find(field => field.key === key)
 }
+
+describe('Qufu merchant configuration', () => {
+  it('keeps the merchant key secret without pre-filling a fictional gateway', () => {
+    expect(findField('qufu', 'merchantKey')).toMatchObject({ sensitive: true })
+    expect(findField('qufu', 'merchantKey')?.optional).toBeFalsy()
+    expect(findField('qufu', 'apiBase')?.defaultValue).toBeUndefined()
+    expect(findField('qufu', 'apiBase')?.placeholder).toBe('https://gateway.example.com/pay/gateway')
+  })
+
+  it('uses QR channels by default and the normal payment callback route', () => {
+    expect(getDefaultSupportedTypes('qufu')).toEqual(['alipay', 'wxpay'])
+    expect(findField('qufu', 'alipayChannel')?.defaultValue).toBe('10')
+    expect(findField('qufu', 'wxpayChannel')?.defaultValue).toBe('11')
+    expect(PROVIDER_CALLBACK_PATHS.qufu).toEqual({
+      notifyUrl: '/api/v1/payment/webhook/qufu', returnUrl: '/payment/result',
+    })
+  })
+
+  it('keeps IPv6 compatibility explicit and preserves the original address by default', () => {
+    expect(findField('qufu', 'ipv6Compatibility')).toMatchObject({
+      defaultValue: 'native', sensitive: false,
+      hintKey: 'admin.settings.payment.qufuIPv6CompatibilityHint',
+      options: [{ value: 'native', label: 'IPv6' }, { value: 'pseudo_ipv4', label: 'IPv6 → IPv4' }],
+    })
+  })
+
+  it('does not offer refunds or editable partner split rules unsupported by this integration', () => {
+    expect(providerSupportsRefunds('qufu')).toBe(false)
+    expect(providerSupportsRefunds('alipay')).toBe(true)
+    expect(findField('qufu', 'shareFundList')).toBeUndefined()
+  })
+})
 
 describe('PROVIDER_CONFIG_FIELDS.wxpay', () => {
   it('keeps admin form validation aligned with backend-required credentials', () => {

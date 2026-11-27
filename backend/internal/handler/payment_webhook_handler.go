@@ -43,6 +43,11 @@ func (h *PaymentWebhookHandler) EasyPayNotify(c *gin.Context) {
 	h.handleNotify(c, payment.TypeEasyPay)
 }
 
+// QufuNotify accepts the signed form-query notification defined by Qufu v1.0.
+func (h *PaymentWebhookHandler) QufuNotify(c *gin.Context) {
+	h.handleNotify(c, payment.TypeQufu)
+}
+
 // BEpusdtNotify handles native BEpusdt signed JSON notifications.
 func (h *PaymentWebhookHandler) BEpusdtNotify(c *gin.Context) {
 	h.handleNotify(c, payment.TypeBEpusdt)
@@ -91,16 +96,28 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 	// Extract out_trade_no to look up the order's specific provider instance.
 	// This is needed when multiple instances of the same provider exist (e.g. multiple EasyPay accounts).
 	outTradeNo := extractOutTradeNo(rawBody, providerKey)
+	if providerKey == payment.TypeQufu && (outTradeNo == "" || len(rawBody) > maxWebhookBodySize) {
+		c.String(http.StatusBadRequest, "fail")
+		return
+	}
 
 	providers, err := h.paymentService.GetWebhookProviders(c.Request.Context(), providerKey, outTradeNo)
 	if err != nil {
 		slog.Warn("[Payment Webhook] provider not found", "provider", providerKey, "outTradeNo", outTradeNo, "error", err)
-		if providerKey == payment.TypeWxpay || providerKey == payment.TypeBEpusdt {
+		if providerKey == payment.TypeWxpay || providerKey == payment.TypeBEpusdt || providerKey == payment.TypeQufu {
 			c.String(http.StatusBadRequest, "verify failed")
 			return
 		}
 		writeSuccessResponse(c, providerKey)
 		return
+	}
+	if providerKey == payment.TypeQufu {
+		for _, candidate := range providers {
+			if candidate == nil || candidate.ProviderKey() != payment.TypeQufu {
+				c.String(http.StatusBadRequest, "fail")
+				return
+			}
+		}
 	}
 
 	headers := make(map[string]string)
@@ -115,7 +132,9 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 			truncatedBody = truncatedBody[:webhookLogTruncateLen] + "...(truncated)"
 		}
 		slog.Error("[Payment Webhook] verify failed", "provider", providerKey, "error", err, "method", c.Request.Method, "bodyLen", len(rawBody))
-		slog.Debug("[Payment Webhook] verify failed body", "provider", providerKey, "rawBody", truncatedBody)
+		if providerKey != payment.TypeQufu {
+			slog.Debug("[Payment Webhook] verify failed body", "provider", providerKey, "rawBody", truncatedBody)
+		}
 		c.String(http.StatusBadRequest, "verify failed")
 		return
 	}
@@ -161,6 +180,11 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 // This allows looking up the correct provider instance before verification.
 func extractOutTradeNo(rawBody, providerKey string) string {
 	switch providerKey {
+	case payment.TypeQufu:
+		values, err := url.ParseQuery(rawBody)
+		if err == nil && len(values["orderNo"]) == 1 {
+			return values.Get("orderNo")
+		}
 	case payment.TypeBEpusdt:
 		var payload struct {
 			OrderID string `json:"order_id"`

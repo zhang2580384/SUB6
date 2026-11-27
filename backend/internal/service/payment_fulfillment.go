@@ -138,13 +138,13 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		return fmt.Errorf("invalid paid amount from provider: %v", paid)
 	}
 	amountMatches := math.Abs(paid-o.PayAmount) <= paymentAmountToleranceForCurrency(PaymentOrderCurrency(o))
-	if pk == payment.TypeBEpusdt {
+	if pk == payment.TypeBEpusdt || pk == payment.TypeQufu {
 		currency := PaymentOrderCurrency(o)
 		paidMinor, paidErr := payment.AmountToMinorUnit(strconv.FormatFloat(paid, 'f', -1, 64), currency)
 		expectedMinor, expectedErr := payment.AmountToMinorUnit(strconv.FormatFloat(o.PayAmount, 'f', -1, 64), currency)
 		amountMatches = paidErr == nil && expectedErr == nil && paidMinor == expectedMinor
 		if o.PaymentTradeNo != "" && o.PaymentTradeNo != tradeNo {
-			return fmt.Errorf("bepusdt transaction ID mismatch")
+			return fmt.Errorf("%s transaction ID mismatch", pk)
 		}
 	}
 	if !amountMatches {
@@ -199,6 +199,12 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 		expired = paymentorder.And(paymentorder.StatusEQ(OrderStatusExpired), paymentorder.ExpiresAtGTE(now.Add(-easyPayOrderRecoveryWindow)))
 	}
 	eligible := paymentorder.Or(paymentorder.StatusEQ(OrderStatusPending), paymentorder.StatusEQ(OrderStatusCancelled), expired)
+	if pk == payment.TypeQufu {
+		// The gateway cannot close an unpaid order. Match the original-instance
+		// protection window without letting unrelated updates extend recovery.
+		expired = paymentorder.And(paymentorder.StatusEQ(OrderStatusExpired), paymentorder.ExpiresAtGTE(now.Add(-qufuOrderRecoveryWindow)))
+		eligible = paymentorder.Or(paymentorder.StatusEQ(OrderStatusPending), expired)
+	}
 	if payment.GetBasePaymentType(pk) == payment.TypeEasyPay {
 		eligible = paymentorder.And(eligible, paymentorder.ExpiresAtGTE(now.Add(-easyPayOrderRecoveryWindow)))
 		if background, _ := ctx.Value(easyPayBackgroundRecoveryKey{}).(bool); background {
@@ -215,6 +221,9 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 		return fmt.Errorf("update to PAID: %w", err)
 	}
 	if c == 0 {
+		if pk == payment.TypeQufu {
+			return s.qufuAlreadyProcessed(ctx, o)
+		}
 		return s.alreadyProcessed(ctx, o)
 	}
 	if previousStatus == OrderStatusCancelled || previousStatus == OrderStatusExpired {
@@ -233,6 +242,38 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 	}
 	s.writeAuditLog(ctx, o.ID, "ORDER_PAID", pk, map[string]any{"tradeNo": tradeNo, "paidAmount": paid})
 	return s.executeFulfillment(ctx, o.ID)
+}
+
+func (s *PaymentService) qufuAlreadyProcessed(ctx context.Context, o *dbent.PaymentOrder) error {
+	cur, err := s.entClient.PaymentOrder.Get(ctx, o.ID)
+	if err != nil {
+		return fmt.Errorf("reload qufu payment state: %w", err)
+	}
+	switch cur.Status {
+	case OrderStatusCompleted, OrderStatusRefunded:
+		return nil
+	case OrderStatusPaid, OrderStatusRecharging:
+		return s.executeFulfillment(ctx, o.ID)
+	case OrderStatusFailed:
+		// Retry fulfillment only after a previous verified transition to PAID.
+		// A failed create request has no payment evidence and stays excluded.
+		if cur.PaidAt != nil {
+			return s.executeFulfillment(ctx, o.ID)
+		}
+	}
+	action := "PAYMENT_STATE_REJECTED"
+	reason := "Qufu payment requires manual reconciliation for the current order status"
+	if cur.Status == OrderStatusExpired {
+		action = "PAYMENT_AFTER_EXPIRY"
+		reason = "Qufu recovery deadline elapsed; manual reconciliation required"
+	}
+	s.writeAuditLog(ctx, cur.ID, action, payment.TypeQufu, map[string]any{
+		"status":         cur.Status,
+		"expiresAt":      cur.ExpiresAt,
+		"recovery_until": cur.ExpiresAt.Add(qufuOrderRecoveryWindow),
+		"reason":         reason,
+	})
+	return errors.New(reason)
 }
 
 func (s *PaymentService) alreadyProcessed(ctx context.Context, o *dbent.PaymentOrder) error {

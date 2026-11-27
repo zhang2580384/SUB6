@@ -19,6 +19,8 @@ func CreateProvider(providerKey string, instanceID string, config map[string]str
 		return NewBEpusdt(instanceID, config)
 	case payment.TypeEasyPay:
 		return NewEasyPay(instanceID, config)
+	case payment.TypeQufu:
+		return NewQufu(instanceID, config)
 	case payment.TypeAlipay:
 		return NewAlipay(instanceID, config)
 	case payment.TypeWxpay:
