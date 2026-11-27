@@ -942,6 +942,13 @@ export default {
         helpImagePlaceholder: 'Upload or enter image URL',
         helpTextPlaceholder: 'Enter help text...',
         providerEasypay: 'EasyPay',
+        providerQufu: 'Qufu split payments',
+        qufuHint: 'Qufu automatically splits payments to the merchant’s bound account. SUB6 referral rewards remain separate site credits; inviters do not receive a second cash split. This API does not support online refunds.',
+        qufuApiBaseHint: 'Enter the gateway address from the Qufu merchant portal: a service origin or the full /pay/gateway URL.',
+        qufuChannelHint: 'Select only channels enabled in Qufu. QR and H5 channels require separate activation.',
+        field_merchantKey: 'Merchant signing key',
+        field_alipayChannel: 'Alipay channel',
+        field_wxpayChannel: 'WeChat Pay channel',
         providerAlipay: 'Alipay (Direct)',
         providerWxpay: 'WeChat Pay (Direct)',
         providerStripe: 'Stripe',
@@ -1465,7 +1472,7 @@ export default {
         methodLabel: '{title} visible method',
         methodHint: 'Controls whether checkout shows this method and which source key it exposes.',
         sourceLabel: 'Payment source',
-        sourceHint: 'Choose an explicit source before enabling the method. Not configured methods are not exposed.',
+        sourceHint: 'Enabled providers determine whether this payment method is available. A single provider is selected automatically; choose a source when multiple providers share the method. Adding a provider does not switch the source.',
         sourceRequiredError: 'Select a payment source before enabling {title}.'
       },
       openaiExperimentalScheduler: {

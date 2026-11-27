@@ -73,7 +73,7 @@
             </div>
           </div>
         </div>
-        <!-- EasyPay return info (when no order loaded) -->
+        <!-- Gateway return reference (when no persisted order can be loaded) -->
         <div v-else-if="returnInfo" class="rounded-xl bg-white p-5 shadow-sm dark:bg-dark-800">
           <div class="space-y-3 text-sm">
             <div v-if="returnInfo.outTradeNo" class="flex justify-between">
@@ -372,7 +372,8 @@ function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null
 onMounted(async () => {
   const resumeToken = readRouteQueryString('resume_token')
   const routeOrderId = Number(readRouteQueryString('order_id')) || 0
-  let outTradeNo = readRouteQueryString('out_trade_no')
+  const qufuOrderNo = readRouteQueryString('orderNo')
+  let outTradeNo = readRouteQueryString('out_trade_no') || qufuOrderNo
   let orderId = 0
   let resumeTokenLookupFailed = false
 
@@ -408,7 +409,9 @@ onMounted(async () => {
     orderId = routeOrderId
   }
 
-  const hasLegacyFallbackContext = readRouteQueryString('trade_status').trim() !== ''
+  // Gateway return parameters are lookup hints only. In particular, Qufu's
+  // orderStatus=2 must never establish success or trigger a balance refresh.
+  const hasLegacyFallbackContext = readRouteQueryString('trade_status').trim() !== '' || qufuOrderNo !== ''
   const shouldUsePublicOutTradeNo = outTradeNo !== '' && (hasLegacyFallbackContext || routeOrderId > 0 || orderId > 0)
 
   if (!order.value && orderId && (!resumeToken || routeOrderId > 0)) {
@@ -432,9 +435,9 @@ onMounted(async () => {
   if (!order.value && !orderId && outTradeNo && hasLegacyFallbackContext) {
     returnInfo.value = {
       outTradeNo,
-      money: String(route.query.money || ''),
-      type: String(route.query.type || ''),
-      tradeStatus: String(route.query.trade_status || ''),
+      money: qufuOrderNo ? '' : readRouteQueryString('money'),
+      type: qufuOrderNo ? '' : readRouteQueryString('type'),
+      tradeStatus: qufuOrderNo ? '' : readRouteQueryString('trade_status'),
     }
   }
 

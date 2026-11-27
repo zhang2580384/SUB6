@@ -9015,6 +9015,21 @@
                     </a>
                   </p>
                 </div>
+                <div class="grid gap-4 sm:grid-cols-2" data-testid="payment-visible-method-routing">
+                  <div v-for="method in visiblePaymentMethods" :key="method.method" class="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+                    <h4 class="mb-3 text-sm font-medium text-gray-900 dark:text-white">{{ method.title }}</h4>
+                    <label :for="`payment-visible-${method.method}-source`" class="input-label">{{ t('admin.settings.paymentVisibleMethods.sourceLabel') }}</label>
+                    <select
+                      :id="`payment-visible-${method.method}-source`"
+                      v-model="form[method.sourceKey]"
+                      class="input"
+                      :data-testid="`payment-visible-${method.method}-source`"
+                    >
+                      <option v-for="option in paymentSourceOptions(method.method)" :key="String(option.value)" :value="option.value">{{ option.label }}</option>
+                    </select>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.paymentVisibleMethods.sourceHint') }}</p>
+                  </div>
+                </div>
                 <!-- Row 5: Help image + text -->
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
@@ -9612,6 +9627,8 @@ import {
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
   resolveWeChatConnectModeCapabilities,
+  getPaymentVisibleMethodSourceOptions,
+  normalizePaymentVisibleMethodSource,
 } from "@/api/admin/settings";
 import type {
   AuthSourceDefaultsState,
@@ -9625,6 +9642,8 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
+  PaymentVisibleMethod,
+  PaymentVisibleMethodSource,
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
@@ -9694,7 +9713,6 @@ import { NEW_FEATURE_NOTICES } from "@/constants/newFeatureNotices";
 import { SETTINGS_TAB_NOTICES } from "@/constants/settingsNotices";
 import { useNewFeatureNoticeStore } from "@/stores/newFeatureNotices";
 import { DEFAULT_SMART_OPS_HIDDEN_MENU_ITEMS } from "@/constants/smartOpsMenu";
-import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
   isRegistrationEmailSuffixDomainValid,
   normalizeRegistrationEmailSuffixDomain,
@@ -10499,6 +10517,8 @@ const form = reactive<SettingsForm>({
   payment_recharge_bonus_mode: "bonus",
   payment_recharge_bonus_notice: "",
   payment_enabled_types: [],
+  payment_visible_method_alipay_source: "" as PaymentVisibleMethodSource,
+  payment_visible_method_wxpay_source: "" as PaymentVisibleMethodSource,
   payment_help_image_url: "",
   payment_help_text: "",
   payment_product_name_prefix: "",
@@ -11828,6 +11848,8 @@ async function loadSettings() {
       settings.payment_recharge_bonus_mode,
     );
     form.payment_recharge_bonus_notice = settings.payment_recharge_bonus_notice || "";
+    form.payment_visible_method_alipay_source = normalizePaymentVisibleMethodSource('alipay', settings.payment_visible_method_alipay_source);
+    form.payment_visible_method_wxpay_source = normalizePaymentVisibleMethodSource('wxpay', settings.payment_visible_method_wxpay_source);
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
       settings.account_scheduling_thresholds,
@@ -12501,6 +12523,8 @@ async function saveSettings() {
       payment_recharge_bonus_mode: form.payment_recharge_bonus_mode,
       payment_recharge_bonus_notice: form.payment_recharge_bonus_notice,
       payment_enabled_types: form.payment_enabled_types,
+      payment_visible_method_alipay_source: normalizePaymentVisibleMethodSource('alipay', form.payment_visible_method_alipay_source),
+      payment_visible_method_wxpay_source: normalizePaymentVisibleMethodSource('wxpay', form.payment_visible_method_wxpay_source),
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,
       payment_product_name_suffix: form.payment_product_name_suffix,
@@ -13421,9 +13445,30 @@ async function saveBetaPolicySettings() {
 
 // ==================== Provider Management ====================
 
+const visiblePaymentMethods = computed(() => [
+  {
+    method: 'alipay' as const,
+    title: t('payment.methods.alipay'),
+    sourceKey: 'payment_visible_method_alipay_source' as const,
+  },
+  {
+    method: 'wxpay' as const,
+    title: t('payment.methods.wxpay'),
+    sourceKey: 'payment_visible_method_wxpay_source' as const,
+  },
+]);
+
+function paymentSourceOptions(method: PaymentVisibleMethod): SelectOption[] {
+  return getPaymentVisibleMethodSourceOptions(method).map(option => ({
+    value: option.value,
+    label: isZhLocale.value ? option.labelZh : option.labelEn,
+  }));
+}
+
 const allPaymentTypes = computed(() => [
   { value: "bepusdt", label: t("admin.settings.payment.providerBEpusdt") },
   { value: "easypay", label: t("payment.methods.easypay") },
+  { value: "qufu", label: t("payment.methods.qufu") },
   { value: "alipay", label: t("payment.methods.alipay") },
   { value: "wxpay", label: t("payment.methods.wxpay") },
   { value: "stripe", label: t("payment.methods.stripe") },
@@ -13484,6 +13529,7 @@ const providerDialogRef = ref<InstanceType<
 const providerKeyOptions = computed(() => [
   { value: "bepusdt", label: t("admin.settings.payment.providerBEpusdt") },
   { value: "easypay", label: t("admin.settings.payment.providerEasypay") },
+  { value: "qufu", label: t("admin.settings.payment.providerQufu") },
   { value: "alipay", label: t("admin.settings.payment.providerAlipay") },
   { value: "wxpay", label: t("admin.settings.payment.providerWxpay") },
   { value: "stripe", label: t("admin.settings.payment.providerStripe") },
@@ -13526,95 +13572,7 @@ const cancelRateLimitModeOptions = computed(() => [
   },
 ]);
 
-type ProviderEnablementCandidate = Pick<
-  ProviderInstance,
-  "id" | "provider_key" | "supported_types" | "enabled" | "name"
->;
-
-function getProviderVisibleMethods(
-  provider: ProviderEnablementCandidate,
-): Array<"alipay" | "wxpay"> {
-  if (!provider.enabled) {
-    return [];
-  }
-
-  const supportedTypes = Array.isArray(provider.supported_types)
-    ? provider.supported_types
-    : [];
-  const methods = new Set<"alipay" | "wxpay">();
-  const addMethod = (type: string) => {
-    const method = normalizeVisibleMethod(type);
-    if (method === "alipay" || method === "wxpay") {
-      methods.add(method);
-    }
-  };
-
-  if (provider.provider_key === "alipay") {
-    if (supportedTypes.length === 0) {
-      methods.add("alipay");
-    } else {
-      supportedTypes.forEach((type) => {
-        if (normalizeVisibleMethod(type) === "alipay") {
-          methods.add("alipay");
-        }
-      });
-    }
-  } else if (provider.provider_key === "wxpay") {
-    if (supportedTypes.length === 0) {
-      methods.add("wxpay");
-    } else {
-      supportedTypes.forEach((type) => {
-        if (normalizeVisibleMethod(type) === "wxpay") {
-          methods.add("wxpay");
-        }
-      });
-    }
-  } else if (provider.provider_key === "easypay") {
-    supportedTypes.forEach(addMethod);
-  }
-
-  return Array.from(methods);
-}
-
-function findProviderEnablementConflict(
-  candidate: ProviderEnablementCandidate,
-): { method: "alipay" | "wxpay"; conflicting: ProviderInstance } | null {
-  const claimedMethods = getProviderVisibleMethods(candidate);
-  if (claimedMethods.length === 0) {
-    return null;
-  }
-
-  for (const other of providers.value) {
-    if (other.id === candidate.id || !other.enabled) {
-      continue;
-    }
-
-    const otherMethods = getProviderVisibleMethods(other);
-    const matchedMethod = claimedMethods.find((method) =>
-      otherMethods.includes(method),
-    );
-    if (matchedMethod) {
-      return {
-        method: matchedMethod,
-        conflicting: other,
-      };
-    }
-  }
-
-  return null;
-}
-
-function showProviderEnablementConflict(
-  conflict: { method: "alipay" | "wxpay"; conflicting: ProviderInstance },
-) {
-  appStore.showError(
-    t("admin.settings.payment.enableConflict", {
-      method: t(`payment.methods.${conflict.method}`),
-      provider: conflict.conflicting.name,
-    }),
-  );
-}
-
+// Multiple providers may be enabled for a method; its configured source selects the route.
 async function loadProviders() {
   providersLoading.value = true;
   try {
@@ -13652,21 +13610,6 @@ function openEditProvider(provider: ProviderInstance) {
 async function handleSaveProvider(payload: Partial<ProviderInstance>) {
   providerSaving.value = true;
   try {
-    const candidate: ProviderEnablementCandidate = {
-      id: editingProvider.value?.id ?? 0,
-      provider_key:
-        payload.provider_key ?? editingProvider.value?.provider_key ?? "",
-      supported_types:
-        payload.supported_types ?? editingProvider.value?.supported_types ?? [],
-      enabled: payload.enabled ?? editingProvider.value?.enabled ?? false,
-      name: payload.name ?? editingProvider.value?.name ?? "",
-    };
-    const conflict = findProviderEnablementConflict(candidate);
-    if (conflict) {
-      showProviderEnablementConflict(conflict);
-      return;
-    }
-
     if (editingProvider.value) {
       await adminAPI.payment.updateProvider(editingProvider.value.id, payload);
     } else {
@@ -13693,20 +13636,6 @@ async function handleToggleField(
   else if (field === "refund_enabled") newValue = !provider.refund_enabled;
   else newValue = !provider.allow_user_refund;
 
-  if (field === "enabled" && newValue) {
-    const conflict = findProviderEnablementConflict({
-      id: provider.id,
-      provider_key: provider.provider_key,
-      supported_types: provider.supported_types,
-      enabled: true,
-      name: provider.name,
-    });
-    if (conflict) {
-      showProviderEnablementConflict(conflict);
-      return;
-    }
-  }
-
   const payload: Record<string, boolean> = { [field]: newValue };
   // Cascade: turning off refund_enabled also turns off allow_user_refund
   if (field === "refund_enabled" && !newValue) {
@@ -13727,17 +13656,6 @@ async function handleToggleType(provider: ProviderInstance, type: string) {
   const updated = currentTypes.includes(type)
     ? currentTypes.filter((t) => t !== type)
     : [...currentTypes, type];
-  const conflict = findProviderEnablementConflict({
-    id: provider.id,
-    provider_key: provider.provider_key,
-    supported_types: updated,
-    enabled: provider.enabled,
-    name: provider.name,
-  });
-  if (conflict) {
-    showProviderEnablementConflict(conflict);
-    return;
-  }
   try {
     await adminAPI.payment.updateProvider(provider.id, {
       supported_types: updated,

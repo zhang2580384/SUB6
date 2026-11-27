@@ -131,7 +131,10 @@ var pendingOrderStatuses = []string{
 	payment.OrderStatusRecharging,
 }
 
-const bepusdtOrderRecoveryWindow = 3 * time.Hour
+const (
+	bepusdtOrderRecoveryWindow = 3 * time.Hour
+	qufuOrderRecoveryWindow    = 3 * time.Hour
+)
 
 // providerSensitiveConfigFields is the authoritative list of config keys that
 // are treated as secrets per provider. Must stay in sync with the frontend
@@ -143,6 +146,7 @@ const bepusdtOrderRecoveryWindow = 3 * time.Hour
 var providerSensitiveConfigFields = map[string]map[string]struct{}{
 	payment.TypeBEpusdt:   {"apitoken": {}},
 	payment.TypeEasyPay:   {"pkey": {}},
+	payment.TypeQufu:      {"merchantkey": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}},
 	payment.TypeStripe:    {"secretkey": {}, "webhooksecret": {}},
@@ -156,6 +160,7 @@ var providerSensitiveConfigFields = map[string]map[string]struct{}{
 var providerPendingOrderProtectedConfigFields = map[string]map[string]struct{}{
 	payment.TypeBEpusdt:   {"apitoken": {}, "apibase": {}, "currency": {}, "mode": {}},
 	payment.TypeEasyPay:   {"pkey": {}, "pid": {}},
+	payment.TypeQufu:      {"merchantkey": {}, "mchid": {}, "apibase": {}, "alipaychannel": {}, "wxpaychannel": {}, "notifyurl": {}, "returnurl": {}},
 	payment.TypeAlipay:    {"privatekey": {}, "publickey": {}, "alipaypublickey": {}, "appid": {}},
 	payment.TypeWxpay:     {"privatekey": {}, "apiv3key": {}, "publickey": {}, "appid": {}, "mpappid": {}, "mchid": {}, "publickeyid": {}, "certserial": {}},
 	payment.TypeStripe:    {"secretkey": {}, "webhooksecret": {}, "currency": {}},
@@ -206,6 +211,11 @@ func (s *PaymentConfigService) countPendingOrders(ctx context.Context, providerI
 					paymentorder.StatusEQ(OrderStatusExpired),
 					paymentorder.ExpiresAtGTE(time.Now().Add(-easyPayOrderRecoveryWindow)),
 				),
+				paymentorder.And(
+					paymentorder.ProviderKeyEQ(payment.TypeQufu),
+					paymentorder.StatusEQ(OrderStatusExpired),
+					paymentorder.ExpiresAtGTE(time.Now().Add(-qufuOrderRecoveryWindow)),
+				),
 				// An expired embedded order can still discover a transfer during
 				// historical scanning. Keep its original provider available for
 				// callback verification and active reconciliation in that window.
@@ -231,12 +241,13 @@ func (s *PaymentConfigService) countPendingOrdersByPlan(ctx context.Context, pla
 
 var validProviderKeys = map[string]bool{
 	payment.TypeBEpusdt: true,
+	payment.TypeQufu:    true,
 	payment.TypeEasyPay: true, payment.TypeAlipay: true, payment.TypeWxpay: true, payment.TypeStripe: true, payment.TypeAirwallex: true,
 }
 
 func (s *PaymentConfigService) CreateProviderInstance(ctx context.Context, req CreateProviderInstanceRequest) (*dbent.PaymentProviderInstance, error) {
-	if req.ProviderKey == payment.TypeBEpusdt && (req.RefundEnabled || req.AllowUserRefund) {
-		return nil, infraerrors.BadRequest("VALIDATION_ERROR", "bepusdt refunds are not supported")
+	if (req.ProviderKey == payment.TypeBEpusdt || req.ProviderKey == payment.TypeQufu) && (req.RefundEnabled || req.AllowUserRefund) {
+		return nil, infraerrors.BadRequest("VALIDATION_ERROR", req.ProviderKey+" refunds are not supported")
 	}
 	typesStr := joinTypes(req.SupportedTypes)
 	if err := validateProviderRequest(req.ProviderKey, req.Name, typesStr); err != nil {
@@ -295,6 +306,13 @@ func validateProviderRequest(providerKey, name, supportedTypes string) error {
 		for _, method := range splitTypes(supportedTypes) {
 			if !payment.IsBEpusdtTradeType(method) {
 				return infraerrors.BadRequest("VALIDATION_ERROR", fmt.Sprintf("unsupported bepusdt payment network: %s", method))
+			}
+		}
+	}
+	if providerKey == payment.TypeQufu {
+		for _, method := range splitTypes(supportedTypes) {
+			if method != payment.TypeAlipay && method != payment.TypeWxpay {
+				return infraerrors.BadRequest("VALIDATION_ERROR", "qufu supports only alipay and wxpay")
 			}
 		}
 	}
@@ -402,12 +420,12 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 			return nil, err
 		}
 	}
-	if current.ProviderKey == payment.TypeBEpusdt {
+	if current.ProviderKey == payment.TypeBEpusdt || current.ProviderKey == payment.TypeQufu {
 		if err := validateProviderRequest(current.ProviderKey, current.Name, nextSupportedTypes); err != nil {
 			return nil, err
 		}
 		if (req.RefundEnabled != nil && *req.RefundEnabled) || (req.AllowUserRefund != nil && *req.AllowUserRefund) {
-			return nil, infraerrors.BadRequest("VALIDATION_ERROR", "bepusdt refunds are not supported")
+			return nil, infraerrors.BadRequest("VALIDATION_ERROR", current.ProviderKey+" refunds are not supported")
 		}
 	}
 	if err := s.validateVisibleMethodEnablementConflicts(ctx, id, current.ProviderKey, nextSupportedTypes, nextEnabled); err != nil {

@@ -937,6 +937,13 @@ export default {
         helpImagePlaceholder: '上传或输入图片链接',
         helpTextPlaceholder: '输入帮助说明文本...',
         providerEasypay: '易支付',
+        providerQufu: '趣付分账',
+        qufuHint: '付款后由趣付自动分账至商户已绑定的分账户。SUB6 邀请返利仍为独立的站内额度，不重复向邀请人分账。当前接口不支持在线退款。',
+        qufuApiBaseHint: '填写趣付商户后台提供的网关地址，支持服务域名或完整的 /pay/gateway 地址。',
+        qufuChannelHint: '仅选择趣付后台已开通的通道；扫码与 H5 通道需分别开通。',
+        field_merchantKey: '商户通信密钥',
+        field_alipayChannel: '支付宝通道',
+        field_wxpayChannel: '微信通道',
         providerAlipay: '支付宝官方',
         providerWxpay: '微信官方',
         providerStripe: 'Stripe',
@@ -1459,7 +1466,7 @@ export default {
         methodLabel: '{title} 可见方式',
         methodHint: '控制前台结算页是否展示该方式，以及展示时使用的来源键。',
         sourceLabel: '支付来源',
-        sourceHint: '启用后必须明确选择一个来源；未配置状态不会对外展示该支付方式。',
+        sourceHint: '支付方式是否可用由已启用的服务商决定。仅有一个服务商时可自动选择；多个服务商共用此方式时，请明确选择来源。新增服务商不会自动切换。',
         sourceRequiredError: '{title} 已启用，请先选择支付来源。'
       },
       openaiExperimentalScheduler: {

@@ -11,6 +11,7 @@ export interface ConfigFieldDef {
   optional?: boolean
   clearable?: boolean
   defaultValue?: string
+  placeholder?: string
   hintKey?: string
   options?: TypeOption[]
 }
@@ -66,6 +67,7 @@ export const BEPUSDT_TRADE_TYPES: TypeOption[] = [
 export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
   bepusdt: BEPUSDT_TRADE_TYPES.map(method => method.value),
   easypay: ['alipay', 'wxpay'],
+  qufu: ['alipay', 'wxpay'],
   alipay: ['alipay'],
   wxpay: ['wxpay'],
   stripe: ['card', 'alipay', 'wxpay', 'link'],
@@ -80,6 +82,11 @@ export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct',
 
 export function getDefaultSupportedTypes(providerKey: string): string[] {
   return providerKey === 'bepusdt' ? ['usdt.bep20'] : [...(PROVIDER_SUPPORTED_TYPES[providerKey] || [])]
+}
+
+/** Providers whose documented API supports initiating refunds. */
+export function providerSupportsRefunds(providerKey: string): boolean {
+  return providerKey !== 'bepusdt' && providerKey !== 'qufu'
 }
 
 export function isBuiltInAlipayMethod(type: string): boolean {
@@ -139,6 +146,7 @@ export function getPaymentPopupFeatures(): string {
 export const WEBHOOK_PATHS: Record<string, string> = {
   bepusdt: '/api/v1/payment/webhook/bepusdt',
   easypay: '/api/v1/payment/webhook/easypay',
+  qufu: '/api/v1/payment/webhook/qufu',
   alipay: '/api/v1/payment/webhook/alipay',
   wxpay: '/api/v1/payment/webhook/wxpay',
   stripe: '/api/v1/payment/webhook/stripe',
@@ -151,6 +159,7 @@ export const RETURN_PATH = '/payment/result'
 export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {
   bepusdt: { notifyUrl: WEBHOOK_PATHS.bepusdt, returnUrl: RETURN_PATH },
   easypay: { notifyUrl: WEBHOOK_PATHS.easypay, returnUrl: RETURN_PATH },
+  qufu: { notifyUrl: WEBHOOK_PATHS.qufu, returnUrl: RETURN_PATH },
   alipay: { notifyUrl: WEBHOOK_PATHS.alipay, returnUrl: RETURN_PATH },
   wxpay: { notifyUrl: WEBHOOK_PATHS.wxpay },
   // stripe: 不需要回调 URL 配置，Webhook 单独配置。
@@ -181,6 +190,21 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ConfigFieldDef[]> = {
     { key: 'appId', label: 'App ID', sensitive: false },
     { key: 'privateKey', label: '', sensitive: true },
     { key: 'publicKey', label: '', sensitive: true },
+  ],
+  qufu: [
+    { key: 'apiBase', label: '', sensitive: false, placeholder: 'https://gateway.example.com/pay/gateway', hintKey: 'admin.settings.payment.qufuApiBaseHint' },
+    { key: 'mchId', label: '', sensitive: false },
+    { key: 'merchantKey', label: '', sensitive: true },
+    {
+      key: 'alipayChannel', label: '', sensitive: false, defaultValue: '10',
+      hintKey: 'admin.settings.payment.qufuChannelHint',
+      options: [{ value: '10', label: '10 · QR' }, { value: '20', label: '20 · H5' }],
+    },
+    {
+      key: 'wxpayChannel', label: '', sensitive: false, defaultValue: '11',
+      hintKey: 'admin.settings.payment.qufuChannelHint',
+      options: [{ value: '11', label: '11 · QR' }, { value: '21', label: '21 · H5' }],
+    },
   ],
   wxpay: [
     { key: 'appId', label: 'App ID', sensitive: false },

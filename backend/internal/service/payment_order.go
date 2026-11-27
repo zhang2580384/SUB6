@@ -355,6 +355,22 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 			snapshot["merchant_id"] = merchantID
 		}
 	}
+	if providerKey == payment.TypeQufu {
+		snapshot["merchant_id"] = strings.TrimSpace(sel.Config["mchId"])
+		snapshot["currency"] = payment.DefaultPaymentCurrency
+		snapshot["share_tag"] = "1"
+		snapshot["share_fund_list"] = ""
+		channel := strings.TrimSpace(sel.Config["alipayChannel"])
+		if NormalizeVisibleMethod(req.PaymentType) == payment.TypeWxpay {
+			channel = strings.TrimSpace(sel.Config["wxpayChannel"])
+			if channel == "" {
+				channel = "11"
+			}
+		} else if channel == "" {
+			channel = "10"
+		}
+		snapshot["channel_type"] = channel
+	}
 	if providerKey == payment.TypeStripe || providerKey == payment.TypeBEpusdt {
 		snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
 	}
@@ -508,6 +524,11 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	providerReturnURL, err := buildPaymentReturnURL(canonicalReturnURL, order.ID, outTradeNo, resumeToken)
 	if err != nil {
 		return nil, err
+	}
+	// Qufu requires a query-free frontUrl. Its browser return is display-only;
+	// signed notifications and authenticated order queries perform fulfillment.
+	if sel.ProviderKey == payment.TypeQufu {
+		providerReturnURL = canonicalReturnURL
 	}
 	providerReq := buildProviderCreatePaymentRequest(CreateOrderRequest{
 		PaymentType:    req.PaymentType,

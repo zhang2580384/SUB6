@@ -348,6 +348,7 @@ export default {
       bsc: { bnb: 'BNB (BSC)' },
       ton: { gram: 'TON (TON)' },
       easypay: 'EasyPay',
+      qufu: 'Qufu split payments',
       alipay: 'Alipay',
       wxpay: 'WeChat Pay',
       stripe: 'Stripe',

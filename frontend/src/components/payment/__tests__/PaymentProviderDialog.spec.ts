@@ -64,6 +64,7 @@ function mountDialog(options: { editing?: ProviderInstance | null; globalFeeRate
       editing: options.editing ?? null,
       globalFeeRate: options.globalFeeRate,
       allKeyOptions: [
+        { value: 'qufu', label: 'Qufu split payments' },
         { value: 'easypay', label: 'EasyPay' },
         { value: 'alipay', label: 'Alipay' },
         { value: 'wxpay', label: 'WeChat Pay' },
@@ -71,6 +72,7 @@ function mountDialog(options: { editing?: ProviderInstance | null; globalFeeRate
         { value: 'airwallex', label: 'Airwallex' },
       ],
       enabledKeyOptions: [
+        { value: 'qufu', label: 'Qufu split payments' },
         { value: 'easypay', label: 'EasyPay' },
         { value: 'alipay', label: 'Alipay' },
         { value: 'wxpay', label: 'WeChat Pay' },
@@ -93,7 +95,8 @@ function mountDialog(options: { editing?: ProviderInstance | null; globalFeeRate
           template: '<div />',
         },
         ToggleSwitch: {
-          template: '<div />',
+          props: ['label', 'checked'],
+          template: '<div :data-toggle-label="label" />',
         },
       },
     },
@@ -218,6 +221,47 @@ describe('PaymentProviderDialog fees', () => {
 })
 
 describe('PaymentProviderDialog callback URLs', () => {
+  it('creates Qufu with a masked secret input, QR defaults and generated callbacks', async () => {
+    const wrapper = mountDialog()
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('qufu')
+    await nextTick()
+    await wrapper.findAll('input')[0].setValue('Qufu test')
+    await wrapper.get('[data-testid="provider-config-apiBase"]').setValue('https://gateway.example.com/pay/gateway')
+    await wrapper.get('[data-testid="provider-config-mchId"]').setValue('example-merchant')
+    const secret = wrapper.get('[data-testid="provider-config-merchantKey"]')
+    expect(secret.attributes('type')).toBe('password')
+    await secret.setValue('example-signing-key-for-tests')
+    expect(wrapper.find('[data-toggle-label="admin.settings.payment.refundEnabled"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="qufu-split-hint"]').exists()).toBe(true)
+    await wrapper.get('#provider-form').trigger('submit')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload).toMatchObject({
+      provider_key: 'qufu', supported_types: ['alipay', 'wxpay'], refund_enabled: false, allow_user_refund: false,
+    })
+    expect(payload.config).toMatchObject({
+      merchantKey: 'example-signing-key-for-tests', alipayChannel: '10', wxpayChannel: '11',
+      notifyUrl: window.location.origin + '/api/v1/payment/webhook/qufu', returnUrl: window.location.origin + '/payment/result',
+    })
+  })
+
+  it('preserves the stored Qufu key when left empty and clears stale refund flags', async () => {
+    const provider = providerFactory({
+      provider_key: 'qufu', name: 'Qufu', supported_types: ['alipay', 'wxpay'],
+      config: { apiBase: 'https://gateway.example.com', mchId: 'example-merchant' },
+      refund_enabled: true, allow_user_refund: true,
+    })
+    const wrapper = mountDialog({ editing: provider })
+    ;(wrapper.vm as unknown as { loadProvider: (value: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    expect((wrapper.get('[data-testid="provider-config-merchantKey"]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.find('[data-toggle-label="admin.settings.payment.refundEnabled"]').exists()).toBe(false)
+    expect(wrapper.find('[data-toggle-label="admin.settings.payment.allowUserRefund"]').exists()).toBe(false)
+    await wrapper.get('#provider-form').trigger('submit')
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
+    expect(payload).toMatchObject({ refund_enabled: false, allow_user_refund: false })
+    expect(payload.config).not.toHaveProperty('merchantKey')
+  })
+
   it('defaults to built-in collection and saves without gateway credentials', async () => {
     const wrapper = mountDialog()
     ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('bepusdt')

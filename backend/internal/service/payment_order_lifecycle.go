@@ -208,8 +208,9 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 		}
 		notificationTradeNo := o.PaymentTradeNo
 		isEasyPay := payment.GetBasePaymentType(prov.ProviderKey()) == payment.TypeEasyPay
+		requiresVerifiedFulfillment := isEasyPay || prov.ProviderKey() == payment.TypeQufu
 		if upstreamTradeNo := strings.TrimSpace(resp.TradeNo); paymentOrderShouldPersistUpstreamTradeNo(queryRef, upstreamTradeNo, notificationTradeNo) {
-			if !isEasyPay {
+			if !requiresVerifiedFulfillment {
 				if _, updateErr := s.entClient.PaymentOrder.Update().
 					Where(paymentorder.IDEQ(o.ID)).
 					SetPaymentTradeNo(upstreamTradeNo).
@@ -225,14 +226,14 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 		}
 		if err := s.HandlePaymentNotification(ctx, &payment.PaymentNotification{TradeNo: notificationTradeNo, OrderID: o.OutTradeNo, Amount: resp.Amount, Status: payment.ProviderStatusSuccess, Metadata: resp.Metadata}, prov.ProviderKey()); err != nil {
 			slog.Error("fulfillment failed during checkPaid", "orderID", o.ID, "error", err)
-			if isEasyPay {
+			if requiresVerifiedFulfillment {
 				// Invalid identity/amount and failed local persistence must remain
 				// eligible for reconciliation, never count as a recovered payment.
 				return ""
 			}
 			// Still return already_paid — order was paid, fulfillment can be retried
 		}
-		if isEasyPay {
+		if requiresVerifiedFulfillment {
 			current, loadErr := s.entClient.PaymentOrder.Get(ctx, o.ID)
 			if loadErr != nil || current.PaidAt == nil || (current.Status != OrderStatusPaid && current.Status != OrderStatusRecharging && current.Status != OrderStatusCompleted) {
 				return ""
@@ -290,7 +291,7 @@ func paymentOrderQueryReference(order *dbent.PaymentOrder, prov payment.Provider
 	}
 
 	switch payment.GetBasePaymentType(providerKey) {
-	case payment.TypeAlipay, payment.TypeEasyPay, payment.TypeWxpay:
+	case payment.TypeAlipay, payment.TypeEasyPay, payment.TypeWxpay, payment.TypeQufu:
 		return strings.TrimSpace(order.OutTradeNo)
 	default:
 		if tradeNo := strings.TrimSpace(order.PaymentTradeNo); tradeNo != "" {
